@@ -1,5 +1,11 @@
 # Trae 国际版（ai）支持实施方案
 
+## 适用阶段与已实现入口
+
+本文保存 2026-09-15 的区域支持方案，并包含 2026-10-11 的刷新契约修订。当前版本已按面板并行注册国内版、企业版与国际版供应商；切换账号不再代表只保留一个全局区域。当前入口分别见 `src/region.ts`、`src/plugin-config.ts` 和 `src/index.ts`。
+
+下文的模块清单描述当时计划，部分函数命名与界面组织后来已经调整。国际 CLI 仍在 `src/auth.ts` 的读取路径中明确拒绝；`.trae` 路径被枚举不代表其登录契约已获支持。当前模型目录数量以实际刷新结果为准，本文的静态数量保留为历史记录。
+
 > 整理自 2026-09-15 的调研与取证：workbuddy 国际版机制对照、本机四版凭证实测、
 > 网关/目录/refresh/pay 的只读探测。原始证据见 `docs/INTL_SG_EVIDENCE.md`（证据等级 A/A+/B/D），
 > 探测脚本 `scripts/probe-intl.mjs`、`scripts/probe-intl-parse.mjs` 可复跑。
@@ -23,13 +29,10 @@ Trae 国内版与国际版账号在本插件中获得完全对等的支持：**�
 3. **region 判定用凭证字段，不用用户配置。** 权威来源 `userRegion.region`（`'CN'|'SG'`，
    大小写不敏感——日志中亦见小写 `'sg'`），host 后缀 `.trae.ai` 兜底，edition 兜底。
 4. **refresh 契约按 edition 分叉（4 套），是唯一不按 region 二分的点**：
-   ⚠️ **已被 2026-10-11 的新契约取代**，见 INTL_SG_EVIDENCE.md §2.2.1：四版现均走
-   `/trae/api/v3/oauth/ExchangeToken`，ClientID 按「是否 SOLO 包」分叉（桌面 `ono9krqynydwx5` /
-   SOLO（CN + 国际）`en1oxy7wnw8j9n`），且**强制 `DeviceProof` 签名**（密钥取自 storage.json 的
-   `iCubeAuthInfo://icube-dc:`）。旧 `/cloudide` 契约今日对 cn/sg/solo 仍 200，降级为**回退**。
-   下段为原设计记录：`cn` / `sg` / `solo` 走 `/cloudide/api/v3/trae/oauth/ExchangeToken` +
-   ClientID `ono9krqynydwx5`；`solo-sg` 走 `/trae/api/v3/oauth/ExchangeToken` + ClientID
-   `en1oxy7wnw8j9n` + DeviceInfo（`PlatformCode: "SOLO_PC"`）。
+   ⚠️ **已被 2026-10-11 的新契约取代**，见 INTL_SG_EVIDENCE.md §2.2.1：四版现均走 `/trae/api/v3/oauth/ExchangeToken`，ClientID 按「是否 SOLO 包」分叉（桌面 `ono9krqynydwx5` / SOLO（CN + 国际）`en1oxy7wnw8j9n`），且**强制 `DeviceProof` 签名**（密钥取自 storage.json 的 `iCubeAuthInfo://icube-dc:`）。
+
+   旧 `/cloudide` 契约今日对 cn/sg/solo 仍 200，降级为**回退**。 下段为原设计记录：`cn` / `sg` / `solo` 走 `/cloudide/api/v3/trae/oauth/ExchangeToken` + ClientID `ono9krqynydwx5`；`solo-sg` 走 `/trae/api/v3/oauth/ExchangeToken` + ClientID `en1oxy7wnw8j9n` + DeviceInfo（`PlatformCode: "SOLO_PC"`）。
+
    证据见 INTL_SG_EVIDENCE.md §2.2（桌面版 `userJwt` 直证同 CN；SOLO 国际版官方日志直证新契约）。
 5. **请求头与解密器两侧通用（实测）**：`buildTraeCnHeaders` 的整套头（`x-app-id` `6eefa01c-…`、
    identity 头、`Cloud-IDE-JWT`）被 SG 网关原样接受；`decryptTraeStorageValue` 四版通吃。
@@ -125,8 +128,8 @@ export interface Config {
   `solo-remote.ts` 的 `TRAE_SOLO_REMOTE_BASE` 常量拆为两 region 值
   （实测 en / Asia/Singapore 头 200，timezone/language 头保持现状即可）。
 - `usage.ts`：`TraeUsageClient` 增加 ai 分支——端点 `ide_user_pay_status`（POST `{}`）、
-  响应解析订阅/试用状态（`is_dollar_usage_billing` / `trial_status` / `solo_fission_*` /
-  `enable_solo_*` 等，字段取舍实现时定）；cn 分支维持 `web_user_ent_usage`。
+  响应解析订阅/试用状态（`is_dollar_usage_billing` / `trial_status` / `solo_fission_*` / `enable_solo_*` 等，字段取舍实现时定）；cn 分支维持 `web_user_ent_usage`。
+
   **ai 的 `TraeWebCredits` 与 cn 不同构**，卡片需要按 region 渲染不同区块。
 - `protocol.ts buildTraeCnHeaders`：删除 `edition !== 'cn' && edition !== 'solo` 的抛错（头实测通用），
   函数改名 `buildTraeHeaders` 并保留导出别名一个版本。
@@ -181,7 +184,7 @@ export interface Config {
 
 | 项 | 计划 |
 |---|---|
-| `llm_utils_chat` 在 ai 的端到端可用性 | 落地时用 ai 账号发一次最小 `solo_work_lite` 受控请求（消耗少量额度，与 CN 版上线时同型） |
+| `llm_utils_chat` 在 ai 的端到端可用性 | 实现时用 ai 账号发一次最小 `solo_work_lite` 受控请求（消耗少量额度，与 CN 版上线时同型） |
 | `solo-sg` refresh 的 DeviceInfo 必填性 | token 2026-09-28 过期后自然触发；先按官方形态带上 |
 | 国际 CLI（`~/.trae`）的默认 host | 第一阶段国际 CLI 禁用，取证后放开 |
 | `custom_model_*` BYOK 条目甄别 | merge 时 display 名非空才收，或交用户勾选 |
@@ -189,21 +192,21 @@ export interface Config {
 
 ## 实施阶段
 
-**阶段 1：region 基础设施 + 凭证层放开**（无行为变化，纯枚举）
-`region.ts`、`candidates()`/`readAll()` 放开、`identity.ts` 国际 product.json、`refresh.ts` 契约表。
-验收：`auth.spec.ts`/`region.spec.ts`/`refresh.spec.ts` 全绿；CN 用户无感知。
+**阶段 1：region 基础设施 + 凭证层放开**（无行为变化，纯枚举） `region.ts`、`candidates()`/`readAll()` 放开、`identity.ts` 国际 product.json、`refresh.ts` 契约表。
 
-**阶段 2：配置分桶 + 目录双轨**
-`Config.regions` + `regionStateOf` 迁移 + `fallbackModelsFor` 双份 + `currentRegion` 收敛。
-验收：`catalog.spec.ts`/`settings-integration.spec.ts` 全绿；旧配置读取等价于 regions.cn。
+验收：`auth.spec.ts`/`region.spec.ts`/`refresh.spec.ts` 全部通过；CN 用户无感知。
+
+**阶段 2：配置分桶 + 目录双轨** `Config.regions` + `regionStateOf` 迁移 + `fallbackModelsFor` 双份 + `currentRegion` 收敛。
+
+验收：`catalog.spec.ts`/`settings-integration.spec.ts` 全部通过；旧配置读取等价于 regions.cn。
 
 **阶段 3：上游路由 + usage**
 网关常量表接入 solo / solo-remote / raw / usage；`buildTraeHeaders` 放开。
-验收：`solo*.spec.ts`/`usage.spec.ts` 的按 region URL 断言全绿。
+验收：`solo*.spec.ts`/`usage.spec.ts` 的按 region URL 断言全部通过。
 
 **阶段 4：卡片与 web-status 区域化**
 `status-paths`/`web-status`/`TraeUsageCard` 的 region 读写与订阅制区块。
-验收：`web-status.spec.ts` 全绿；手工验证 CN↔ai 切换不丢勾选。
+验收：`web-status.spec.ts` 全部通过；手工验证 CN↔ai 切换不丢勾选。
 
 **阶段 5：端到端受控验证 + 发布**
 ai 账号最小 chat 探测 → README/CHANGELOG → 版本发布（对齐 RELEASING.md 流程）。

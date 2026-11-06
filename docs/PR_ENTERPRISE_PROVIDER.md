@@ -1,8 +1,10 @@
 # PR: 新增 CN 企业版（租户）provider
 
+> 2026-11-06 全文复核：v3.8.0阶段的PR说明，708项为当时测试。当前个人、企业、国际三个面板独立，企业版默认关闭。本文的分支、提交及发布步骤仅是历史记录。
+
 > 分支：`feat/enterprise-provider`（基于 `main` = v3.7.0）
 > 提交：13 个（首个为 provider 拆分，其余为面板、租户作用域与运行时映射修复）
-> 自测：`pnpm run check` 全绿（708 项，此前 670）
+> 自测：`pnpm run check` 全部通过（708 项，此前 670）
 
 ---
 
@@ -33,7 +35,7 @@
 | `ai` | `trae-global` | ai | **开** | 国际版，行为不变 |
 
 - `TRAE_PANELS` / `regionOfPanel` / `providerOfPanel` 定义映射；每个面板只是
-  `regions` 设置映射里多一个槽位，**没有新增存储形状**。`accounts` 增加
+  `regions` 设置映射里多一个槽位，**沿用既有映射结构，但新增enterprise键**。`accounts` 增加
   `enterprise` 键，使企业版能绑定自己的账号。
 - Host 侧凡是按区域做键的地方（stacks、wire 映射、目录、注册、发现）全部改为按面板，
   两个 CN 池因此各自保留名录（它们确实不同：`DeepSeek-V4.1-Flash` 仅企业池有）。
@@ -120,9 +122,8 @@ if (event === 'error') return { ok: false, status: 200, kind: 'client', message:
    - const base = this.options.baseUrl ?? REGION_GATEWAYS[region].chat
    + const base = this.options.baseUrl ?? this.chatBaseOf(credential)
    ```
-   这是本次最关键的一处：两个池名录不同（`DeepSeek-V4.1-Flash` **只有企业池列**），
-   钉在企业池的客户端却去读消费池名录 → 永远发现不了自己池的独占模型 →
-   `mergeTraeModelSources` 拿不到 wire 行 → 不生成 `wireConfigName` / `wireFunction`。
+   这是本次最关键的一处：两个池名录不同（`DeepSeek-V4.1-Flash` **只有企业池列**）， 钉在企业池的客户端却去读消费池名录 → 永远发现不了自己池的独占模型 → `mergeTraeModelSources` 拿不到 wire 行 → 不生成 `wireConfigName` / `wireFunction`。
+
    实测企业路由修好后：wire 名录 49 行，含 `DeepSeek-V4.1-Flash`（`solo_work_remote`）。
 
 3. **`TraeSoloBridge` 查表大小写不敏感 + 退回目录行 id**（`src/solo-bridge.ts`）。
@@ -164,7 +165,7 @@ if (event === 'error') return { ok: false, status: 200, kind: 'client', message:
 
 ## 4. 实机验证（真实 `tob_online` 帐号）
 
-走完整生产链路：企业路由发现 → 目录 → bridge → 企业网关。
+验证完整生产链路：企业路由发现 → 目录 → bridge → 企业网关。
 
 ```
 merged row: { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash",
@@ -179,7 +180,7 @@ PascalCase:              ok=true host=console.enterprise.trae.cn
 ## 5. 兼容性
 
 - `trae` / `trae-global` 行为**完全不变**（同一网关、无 `session_id`、同样的名录来源语义）。
-- 旧配置无需迁移：`regions.cn.enabled` 一个开关同时管该区的两个 provider。
+- 面板独立控制：`regions.cn.enabled`控制个人版，`regions.enterprise.enabled`控制企业版；企业版缺省关闭。
 - `Config` 只**新增**可选字段（`wireConfigName`），旧文档读为 `undefined` 并走兜底。
 - 单 client 的 `createTraeShim` 形式保留，`TraeShim` 只新增 `tokenOf()`。
 

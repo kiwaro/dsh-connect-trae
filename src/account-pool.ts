@@ -1,27 +1,16 @@
 /**
- * The account pool: which local Trae account should be billed, and why.
+ * 根据账号状态、积分有效期和余额，为当前面板选择请求账号。
  *
- * 参考：`dsh-connect-workbuddy` 的 `src/account-pool.ts`（同一套「打分 + 排序 +
- *   挑免费模型」的纯逻辑）。本文件的规则与该实现**逐条对齐**，只在 Trae 上游
- *   确实不同的地方分叉，分叉处都在注释里点名原因。
- * 改动： trae 侧的原料不是「一个积分数」而是 `workAvailable` / `generalAvailable`
- *   两个桶（SOLO 聊天只花 General），快到期原料来自 `TraeWebCredits.expiry`
- *   的分桶（24h/3d/7d），面板有三个（cn / enterprise / ai）而不是两个区域。
+ * 参考 WorkBuddy 的账号排序和免费模型选择逻辑，分别维护 Trae 的额度结构、
+ * 面板范围和排序规则。国内版对话使用 generalAvailable，工作积分单独记录；
+ * 临期额度来自 TraeWebCredits.expiry。三个面板分别为 cn、enterprise 和 ai。
  *
- * 本模块只做**纯逻辑**（打分、排序、挑免费模型、判定出池原因），不碰网络、
- * 不碰文件系统，以便单测直接钉住这些规则 —— 它们包含四条猜不出来、必须显式
- * 表达的结论：
- *
- *   1. **`creditMultiplier` 缺失不等于免费。** Trae 国内版的静态 fallback 目录
- *      **整份都没有**该字段（`src/catalog.ts`），所以「没有倍率」在 cn 是常态。
- *      把 `undefined` 当作 0 会让批量测试在首次目录刷新前拿收费模型去跑真实
- *      chat 调用，直接产生用户没预期的开销。
- *   2. **没有免费模型时不回退到收费模型。** 宁可告知「本面板暂无免费模型」，
- *      也不静默换一个收费模型去跑批量测试。
- *   3. **`rate-limited` 只是暂时出池。** 它恰恰是本功能最想利用的状态（模型
- *      本身没问题），当成永久不可用剔除等于把好账号扔了。
- *   4. **快过期的额度排在额度多的前面**（workbuddy issue #70 的教训）：如果
- *      按额度总额优先，一个当天要清零的账号永远排不到，那笔额度必然作废。
+ * 本模块仅计算评分、排序、测试模型和排除原因，通过调用方读取状态。
+ * 测试需覆盖以下规则：
+ * 1. creditMultiplier 缺失表示费用未知，不能当成免费。
+ * 2. 自动模式没有免费模型时返回无目标，不自动选择收费模型。
+ * 3. 限流状态到重试时间后允许再次尝试，不保证届时已经恢复。
+ * 4. 临期积分优先于余额总额，以减少积分到期后未使用的情况。
  *
  * @module dsh-connect-trae/account-pool
  */
@@ -85,7 +74,7 @@ export interface TraePoolProbe {
   /**
    * WHICH MODEL this measurement is about.
    *
-   * `1005` (plan gate), `4001` (no SOLO function serves this `config_name`) and
+   * `1005` (plan gate), `4001` (this probe's function rejected the request) and
    * `4011` (throttle) are all ACCOUNT × MODEL conditions: the same credential
    * answers other models at the same second. A row rendered as plain "可用"
    * therefore claims more than the measurement says. Storing the model id is what
@@ -223,7 +212,7 @@ export const MODEL_BUSY_COOLDOWN_MS = 2 * 60_000
  * The order matters and is NOT arbitrary:
  *
  * - A `credential-rejected` account is excluded regardless of any cooldown: its
- *   token is not accepted, so waiting cannot help and the user must re-auth.
+ *   token is not accepted, so the pool requires re-authentication or a fresh test to clear that outcome.
  *   (`401` / `403` from Trae, and the `ExchangeToken` rejection of an expired
  *   refresh token, land here.)
  * - A limited, unreachable or failed outcome is checked against its stated (or
@@ -304,47 +293,13 @@ function retryDue(
 }
 
 /**
- * Rank a pool's members best-first.
- *
- * The rule, in priority order — this is the whole feature:
- *
- * 1. **Usability.** Only accounts that can be billed right now are candidates;
- *    they always outrank every excluded one.
- * 2. **Expiring credits first, soonest first.** Points about to expire are worth
- *    exactly zero after they do, so spending them before they lapse is strictly
- *    better than saving them.
- * 3. **Largest expiring amount.** Between two accounts that both have expiring
- *    points, the one with more at risk goes first.
- * 4. **Credits, highest first.** Among accounts with nothing expiring, spend the
- *    one with the most, so a nearly-drained account is conserved.
- * 5. **Freshest credential.** Tie-break so a stale token never wins a draw.
- * 6. **Account id.** Final tie-break, making the order TOTAL: two accounts equal on
- *    every key would otherwise keep the caller's array order, so the same pool
- *    could rotate differently between two runs.
- *
- * WHY EXPIRY OUTRANKS SIZE (workbuddy issue #70). These used to be strict
- * lexicographic keys: total, THEN expiry. Since totals are almost never exactly
- * equal, the expiry rule was unreachable — an account with 196 points lapsing that
- * day ranked LAST behind accounts that expire weeks later, simply because it held
- * ~1,200 fewer points overall. It was never selected, so those points always
- * lapsed. A "use it or lose it" rule that another rule completely shadows is not a
- * tie-break, it is dead code.
- *
- * WHY SPENDING THE SMALL EXPIRING ACCOUNT IS STILL RIGHT. Credits are fungible, so
- * using the rich account instead does not preserve the 1 point — it spends the 1
- * point's chance and loses it. Using the expiring account spends a point that was
- * going to be lost anyway, and the rich account is still there for the next
- * request. The only real cost is a failover round-trip if the expiring account
- * cannot cover a whole request, which the exclusion/failover path already absorbs.
- *
- * Excluded accounts are still RETURNED (sorted after the candidates) so the card
- * can explain why each is out; they differ from candidates by `excludedBy` being
- * set, never by being silently dropped.
- *
- * Pure and total: the same input always yields the same order, and it never throws
- * on missing data (an account with no credits is ranked as 0, not crashed on).
- */
-export function rankPool(
+ * Rank members by local eligibility, then whether credits expire soon, nearest
+ * expiry, expiring amount, balance score, credential expiry, and account id.
+ * Excluded rows are retained after eligible rows so the card can explain them.
+ * Missing balances score zero. Equal inputs and clock produce the same order.
+ * These preferences do not guarantee request success, lowest cost, or that all
+ * expiring credits will be consumed before their deadline.
+ */export function rankPool(
   members: readonly TraePoolMember[],
   nowMs: number,
 ): TraePoolRanked[] {
@@ -443,7 +398,7 @@ export function billableMembers(
  * The account to bill, or undefined when the pool has no usable member.
  *
  * A thin selector over {@link rankPool} so the winner is decided in exactly one
- * place: every caller that needs "who serves now" gets the same answer.
+ * place: callers with the same input and clock get the same answer.
  */
 export function pickAccount(
   members: readonly TraePoolMember[],
@@ -580,8 +535,8 @@ export function createLatestWins<Key extends string>(): {
  *    a clock.
  *  - `rate_limited`   → `rate-limited`: `4011` or an honest 429 — transient by
  *    definition, so it cools down rather than leaving the pool forever.
- *  - `unsupported`    → `not-found`: `4001` says no SOLO function serves this
- *    `config_name`. It is MODEL-scoped, so the recorded `modelId` is what keeps the
+ *  - `unsupported`    → `not-found`: `4001` records rejection under the
+ *    function used by this probe, not every possible SOLO function. It is MODEL-scoped, so the recorded `modelId` is what keeps the
  *    row honest, and nothing about the account changes by waiting.
  *  - `unknown`        → `failed`: a timeout, a transport error or a proxy problem.
  *    It cools down (it is not a statement about the account) and carries the

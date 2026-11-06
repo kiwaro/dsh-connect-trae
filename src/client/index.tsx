@@ -1,6 +1,7 @@
+import { claimComposerOrder } from './composer-order.ts'
 /**
  * Browser half: Trae usage summary inside Plugin configuration.
- * Mirrors the `dsh-workbuddy-connect` browser-plugin entry so the external
+ * Mirrors the `dsh-connect-workbuddy` browser-plugin entry so the external
  * presentation stays consistent across the plugin family.
  *
  * DSH 0.1.7+ only. The client settings surface is `configForms` (probed
@@ -8,7 +9,8 @@
  * dependency gate is hard — an `inject` entry the running line does not
  * provide keeps `apply` from running at all, which is exactly how the plugin
  * ended up `pending (waiting for service: settingsScope)` before 2.3.0), and
- * the configuration cards live in the Plugins page's `plugins.*` slots. The
+ * the configuration uses a dedicated settings.section page plus plugins.*
+ * fallback cards. The
  * pre-0.1.7 `settingsScope` service and `settings.plugin.item` slot are gone
  * with the line they served.
  */
@@ -296,40 +298,9 @@ export function apply(ctx: ClientContext): void {
       return scope
     })()
 
-    /**
-     * The configuration card, now drawn as its own `settings.section` page.
-     *
-     * WHY THE SEAT MOVED. It used to register into the Plugins page's
-     * `plugins.bundle.config` / `plugins.row.config` slots, which put the whole
-     * configuration inside the plugin's market detail page, below its README.
-     * That page's job is to describe and install a package; a page that both
-     * advertises and configures makes the user scroll past marketing to reach a
-     * checkbox. `settings.section` is the shell's seat for "this plugin owns a
-     * settings page", addressed by the same id the nav row uses.
-     *
-     * WHY `id` AND `order: 30`. The id is this plugin's package name, and it is
-     * the SAME string the nav glyph below registers under, because the shell
-     * renders `settings.section.icon` filtered by `{ only: section.id }` — an
-     * icon whose id does not match never appears and the shell's default glyph
-     * silently stays. `order: 30` places this page after the shipped sections
-     * (account -10, general 0, models 10, plugins 15, agent-presets 20) and
-     * alongside the other third-party pages, without colliding with a built-in.
-     *
-     * WHY NO CAPABILITY PROBE. `slots.inject()` already IS the probe: it runs
-     * the callback now when the slot is declared and subscribes otherwise,
-     * doing nothing at all on a host that never declares `settings.section`.
-     * Wrapping it in a `typeof` test on some accessor is how a page ends up
-     * never registering anywhere, silently — the failure mode this plugin's
-     * sibling shipped twice. Let the host answer.
-     *
-     * The page and its glyph are registered from ONE `inject` callback and both
-     * disposers are returned as a pair: the glyph is only meaningful while the
-     * page's id exists, so the pairing is structural rather than a convention,
-     * and Cordis disposes both with this fiber.
-     */
-    // One spelling, shared with the composer pill's route (`settings-route.ts`):
-    // an id the nav row and `openSection(id)` disagree on opens the dialog on
-    // the shell's fallback section instead, silently.
+    // Keep the dedicated settings page and expose the same card in plugin
+    // details. The detail surface is where installed plugins are configured
+    // on older DSH layouts; hiding it leaves a running plugin with no form.
     const traeSettingsId = TRAE_SETTINGS_ID
     const registerSettingsPage = (): void => {
       registerSlotEntry(ctx, 'settings.section#dsh-connect-trae', 'settings.section', () => {
@@ -400,31 +371,33 @@ export function apply(ctx: ClientContext): void {
 
     registerSettingsPage()
 
+    for (const key of ['dsh-connect-trae', 'include:dsh-connect-trae']) {
+      for (const slotName of ['plugins.bundle.config', 'plugins.row.config']) {
+        const cardKey = slotName === 'plugins.row.config' ? `${key}#${key}` : key
+        registerSlotEntry(ctx, `${slotName}#${cardKey}`, slotName, () =>
+          (ctx.slots as unknown as {
+            register(options: {
+              name: string; key: string; priority: number;
+              inject: () => TraeUsageCardInjected;
+            }, component: unknown): () => void
+          }).register({
+            name: slotName,
+            key: cardKey,
+            priority: 30,
+            inject: () => ({ t, settingsScope }),
+          }, TraeUsageCard), 'plugin configuration card')
+      }
+    }
+
     /**
-     * Credit readout in the composer row (`conversation.input.right`, a
-     * session-scope list slot rendered immediately before the model picker).
+     * Register the credit readout in the right composer row and the stats dock.
+     * The gate chooses the configured position and an enabled Trae panel: it
+     * prefers the selected Trae provider and otherwise uses the first enabled one.
+     * It can therefore remain visible while a different connector is selected.
      *
-     * Provider-scoped on purpose: it renders only while the session's selected
-     * model belongs to this plugin. That is what keeps two connector plugins
-     * from competing for one shared row — the sidebar foot, where this line used
-     * to live, is a single root row, and the observed result beside
-     * dsh-connect-workbuddy's two rows was this plugin's line squeezed down to a
-     * clipped "Tr".
-     *
-     * Registration is unconditional; the gate reads the Host's modelSelection
-     * projection and returns null for every other provider, so nothing is drawn
-     * and no fetch loop starts while another provider is selected.
-     *
-     * THE SAME READOUT IS REGISTERED IN TWO SEATS (learned from workbuddy issue
-     * #62), and BOTH registrations are unconditional too. Which one actually
-     * draws is decided inside the gate by the per-region `creditPosition`
-     * setting, so changing the setting is a settings write rather than a slot
-     * re-registration — this file's own header records how fragile rebinding a
-     * slot is across DSH lines (the rc.6→rc.7 `id`/`order` → `key`/`priority`
-     * rename). The composer row is a LIST seat shared with every other bundle,
-     * so a third party parking something there can crowd this readout out of
-     * existence; the second seat is what keeps one plugin's presence from
-     * deciding another's.
+     * claimComposerOrder shares occupied numeric orders with participating
+     * connector bundles. A later claim moves to a lower order, farther left
+     * within the same slot; it does not move to conversation.input.left.
      */
     const registerPointsSlot = (
       slotName: string,
@@ -432,11 +405,13 @@ export function apply(ctx: ClientContext): void {
       order: number,
       position: TraeCreditPosition,
     ): void => {
-      registerSlotEntry(ctx, `${slotName}#${id}`, slotName, () => (ctx.slots as unknown as {
+      registerSlotEntry(ctx, `${slotName}#${id}`, slotName, () => {
+        const claim = claimComposerOrder(order)
+        try { const dispose = (ctx.slots as unknown as {
         register(
           // The gate's OWN prop shape, not the card's: this registration
           // injects `position` on top of the card's `t` / `settingsScope`.
-          // Spellling it `TraeUsageCardInjected` made the extra prop an
+          // Spelling it `TraeUsageCardInjected` made the extra prop an
           // excess-property surprise waiting for the next refactor to trip
           // over.
           options: { name: string; id: string; order: number; locale: string; inject: () => ComposerPointsGateProps },
@@ -445,13 +420,16 @@ export function apply(ctx: ClientContext): void {
       }).register({
         name: slotName,
         id,
-        order,
+        order: claim.order,
         locale: namespace,
         // `settingsScope` rides along so the gate can honor the card's
         // "show credits in the composer" switch and its seat without a second
         // writer; `position` is which seat THIS registration occupies.
         inject: () => ({ t, settingsScope, position, onOpenSettings }),
-      }, ComposerPointsGate), `points slot "${slotName}"`)
+      }, ComposerPointsGate)
+        return () => { try { dispose() } finally { claim.release() } }
+        } catch (error) { claim.release(); throw error }
+      }, `points slot "${slotName}"`)
     }
 
     // The composer row: the default seat, and the closer, more glanceable one.

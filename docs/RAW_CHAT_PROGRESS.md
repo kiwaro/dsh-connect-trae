@@ -1,8 +1,12 @@
 # Raw Chat 开发阶段交接
 
+## 适用阶段
+
+本文保留 Raw Chat 研究阶段的探测结果。下文“当前阻断条件”和“推荐下一步”只适用于该路线；生产对话后来采用 [SOLO 通道](SOLO_ROUTE_DECISION.md)。`src/index.ts` 保留 Raw Chat 的导出和诊断入口，实际对话通过 `TraeSoloBridge` 处理。此次审核未重复发送历史探测请求。
+
 ## 已完成
 
-- `TraeRawChatUpstreamClient`：单v2端点、注入式fetch、超时、取消、错误分类。
+- `TraeRawChatUpstreamClient` 使用单一 v2 端点，允许注入 `fetch`，并处理请求超时、取消与错误分类。
 - Raw Chat离线message/tool/reasoning/usage/done模型。
 - 模型配置日志解析，确认预置GLM-5.2：
   - `config_name=glm-5.2`

@@ -1,5 +1,7 @@
 # issue #10 取证：缓存为什么一直是 0
 
+> 2026-11-06 全文复核：本文是 v2.0.5 的字段映射修复记录。后续上游字段归零与计费证据分别见 #67、#69；本轮没有重新发送真实对话。
+
 > issue：https://github.com/dingminhua/dsh-connect-trae/issues/10
 > （1309893790：「我测试了一下一直0缓存」「一直0缓存，不知道接口原因还是trae上有不反悔缓存」）
 >
@@ -11,7 +13,7 @@
 
 三句话概括：
 
-1. **Trae 上游确实有前缀缓存，也真的在报**——实测同一个长 prompt 连续发两次，第二次上游回 `cache_read_input_tokens: 9216`（不是 0）。
+1. **Trae 上游确实有前缀缓存，也真的在报**——实测连续三轮请求，第三轮上游回 `cache_read_input_tokens: 9216`（不是 0）。
 2. **插件把这两个字段丢掉了**：`decodeTraeEvent` 只取 `prompt_tokens` / `completion_tokens` / `total_tokens` / `reasoning_tokens`，`cache_read_input_tokens` 与 `cache_creation_input_tokens` 被直接忽略，后续 bridge 也就无从转发。
 3. **DSH 侧因此永远是 0**：`dsh-llm-pi-ai` 只在 `usage.cacheRead > 0` 时才写入 `cacheReadTokens`，插件从未上报过非零值，所以界面稳定显示 0 缓存。
 
@@ -22,7 +24,7 @@
 ### 1. Trae 上游确实返回缓存字段（本机实测，可复现）
 
 用插件自己的请求路径（`prepareSoloBody` + `buildTraeCnHeaders` + `SseDecoder`）连续发三次，
-第一次冷启动、第二三次发送**逐字节相同**的 prompt（约 9224 tokens）：
+首次样本未命中缓存，第二、三次发送**逐字节相同**的 prompt（约 9224 tokens）：
 
 ```
 === turn 1: PREFIX only (warms cache) ===
@@ -113,7 +115,7 @@ const input = Math.max(0, promptTokens - cacheReadTokens - cacheWriteTokens);
 ```
 
 即：**插件必须用 `prompt_tokens_details.cached_tokens` 这个 OpenAI 规范拼写上报，DSH 才会显示非零缓存。**
-Trae 的原生字段名 `cache_read_input_tokens` 不属于被识别的三种拼写，即使原样透传也不会被读到——这是必须做字段名映射、而不能只做「放行」的原因。
+Trae 的原生字段名 `cache_read_input_tokens` 不属于被识别的三种拼写，即使原样透传也不会被读到——这是必须做字段名映射、而不能只做原样转发的原因。
 
 ### 5. 语义确认：Trae 的 `prompt_tokens` 是否**包含**缓存 tokens？
 
@@ -164,12 +166,12 @@ accounting intact: input + cacheRead + cacheWrite = 9224 (prompt_tokens was 9224
 取决于上游：
 
 - 前缀缓存要看**请求前缀是否逐字节一致**——DSH 每轮会在历史后追加新消息，前缀通常能复用；
-- 实测同一个 prompt 第一次永远是 `cache_read=0`（冷启动），第二次才有值，**新会话/新前缀的第一轮显示 0 属于正常**；
+- 本次首次运行的第一轮为 `cache_read=0`；再次运行可复用服务端缓存，因此新会话首轮不保证为零；
 - 本机实测的 `cache_creation_input_tokens` 始终为 0，即 Trae 目前只报读、不报写。
 
 ## 复现与验证
 
 ```bash
 node scripts/probe-cache-convention.mjs   # 上游是否真的报缓存（真机实测）
-pnpm run check                            # typecheck + 240 tests + build
+pnpm run check                            # typecheck + 当时的 240 tests + build
 ```

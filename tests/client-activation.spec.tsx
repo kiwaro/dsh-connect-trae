@@ -152,6 +152,10 @@ describe('client entry activation on 0.1.7', () => {
         'conversation.composer.dock',
         'conversation.input.model.label',
         'conversation.input.right',
+        'plugins.bundle.config',
+        'plugins.bundle.config',
+        'plugins.row.config',
+        'plugins.row.config',
         'settings.section',
         'settings.section.icon',
       ])
@@ -241,6 +245,10 @@ describe('client entry activation on 0.1.7', () => {
       'conversation.composer.dock',
       'conversation.input.model.label',
       'conversation.input.right',
+      'plugins.bundle.config',
+      'plugins.bundle.config',
+      'plugins.row.config',
+      'plugins.row.config',
       'settings.section',
       'settings.section.icon',
     ])
@@ -297,6 +305,10 @@ describe('client entry activation on 0.1.7', () => {
     expect(slots.registrations.map(entry => entry.name).sort()).toEqual([
       'conversation.composer.dock',
       'conversation.input.right',
+      'plugins.bundle.config',
+      'plugins.bundle.config',
+      'plugins.row.config',
+      'plugins.row.config',
       'settings.section',
     ])
     // And the refusal was REPORTED rather than swallowed silently.
@@ -320,10 +332,11 @@ describe('client entry activation on 0.1.7', () => {
     // reads the switch as false and renders nothing, which is the correct
     // default for a host that cannot be asked. Losing the second seat here
     // would be invisible until a user picked it, so the count is asserted
-    // rather than left implied. The fifth is the model-picker label, which
+    // rather than left implied. Four configuration cards cover both plugin keys
+    // and both detail slots. The model-picker label
     // needs no settings at all (it reads the usage route directly).
     const slots = ctx.get('slots') as unknown as Slots
-    expect(slots.registrations).toHaveLength(5)
+    expect(slots.registrations).toHaveLength(9)
     expect(errors).toHaveLength(0)
 
     spy.mockRestore()

@@ -1,41 +1,10 @@
 /**
- * Decides whether the composer credit readout belongs in this session, by
- * reading the Host's own `modelSelection` projection and the plugin's
- * `showPointsInMainUi` switch.
+ * 根据已保存的开关、面板启用状态及显示位置，决定是否渲染 Trae 读数。
  *
- * Kept separate from {@link ComposerPoints} (and from the browser-plugin entry)
- * so the decision can be unit-tested without a Host: the entry imports
- * browser-only DSH packages the test environment cannot load, while this module
- * depends only on React and a narrow projection shape.
- *
- * WHY the projection rather than this plugin's own state: the projection is
- * what the model picker writes and what the next request will use, so the
- * readout cannot disagree with the model actually in effect. `next` outranks
- * `lastUsed` because a selection that has been made but not yet sent is still
- * what the composer shows the user.
- *
- * The switch is read the same way the retired sidebar gate read it: absent or
- * false means OFF, and only an explicit `true` shows the readout. The composer
- * row is shared with the shell's own permission/agent/model controls, so the
- * readout must be asked for, not imposed — 2.13.0 rendered it unconditionally
- * and 2.13.3 restored the opt-in after the user went looking for the switch.
- *
- * WHY THERE IS A SECOND SEAT (learned from dsh-connect-workbuddy issue #62).
- * That row is a LIST seat, so it is shared not only with the shell's own
- * controls but with any other plugin that registers there — and one report is
- * exactly that: with a third-party plugin installed the readout stopped
- * appearing. A list seat cannot promise that every occupant is visible, so the
- * seat becomes the USER's choice: `composer` (default, unchanged for anyone who
- * does not choose) or `stats`, the ambient dock below the composer card where
- * the shell renders its own round/step/token pills. This plugin has already
- * lost this readout once to a shared seat — it used to live at the sidebar
- * foot, where it was clipped to "Tr" beside dsh-connect-workbuddy's rows.
- *
- * The gate is registered in BOTH seats and renders in the one the setting
- * names, which keeps the decision in ONE function instead of re-registering
- * slots when the setting changes — and this repository already documents that
- * kind of binding as fragile (the rc.6→rc.7 `id`/`order` → `key`/`priority`
- * rename). Registration is unconditional; only the render is conditional.
+ * 优先使用 modelSelection 的 next，再使用 lastUsed。选中的供应商属于本插件时
+ * 读取对应面板；否则选择第一个已启用的 Trae 面板。积分总开关关闭时不渲染。
+ * 两个显示位置均注册组件，由面板保存的 creditPosition 决定实际渲染位置。
+ * 工具栏排序避让由 composer-order.ts 处理。
  */
 import { useEffect, useState } from 'react'
 import { ComposerPoints, TRAE_COMPOSER_PROVIDERS } from './ComposerPoints.tsx'
@@ -118,9 +87,10 @@ export function ComposerPointsGate(props: ComposerPointsGateProps) {
   // Re-render when the settings change, so ticking the card's checkbox — or
   // moving the seat — appears without a remount. `settingsScope` is a stable
   // injected reference, so the subscription is set up once per scope.
-  const [enabled, setEnabled] = useState(() => composerPointsEnabledOf(settingsScope))
+  const [, setRevision] = useState(0)
+  const enabled = composerPointsEnabledOf(settingsScope)
   useEffect(
-    () => settingsScope?.subscribe(() => { setEnabled(composerPointsEnabledOf(settingsScope)) }),
+    () => settingsScope?.subscribe(() => { setRevision(value => value + 1) }),
     [settingsScope],
   )
   // The projection hook is optional so the gate can be rendered in a test
@@ -133,22 +103,22 @@ export function ComposerPointsGate(props: ComposerPointsGateProps) {
   // shared composer row is untouched and no fetch loop starts.
   if (!enabled) return null
 
-  const provider = selectedProviderOf(projection)
+  const selected = selectedProviderOf(projection)
+  const provider = (selected !== undefined && TRAE_COMPOSER_PROVIDERS[selected] !== undefined ? selected : undefined) ?? Object.keys(TRAE_COMPOSER_PROVIDERS).find(candidate =>
+    regionEnabledOf(scopeValueOf(settingsScope), TRAE_COMPOSER_PROVIDERS[candidate]!),
+  )
   const region = provider === undefined ? undefined : TRAE_COMPOSER_PROVIDERS[provider]
-  // ONE decision, taken here: this plugin owns the provider, or nothing renders.
-  // `region` is the ownership test itself (the map only holds routes this plugin
-  // registers), so it is the single source of truth for both the render and the
-  // region whose credits are read — no second copy of the rule to drift.
+  // Prefer the selected Trae provider, otherwise use the first enabled Trae
+  // panel. This keeps a readout available while another plugin is selected.
+  // With no matching enabled panel there is nothing to render.
   if (region === undefined) return null
 
   // A region the user switched OFF must render nothing, even though the model
   // projection still names its provider: switching a provider off withdraws its
   // adapter route and its configurable-provider entry from the harness, so its
   // credits are no longer readable and the readout would sit there failing.
-  // The rule mirrors the Host's own opt-out semantics through `regionEnabledOf`
-  // (only an explicit `false` disables), which is the same reader the card uses
-  // for its tab checkboxes — so the card and this gate can never disagree about
-  // whether a region is on.
+  // regionEnabledOf uses the same opt-out rule as the card: only an explicit
+  // false disables. Separate snapshots can still differ while updates propagate.
   if (!regionEnabledOf(scopeValueOf(settingsScope), region)) return null
 
   // `region` is non-undefined here, and it is derived from `provider`, so the

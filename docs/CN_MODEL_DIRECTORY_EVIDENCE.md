@@ -1,24 +1,32 @@
-# CN 模型目录与调用通道的不一致（glm-5.3 取证）
+# glm-5.3 的 CN 模型目录与调用通道取证
+
+## 后续修正
+
+本文记录 2026-09-15 初轮探测。该轮只验证下文列出的功能，不能据此推断所有 SOLO 功能均不可调用 `glm-5.3`。
+
+后续在 `solo_work_remote` 上取得正常流式结果，当前 `src/solo.ts` 与 `src/catalog.ts` 因此按模型目录保存并回放其所属功能。
+
+下文初轮返回值保留，排查当前版本时应核对模型的实际功能映射。
 
 > 对应 issue #7「模型列表需要更新：traecode 有 glm 5.3 但这边只有 5.2」。
-> 取证时间 2026-09-15，本机 CN 账号（Trae CN 桌面版），只读探测 + 一次受控最小对话验证。
+> 取证时间为 2026-09-15，使用本机 Trae CN 桌面版账号。记录包括目录读取与下表所列的受控对话请求。
 
-## 结论
+## 初轮结论
 
 **用户没有看错，插件也没有漏读——这是上游「目录」与「调用通道」的不一致。**
 
 `glm-5.3` 在 Trae 的模型目录里是一个**完整的预设模型**（与 glm-5.2 同等标志），
-但经插件使用的 SOLO 通道（`/api/agent/v3/llm_utils_chat`）**无法调用它**：
-上游对任何 `function` 都返回 `4001 param is invalid`。
+但本轮通过 SOLO 端点 `/api/agent/v3/llm_utils_chat` 的指定功能**无法调用它**：
+本轮对下表中的四个 `function` 均收到 `4001 param is invalid`。
 
 因此插件把它从可勾选目录中剔除是**有意的防御**：否则用户选中后在 Trae 侧每次对话
-都会失败（而不是"看不到"）。
+都会失败。该剔除行为属于当时实现，后续功能映射已调整。
 
 ## 证据
 
-### 1. 目录侧：glm-5.3 是完整预设模型（只读，HTTP 200）
+### 1. 目录侧：只读请求返回 HTTP 200
 
-CN remote 目录（`solo.trae.cn/api/remote/v1/models`）的两个分组都列出 glm-5.3：
+CN 目录接口 `solo.trae.cn/api/remote/v1/models` 的两个分组都将 glm-5.3 列为预设模型：
 
 | 字段 | glm-5.3 | glm-5.2 | 结论 |
 |---|---|---|---|
@@ -30,10 +38,9 @@ CN remote 目录（`solo.trae.cn/api/remote/v1/models`）的两个分组都列�
 | `features.reasoning` | `{enable:true}` | 同 | 同 |
 | `is_new` | **true**（新上线） | false | 差异 |
 
-### 2. 调用侧：所有 function 都拒绝（受控最小对话，各一次）
+### 2. 调用侧：已测试的四个功能均拒绝请求
 
-用插件自身的请求构造（`prepareSoloBody` + `buildTraeCnHeaders`）发最小消息
-（"Reply with exactly: OK"）：
+使用插件的 `prepareSoloBody` 与 `buildTraeCnHeaders` 构造请求，消息要求模型只回复 `OK`：
 
 | 模型 | function | 结果 |
 |---|---|---|
@@ -60,13 +67,11 @@ CN remote 目录（`solo.trae.cn/api/remote/v1/models`）的两个分组都列�
 
 ## 为什么 Trae IDE 里能用而插件不能
 
-Trae IDE 的对话走 **`create_agent_task`（agent task 协议）**，与插件使用的 SOLO
-轻量通道（`llm_utils_chat`）是两套不同的调用面：前者需要完整的 agent-task body
-（历史/技能/上下文，1.0 阶段实测约 146KB）与另一套 SSE 事件集，后者是简化的
-OpenAI 风格 envelope。glm-5.3 只在前者的 config 集合里。
+Trae IDE 的对话走 **`create_agent_task`（agent task 协议）**，与插件使用的 SOLO 轻量端点 `llm_utils_chat` 是两套不同的调用协议：前者需要完整的任务请求体 及另一套 SSE 事件集。
 
-（相关历史结论见 `CHANGELOG.md` 1.1.0：`glm-5.3` 与 `Doubao-Seed-Code` 曾被同一
-判定剔除；本次取证确认该判定**至今仍成立**。）
+1.0 阶段记录的完整请求体约 146KB，后者使用简化的 OpenAI 风格 envelope。glm-5.3 只在前者的 config 集合里。
+
+相关早期判断见 `CHANGELOG.md` 1.1.0。该判断后来因发现可调用的功能而修正，不能用初轮结果解释当前目录中的全部模型。
 
 ## 可选的后续方向
 

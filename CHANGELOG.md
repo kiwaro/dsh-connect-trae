@@ -1,14 +1,21 @@
 # Changelog
 
+## 未发布：本地维护
+
+- 提取配置、凭据解析与类型、积分投影、客户端设置写入和展示模块，保留公开导出与账号选择行为。
+- 修复 Windows 构建提醒漏检 DSH 进程的问题。
+- 修复 Windows 凭据诊断因共用临时副本而误报账号的问题，退出时清理临时副本。
+- 补充回归测试、拆分记录及实体副本部署说明。版本仍为 4.9.0，尚未发布。
+- 同步四分栏设置、共享工具栏排序、积分标题及使用中按钮；逐篇读取 102 份 Markdown，修正历史缓存推断、SemVer、费用与账号格式说明。LCL 扫描仍有表达提示，具体结果见 docs/DOCUMENT-SYNC-AUDIT.md。
+
 ## 4.9.0 (2026-11-06)
 
 ### 变更
 
 - **配置入口从「插件详情页的卡片」搬到「设置」侧边栏的独立页面**。原来这张卡片注册在
-  插件市场的 `plugins.bundle.config` / `plugins.row.config` 槽位，也就是插件详情页里、
-  README 下方——那一页的职责是介绍和安装一个包，把配置也塞进去，用户得先划过一整篇说明
-  才能找到一个勾选框。现在改注册 `settings.section`（DSH 0.2.1-rc.5 起的槽位），入口在
-  设置面板左侧导航里，与宿主自己的「账号 / 通用 / 模型 / 插件 / 智能体预设」并列。
+  插件市场的 `plugins.bundle.config` / `plugins.row.config` 槽位，也就是插件详情页里、 README 下方——那一页的职责是介绍和安装一个包，把配置也塞进去，用户得先划过一整篇说明 才能找到一个勾选框。
+
+  现在改注册 `settings.section`（DSH 0.2.1-rc.5 起的槽位），入口在 设置面板左侧导航里，与宿主自己的「账号 / 通用 / 模型 / 插件 / 智能体预设」并列。
   - 页面 id 用包名 `dsh-connect-trae`，`order: 30`（排在宿主的 `account -10`、`general 0`、
     `models 10`、`plugins 15`、`agent-presets 20` 之后，不与任何内置项冲突）。
   - 同时注册 `settings.section.icon`，**id 与页面完全相同**：宿主按 `{ only: row.id }` 过滤
@@ -20,11 +27,9 @@
     宿主永远不声明则什么都不做。外面再套一层 `typeof` 判断只会新增一条「注册永远不发生且无声」
     的失败路径（同族 `dsh-subagent-default-model` 的 2.1.16/2.1.17 就是这么丢过一整页）。
 - **输入框积分浮层恢复「设置」按钮，指路改到设置面板的分栏定位**。上一轮曾把按钮删掉，
-  理由写成「宿主没有任何公开的客户端服务能打开设置面板并定位到某个 section」——**这个理由是
-  错的**，本轮已撤销。宿主确实没有这样的*服务*，但设置面板把自己的 store 座位钉死在注册声明上
-  （`shellStore.create: () => shellInstance`），所以
-  `slots.entries('sidebar.settings')[0].store.create().actions.openSection(id)` 是一条真实可用的
-  路径，宿主自己的测试就是这么驱动那个对话框的。「刷新」（账号池测试）保留。
+  理由写成「宿主没有任何公开的客户端服务能打开设置面板并定位到某个 section」——**这个理由是 错的**，本轮已撤销。宿主确实没有这样的*服务*，但设置面板把自己的 store 座位明确约束在注册声明上 （`shellStore.create: () => shellInstance`），所以 `slots.entries('sidebar.settings')[0].store.create().actions.openSection(id)` 是一条真实可用的 路径，宿主自己的测试就是这么驱动那个对话框的。
+
+  「刷新」（账号池测试）保留。
   - 探测放在**按下那一刻**而不是注册时：`entries('sidebar.settings')` 在
     `whenAccess('settings/describe')` 通过之前是空的，注册时探测会永久拿到空数组。
   - `.store` 缺失、没有 `create`、或拿到的 `create()` 不带 `actions.openSection`，三者都视为
@@ -57,12 +62,11 @@
   - 放不下时每行变成三行堆叠卡片：账号与操作各占满一行，中间三个事实共享一行。整体
     `flex-direction:column` 会把每个单元格推成独立一行，行高翻倍且读起来像表单。
   - **折叠的是内层单元格，不只是行包装**。这是本轮最容易漏的一处：第一版只把
-    `.dsm-trae-pool-row` 改成可换行的 flex 行，但真正竖排的是更里层——
-    `.dsm-trae-pool-probe-cell` 自己带 `flex-direction:column`，`.dsm-trae-pool-account`
-    自己是三行网格。它们不改，状态列仍然是「正常 / 测得 3 天前 / 来自测速 /
-    upstream answered」四行，账号名反而被挤到「LaoDin」「用户75」——行更高且更窄。
-    （这个缺陷是用户截图发现的：本地 fixture 里三个账号的探针都是「尚未测速」，
-    只渲染一行，正好把问题掩盖掉了。fixture 已补上真实探针记录。）
+    `.dsm-trae-pool-row` 改成可换行的 flex 行，但真正竖排的是更里层—— `.dsm-trae-pool-probe-cell` 自己带 `flex-direction:column`，`.dsm-trae-pool-account` 自己是三行网格。
+
+    它们不改，状态列仍然是「正常 / 测得 3 天前 / 来自测速 / upstream answered」四行，账号名反而被挤到「LaoDin」「用户75」——行更高且更窄。
+
+    （这个缺陷是用户截图发现的：本地 fixture 里三个账号的探针都是「尚未测速」， 只渲染一行，正好把问题掩盖掉了。fixture 已补上真实探针记录。）
   - 实测：账号名列 76px → 517px，不再截断；状态列 4 行 → 1 行（17px）；
     账号池表格 412px → 304px，单行高度 138px → 102px。
 - README 中英文同步更新配置位置说明。
@@ -72,7 +76,7 @@
 ### 适配
 
 - **DSH 0.2.2-rc.1 同步**。宿主这一版随包换代到 `cordis@4.1.0`、`schemastery@3.19.0`、
-  `@earendil-works/pi-ai@1.3.0`，插件消费的 13 个宿主包里有 8 个带实质变化。
+  `@earendil-works/pi-ai@1.3.0`，插件调用的 13 个宿主包里有 8 个带实质变化。
   - **唯一的契约破坏**：`ResolvedPiAiProviderProfile` 新增两个必填字段
     `maxRequestImages` / `imageOffloadCountQuantum`。本插件从实时目录手工构造这个 profile，
     升级依赖后 `pnpm typecheck` 报 `TS2739`；已在 `REQUEST_IMAGE_BUDGETS` 补上宿主默认值
@@ -88,12 +92,12 @@
     按宿主顺序补回 badge（trigger 在前、菜单在后）并做语言回退；本插件自己的行行为不变。
   - 不采纳：新语言 ja/es/fr/de/ru/pt（只维护 zh/en）、`settings.section.icon`（不拥有
     `settings.section`）、`llm-pi-ai/request-headers`、`supportsMidConvoEffort`。
-  - 三大价值（双区域供应商 / 用量积分 / 每日签到）不受影响，对应测试全绿。
+  - 三大价值（双区域供应商 / 用量积分 / 每日签到）不受影响，对应测试全部通过。
 - **开发树同步**：13 个 `@deepseek-ai/dsh-*` devDependency → `0.2.2-rc.1`，`cordis` →
   `^4.1.0`，`schemastery` → `3.19.0`（含 `pnpm-workspace.yaml` override），`pi-ai` →
   `1.3.0`；`pnpm-lock.yaml` 重新生成。peerDependencies 零改动。
 - `tests/dsh-peer-range.spec.ts` 的 `MUST_ADMIT` 补入 `0.2.2-rc.1`；新增目录公告与
-  badge 渲染用例（103 文件 / 1335 用例全绿）。
+  badge 渲染用例（103 文件 / 1335 用例全部通过）。
 
 ## 4.8.0 (2026-11-05)
 
@@ -115,11 +119,11 @@
     （2026-10-18）已经把这个理由消掉了** —— 它让 `creditsOfAccount` 先刷新再读。
     之后再留着那条分支，就只剩下「可能报错账号」这一个后果。
   - **现在每一行都按 account id 读**（含绑定账号），行与行之间互相独立：每个请求
-    点名自己的账号，没有哪一行能被别的行的凭证回答。
+    列明自己的账号，没有哪一行能被别的行的凭证回答。
   - **保留了一处回退**：宿主完全没有 `creditsOfAccount` 时，绑定账号仍从共享客户端
     读——那种宿主上共享客户端必然读的就是绑定账号，所以对这一行它不是谎话，而是唯一
     来源。它是回退，不再是规则。
-  - 测试：改写三条钉住旧约定的用例（它们断言的正是「绑定行走共享客户端」，而那个
+  - 测试：改写三条通过测试约束旧约定的用例（它们断言的正是「绑定行走共享客户端」，而那个
     前提已经不存在），新增一条**断言共享客户端被调用 0 次**——一次调用就是一次把
     绑定账号的数字贴到别的行上的机会。变异验证：把分支改回旧形状 → 绑定账号那一行
     变成共享客户端的 `9999`，`expected 9999 to be 3392`。
@@ -132,17 +136,14 @@
     `dsh-connect-trae-client` 注册的条目」，也就是这个插件**撞上了自己**，不是撞上
     别的插件。两条独立路径都能造成：
     1. **同一个 client 被 `apply` 两次**（重载/重建路径），前一次的注册还活着。
-    2. **`inject` 的回调会重跑**：`slots.inject()` 在插槽尚未声明时**不立即执行**
+    2. **`inject` 的回调会重新运行**：`slots.inject()` 在插槽尚未声明时**不立即执行**
        回调，而是订阅声明变化、稍后再跑。等它真的抛错时，renderer 自己的 `changed()`
        会把它从 `queueMicrotask` 里**重新抛出去**——调用点的 `try/catch` 够不着，
        所以它表现为页面上的 uncaught error。
   - **修法 1：优先级不再是默认的 0。** 新增导出的 `MODEL_LABEL_PRIORITY = -0.25`。
-    现场实测（0.2.1-rc.5 桌面端）这个 `single` 槽已经是三方共用：
-    `dsh-connect-qoder-client` 占 -1、`dsh-connect-workbuddy-client` 占 -0.5、
-    本插件占 0。**-1 和 -0.5 是那两个兄弟插件的座位，不能用**；-0.25 夹在中间，
-    合法且互不相撞。它刻意**不**去读插槽账本、也不和其它插件协商——这是本仓库
-    的 §零 不变量，宿主自己那个 1017 徽章包的 README 也给出同样结论（同优先级冲突
-    的官方解法是配置决策，不是运行时握手）。
+    现场实测（0.2.1-rc.5 桌面端）这个 `single` 槽已经是三方共用： `dsh-connect-qoder-client` 占 -1、`dsh-connect-workbuddy-client` 占 -0.5、 本插件占 0。
+
+    **-1 和 -0.5 是那两个兄弟插件的座位，不能用**；-0.25 夹在中间， 合法且互不相撞。它刻意**不**去读插槽账本、也不和其它插件协商——这是本仓库 的 §零 不变量，宿主自己那个 1017 徽章包的 README 也给出同样结论（同优先级冲突 的官方解法是配置决策，不是运行时握手）。
   - **修法 2：注册走统一的 `registerSlotEntry`**，它在**每次注册前先释放自己**持有的
     上一个条目（`single` 槽不接受同优先级的第二个，而这一个是我们自己造成的、可以
     自己修），并且**把 catch 放进 `inject` 的回调内部**——这是唯一能拦住上面那条
@@ -152,11 +153,9 @@
     在**本插件认领的那些行**上的装饰不会被组合。这是记录在案的取舍，也正是组件对
     非本插件的 provider 返回纯目录名的原因——那是槽自己的最低要求。
   - 测试：`tests/client-activation.spec.tsx` 新增两例，一例把同一个 entry 跑两次
-    `apply`（真实重建形状），断言**每个座位只有一条**而不是两条；另一例用**延迟
-    回调**的槽替身复现 renderer 的真实行为，断言拒绝被记成日志、且**其它座位照常
-    注册**（一个被拒的座位不能连累其余）。两条变异都验证过：去掉「先释放」
-    → `expected [...9 items] to deeply equal [...5 items]`；去掉回调内的 catch
-    → 直接抛出 `Error: single slot "conversation.input.model.label" ...`。
+    `apply`（真实重建形状），断言**每个座位只有一条**而不是两条；另一例用**延迟 回调**的槽替身复现 renderer 的真实行为，断言拒绝被记成日志、且**其它座位照常 注册**（一个被拒的座位不能连累其余）。
+
+    两条变异都验证过：去掉「先释放」 → `expected [...9 items] to deeply equal [...5 items]`；去掉回调内的 catch → 直接抛出 `Error: single slot "conversation.input.model.label" ...`。
 
 ### 变更
 
@@ -164,15 +163,13 @@
   把本面板账号池里**勾选的成员**逐个问一遍「能不能应答」，结果报在浮层底部。
   - **标签按主人的说法叫「刷新」，但这个按钮要做两件事是标签说不出的**，两件都
     挪进了悬停提示与结果行：**范围**（测的是池里勾选的成员，不是表里每行）和
-    **代价**（它是本插件里唯一消耗额度的操作，每个成员一条最小 `ping`）。
+    **代价**（它是本插件里会消耗额度的操作；对话、账号池测试和生图也可能消耗额度，每个成员一条最小 `ping`）。
     一个光秃秃的「刷新」读起来是免费的，而这个不是——所以 tooltip 与结果行都要
     在场，不能因为标签变短就把说明删掉。
   - **造型按参考图改成「幽灵控件」**（m02477）：无边框、无底色、图标 + 文字，
-    底色**只在悬停时**出现。第一版是**带 1px 描边的胶囊**，问题是静止时读起来像
-    卡片里的 `dsm-btn-outline`（保存/取消那种控件），而 248px 的头部里放两个
-    有边框或有底色的形状会读成一枚分段控件，而不是两个不同的动作。现在两者的
-    区别是**语义**的：设置是**导航**（带品牌色填充的胶囊），刷新是**就地重跑一批**
-    （安静的幽灵控件）。图标是**环形箭头**而不是齿轮——同族不同动词。
+    底色**只在悬停时**出现。第一版是**带 1px 描边的胶囊**，问题是静止时读起来像 卡片里的 `dsm-btn-outline`（保存/取消那种控件），而 248px 的头部里放两个 有边框或有底色的形状会读成一枚分段控件，而不是两个不同的动作。
+
+    现在两者的 区别是**语义**的：设置是**导航**（带品牌色填充的胶囊），刷新是**就地重新运行一批** （安静的幽灵控件）。图标是**环形箭头**而不是齿轮——同族不同动词。
   - **交互对齐同族 `dsh-connect-workbuddy` 的同一功能**（m02610），三处都是「按下之后
     看不见反应」的补漏，不是造型：
     1. **跑起来时图标转**（900ms 一圈）。禁用按钮配一个不动的图标读起来像坏了，而这批
@@ -183,21 +180,18 @@
     2. **`aria-label` 用完整的提示语**。标签是一个词，说不清作用域和代价；`title` 对
        屏幕阅读器**不是**名字，旁边又有个「设置」，两个都念成光秃秃一个词时正是提示语
        要消除的歧义。
-    3. **提示语写明代价**：「会消耗少量积分，最长约一分钟」。标签叫「刷新」听起来是免费
+    3. **提示语写明代价**：「会消耗少量积分，三分钟后超时取消；此前的一分钟只是典型耗时描述」。标签叫「刷新」听起来是免费
        重读，而这个控件底下是一批真实的探测。让人意外掏钱的控件，比标签长一点的控件更糟。
   - **顺带修掉一个真 bug**：批次结束后的重读原本只读 `/usage`，而表里的**数字**来自
-    `/account-credits`——于是按下「刷新」之后，表里显示的仍是这批要推翻的那些旧数字。
-    现在两个文档一起重读。这条是**变异验证发现的**：把重读改回只读 `/usage`，新用例
-    居然还是绿的，追下去才发现 `fetchAccountPlans` 把 `usage` 当 `useCallback` 依赖，
-    每轮轮询都拿到新对象身份、于是每轮都重读一遍全部账号状态——那条泄漏让同一个请求
-    从另一条路径补上了。新增 `usageRef` 把它稳定住，并写了 `tests/composer-poll-identity.spec.tsx`
-    钉死「轮询不重读账号状态」。
+    `/account-credits`——于是按下「刷新」之后，表里显示的仍是这批要推翻的那些旧数字。 现在两个文档一起重读。这条是**变异验证发现的**：把重读改回只读 `/usage`，新用例 居然还是绿的，追下去才发现 `fetchAccountPlans` 把 `usage` 当 `useCallback` 依赖， 每轮轮询都拿到新对象身份、于是每轮都重读一遍全部账号状态——那条泄漏让同一个请求 从另一条路径补上了。
+
+    新增 `usageRef` 把它稳定住，并写了 `tests/composer-poll-identity.spec.tsx` 明确约束「轮询不重读账号状态」。
   - **因此浮层从 248px 加宽到 264px**。加了图标之后英文那行放不下了：实测
-    `Trae credits` + `Refresh` + `Settings` 需要 233px 内容宽，而 248px 的面板
-    只剩 222px，设置胶囊**溢出 11px**。两个更糟的替代方案都否决了——改主人的措辞
-    （「刷新」是点名要的），或去掉图标（正是它让两个控件读成一家）。加宽之后
-    中英文都 `FITS`（内容右端 271 = 头部右端 271）。这个数字连同它的推导写进了
-    用例，将来加第三个控件时该动的就是这个值。
+    `Trae credits` + `Refresh` + `Settings` 需要 233px 内容宽，而 248px 的面板 只剩 222px，设置胶囊**溢出 11px**。
+
+    两个更糟的替代方案都否决了——改主人的措辞 （「刷新」是列明要的），或去掉图标（正是它让两个控件读成一家）。加宽之后 中英文都 `FITS`（内容右端 271 = 头部右端 271）。
+
+    这个数字连同它的推导写进了 用例，将来加第三个控件时该动的就是这个值。
   - **它测的是账号池的成员，不是表里每个账号**。这条路由
     （`POST …/pool?region=<panel>&action=test`）本来就只认 `effectiveMemberAccountIds`；
     表里那些没进池的账号不在里面。所以标签不写「测速账号池」——**实测放不下**：
@@ -220,7 +214,7 @@
     **用例用假计时器驱动这个 180 秒**，不是为了快，而是因为等三分钟不叫测试。
   - **200 但解析出零行，不谎报成功**：`sawAny` 为假就抛，走失败行。一个空回包
     不能读作「全都没问题」。
-  - **测完重读一次用量**：这是插件里唯一消耗额度的操作（每条最小 `ping`），测完
+  - **测完重读一次用量**：这是插件里会消耗额度的操作；对话、账号池测试和生图也可能消耗额度（每条最小 `ping`），测完
     积分会变，所以 `await fetchUsage()`。与账号池分栏里那个按钮的行为一致。
   - **逻辑抽到共享模块**（`src/client/pool-test.ts`）：`applyTestLine` / `testLinesOf` /
     `outcomeLabel` / `POOL_TEST_TIMEOUT_MS` 从 `AccountPool.tsx` 搬出来，两处共用。
@@ -232,13 +226,11 @@
 - **输入框积分浮层的「刷新积分」按钮换成「设置」按钮**（m01198）—— 一点就打开
   本插件自己的设置页，浮层同时关闭。
   - **样式照抄同族的同一个控件**（m01930）：`dsh-connect-workbuddy` 在同一个位置
-    解过同一个问题，所以这边用**同一枚胶囊**——齿轮 + 文字、`border-radius:999px`、
-    品牌色 10% 淡底、11px/500、hover 加深、`active`/`focus-visible` 三态齐全、
-    `prefers-reduced-motion` 关掉过渡。不是「照着感觉做」：最初这里是**带边框的
-    按钮**，再早同族那版是**下划线链接**，两个都被否掉是同一个理由——静止时**没有
-    形状**，而可供性要在指针到达之前就成立。标题同时改成 `flex:none;white-space:nowrap`，
-    因为控件一挤进那一行标题就会折成两行（同族在真机上量到过）；右侧再包一层
-    `-actions` 拿 `margin-left:auto`，这样「没有按钮」时头部也不会重排。
+    解过同一个问题，所以这边用**同一枚胶囊**——齿轮 + 文字、`border-radius:999px`、 品牌色 10% 淡底、11px/500、hover 加深、`active`/`focus-visible` 三态齐全、 `prefers-reduced-motion` 关掉过渡。
+
+    不是「照着感觉做」：最初这里是**带边框的 按钮**，再早同族那版是**下划线链接**，两个都被否掉是同一个理由——静止时**没有 形状**，而可供性要在指针到达之前就成立。
+
+    标题同时改成 `flex:none;white-space:nowrap`， 因为控件一挤进那一行标题就会折成两行（同族在真机上量到过）；右侧再包一层 `-actions` 拿 `margin-left:auto`，这样「没有按钮」时头部也不会重排。
   - **为什么换掉而不是并排放两个**：这个浮层的读者此刻的问题是「这数字去哪改」，
     而原来的答案要求先关浮层、再在插件页里找到这一行。积分本身不需要按钮——
     **打开浮层、切换账号、每 5 分钟**都会重新读一次，刷新按钮提供的那个动作
@@ -254,11 +246,9 @@
     「多试几个拼写」——目标未知时页面会渲染成**列表**，第二个名字会把第一个的
     导航撤销掉。
   - **回退到 `layout.selectPanel('plugins')`**：`pluginNavigation` 由插件页那个
-    bundle 提供，不是外壳。profile 可以不含它，而且**加载顺序不是本插件能假设
-    的**——所以探测放在**按下时**而不是 `apply` 时：在 `apply` 里探一次会把
-    `undefined` 永久记下来，按钮从此在整个会话里都是死的。回退是**回退**：
-    `'plugins'` 是另一个包的私有 key，而 `openBundle` 才是它公开的口子；
-    `selectPanel` 在 key 没注册时会**抛**，所以调用点是 guard 而不是信任。
+    bundle 提供，不是外壳。profile 可以不含它，而且**加载顺序不是本插件能假设 的**——所以探测放在**按下时**而不是 `apply` 时：在 `apply` 里探一次会把 `undefined` 永久记下来，按钮从此在整个会话里都是死的。
+
+    回退是**回退**： `'plugins'` 是另一个包的私有 key，而 `openBundle` 才是它公开的口子； `selectPanel` 在 key 没注册时会**抛**，所以调用点是 guard 而不是信任。
   - **打不开就说出来，不装死**：`false` 落到浮层自己的错误行（`composer.openSettingsFailed`），
     而且浮层**不关**——按一下屏幕上什么都没变，与「按钮坏了」无法区分。
     它有自己的 state，不与「读上游失败」共用一个标志：两句话说的不是一件事，
@@ -272,10 +262,9 @@
 ### 修复（积分座位注册的契约类型）
 
 - **`registerPointsSlot` 的 `inject` 契约类型改对了**：它原来把注入体写成
-  `TraeUsageCardInjected`，而实际注入的是 `{ t, settingsScope, position }`——
-  多出来的 `position` 之所以没报错，靠的是对象字面量的多余属性检查没有触发，
-  而不是类型正确。现在写成 gate 自己的 `ComposerPointsGateProps`，两个多出来的
-  属性是**契约的一部分**，不是意外。
+  `TraeUsageCardInjected`，而实际注入的是 `{ t, settingsScope, position }`—— 多出来的 `position` 之所以没报错，靠的是对象字面量的多余属性检查没有触发， 而不是类型正确。
+
+  现在写成 gate 自己的 `ComposerPointsGateProps`，两个多出来的 属性是**契约的一部分**，不是意外。
 
 ### 文档
 
@@ -320,7 +309,7 @@
   这个仓库已经踩过一次的坑，都写进了文件注释：**浮层是 portal 到 `document.body`
   的**，只序列化渲染容器会得到一个空浮层（第一版就是这样，AUDIT 全部 null）；
   **jsdom 的盒子全是 0**，所以锚定定位会把浮层放到视口外，预览里必须用
-  `!important` 钉住位置才拍得到。
+  `!important` 通过测试约束位置才拍得到。
 - 新增 `tests/composer-pool-test.spec.tsx`（15 例），守着上面每一条：
   - **位置**：`[刷新, 设置]` 的 DOM 顺序、同一个父节点——顺序错了「设置左边」就不成立。
   - **造型**：静止无边框无底色、圆角 999px、`inline-flex` + `gap:4px`、hover 不带
@@ -346,17 +335,16 @@
 - **每个模型的思考强度可以自己选了，而且默认档不再显示成 `Default`**
   （用户要求，2026-11-03：「需要一个默认的思考强度设置，整体做法学习 qoder」）。
   - **原来的问题**：Trae 的目录一直在发布每个模型自己的默认档
-    （`reasoning_effort_config.default_level`，实测 `deepseek-v4.1-flash` 是 `high`、
-    `glm-5.3` 是 `xhigh`），插件也一直把它解析进了目录 —— 但**适配器从未把它报给
-    宿主**。于是 DSH 的模型选择器只能说 `Default`：既不知道这个模型会跑哪一档，
-    也没法固定成别的档。
+    （`reasoning_effort_config.default_level`，实测 `deepseek-v4.1-flash` 是 `high`、 `glm-5.3` 是 `xhigh`），插件也一直把它解析进了目录 —— 但**适配器从未把它报给 宿主**。
+
+    于是 DSH 的模型选择器只能说 `Default`：既不知道这个模型会跑哪一档， 也没法固定成别的档。
   - **现在**：适配器把默认档作为 `reasoning.defaultEffort` 报上去，宿主会把它
     **物化进每一个没有指名档位的请求**，DSH 的选择器也从同一份元数据取「当前档位」。
     卡片上每个声明了档位的模型多一个下拉：第一项写的是**它实际会跑的档**（例如
     「默认（high）」），其余是该模型自己声明的档位。
   - **取值优先级**：用户显式选过的档 > 上游声明的默认档 > 该模型自己声明的中档。
     选「默认」是**删除**这个键，而不是存一个恰好等于今天默认值的档 —— 后者看起来
-    一样，却把选择钉死了，上游改默认时这个模型就不再跟随。
+    一样，却把选择明确约束了，上游改默认时这个模型就不再跟随。
   - **绝不与档位表矛盾**：保存的档位若已不在该模型当前的档位表里（目录刷新会撤回
     档位），它会被忽略而不是发出去 —— 发出去会被宿主以
     `UNSUPPORTED_REASONING_EFFORT` 拒掉，那比「显示 Default」糟得多。
@@ -407,9 +395,9 @@
     `row.sidebarPanelHint`），中英各一份。
 - **配图**：新增 `docs/assets/dsh-connect-trae-sidebar-page.png`（整页版真实渲染，
   由 `tools/page-shot.tsx` 生成、headless Chrome 实测），中英 README 各挂一张。
-- **测试**：新增 `tests/sidebar-panel-optin.spec.tsx`（17 条）钉住四件事——
+- **测试**：新增 `tests/sidebar-panel-optin.spec.tsx`（17 条）通过测试约束四件事——
   默认关闭（schema 与两个读取点）、关闭时不注册任何行/页、开关能来回切而不刷新、
-  卡片与宿主状态文档两侧都落实；`tests/client-activation.spec.tsx` 增加一条用
+  卡片与宿主状态文档两侧均实现相同行为；`tests/client-activation.spec.tsx` 增加一条用
   **真实 `apply()`** 驱动 store 并观察插槽注册表（含注销）的用例——为此把该文件
   里的 `Slots` 替身改成**忠实返回 disposer**（替身若只 push，会让「关掉之后」
   和「从未注册」无法区分，而这正是这个开关要区分的东西）；`tests/web-status.spec.ts`
@@ -426,10 +414,11 @@
 
 - **发现回调永远发出正整数窗口**（issue #72 的主点，`src/index.ts`）。
   - **问题**：宿主 `discoverModels()` 只按 id 去重，`contextWindow`/`maxTokens`
-    原样透传；模型管理界面把发现行**逐字**采纳进 `models` 配置项，而那一项的 schema
-    要求 `step(1).min(1)`。所以原样透出意味着两件事之一：畸形值被带进下游，或者
-    （目录省略窗口时）行以「无窗口」抵达 DSH——正是 #70 的故障形态，只是绕开了
-    适配器。症状同为一条坏行 ⇒ `INVALID_MODEL_CONTEXT` ⇒ 整个区域离线。
+    原样透传；模型管理界面把发现行**逐字**采纳进 `models` 配置项，而那一项的 schema 要求 `step(1).min(1)`。
+
+    所以原样透出意味着两件事之一：畸形值被带进下游，或者 （目录省略窗口时）行以「无窗口」抵达 DSH——正是 #70 的故障形态，只是绕开了 适配器。
+
+    症状同为一条坏行 ⇒ `INVALID_MODEL_CONTEXT` ⇒ 整个区域离线。
   - **改法**：回调改为永远发出 `contextWindow: servedContextWindow(model)`——
     与适配器出口同一条规则、同一个兜底值（200 000）。两条「字段缺失即不发」的
     分支合并成一条恒发字段，两个出口对同一行给出的值因此不可能分叉。
@@ -437,18 +426,16 @@
   评审判断，`src/catalog.ts`）。
   - `mergeTraeModelSources` 的目录分支、`mergeTraeModelSources` 的 wire 提升分支、
     `discoveredCatalog` 各加一条 `servedContextWindow` 归一化：窗口缺失仍按缺失
-    上报（`tests/catalog.spec.ts` 里钉住这条既有契约的用例保持绿），但**在场**的
+    上报（`tests/catalog.spec.ts` 里通过测试约束这条既有契约的用例保持绿），但**在场**的
     值必须是正整数，否则换成兜底。
   - **为什么目录层也值得补**：上游解析门 `finitePositive` 只查 `isFinite && > 0`，
     所以 `200000.5` 能活着走完解析；一个分数窗口若跟着目录行存进 `lastCatalog`，
     会让**整次设置写入**被 schema 拒绝（`modelConfig` 的 `step(1).min(1)`）。
     归一化留在生产侧，坏值就永远进不了持久化。
   - **评审修正**：报告者建议 wire 提升分支不打守卫，理由是其上游
-    （`get_detail_param`）「结构上产不出畸形值」。核对该分支的取值链
-    `contextWindow = prompt_max_tokens ?? context_window_tokens.dev`——两个来源
-    都出自 `finitePositive`，分数值（如 `300000.5`）**能**从那里活着到达。
-    故本次三个出口一起补；`FALLBACK_CONTEXT_WINDOW` 与 `servedContextWindow`
-    自 `src/adapter.ts` 移入 `src/catalog.ts` 导出（无循环依赖），两处出口共用。
+    （`get_detail_param`）「结构上产不出畸形值」。核对该分支的取值链 `contextWindow = prompt_max_tokens ?? context_window_tokens.dev`——两个来源 都出自 `finitePositive`，分数值（如 `300000.5`）**能**从那里活着到达。
+
+    故本次三个出口一起补；`FALLBACK_CONTEXT_WINDOW` 与 `servedContextWindow` 自 `src/adapter.ts` 移入 `src/catalog.ts` 导出（无循环依赖），两处出口共用。
   - **`maxTokens` 有意不动**：宿主对发现行的 `maxTokens` 同样不校验，但它的
     校验发生在 `normalizeModelInfo`（`INVALID_MODEL_MAX_TOKENS`，适配器路径，
     #70 已覆盖）；目录行里 `maxTokens` 畸形只影响「最大输出」展示，没有
@@ -467,13 +454,13 @@
     桩出目录 / wire 花名册 / IDE 花名册三个端点，走
     `ctx.llm.discoverModels(TRAE_SETTINGS_NS, { provider: 'trae' })` 断言宿主
     **读回**的行：分数目录行 → 兜底、省略窗口行 → **显式**兜底（`Object.hasOwn`
-    钉住「恒发字段」）、正常 168 000 原样保留（兜底是背板不是钳位）、wire 提升
+    通过测试约束「恒发字段」）、正常 168 000 原样保留（兜底是背板不是钳位）、wire 提升
     行的分数 `prompt_max_tokens` → 兜底、以及一条「所有行都是正整数」的全量扫描。
   - **目录单元**（`tests/catalog.spec.ts`，1 例，覆盖
     分数/0/负数/NaN × 三处出口 + 正常值不动）。
 - **变异验证**：把发现回调改回原样透出 → 真实路径 5 例中 2 例转红（全量扫描、
   省略窗口）；把 `src/catalog.ts` 三处守卫改回原样 → 目录单元例转红。恢复守卫后
-  全绿。
+  全部通过。
 - 全仓 **1240** 例通过（97 文件），双 tsconfig 类型检查通过。
 
 ## 4.6.11 (2026-10-30)
@@ -505,7 +492,7 @@
   - **行为级**：渲染出的「最近刷新」戳必须等于**读者 locale** 对该时刻的写法。
     `composer.lastRefresh` 是「最近一次刷新的时刻」（即当前时间），所以期望值取
     渲染前后两个瞬间，容许跨过一分钟边界。
-- **变异验证**：把 locale 改回 `'zh-CN'`，两条用例**同时**转红（源码级点名
+- **变异验证**：把 locale 改回 `'zh-CN'`，两条用例**同时**转红（源码级列明
   「still pins a locale」，行为级报出实际渲染值 `19:31` 与期望的 `07:31 PM`）。
 - 全仓 **1234** 例通过（96 文件），双 tsconfig 类型检查通过。
 
@@ -542,20 +529,19 @@
 
 **一、卡片与面板现在共用同一个阶梯**（新增 `src/client/expiry-ladder.ts`）。
 
-两处渲染的是**同一批 locale key**（`row.expiryWarning*`、`row.expiryEarliest`）、
-同一份上游桶，却各自写了一套档位判断。这正是 4.6.7 那个 bug 的根源——那张卡上
-写 `2026/10/31 23:59`、面板写 `23:59`，**差了一整天**，而当时没有一个测试
-失败。现在档位由一个模块选出（`expiryNotice`），两处都调用它，并且新增一条
-测试**从源码层面**钉住这件事：两个界面都不得直接读 `expiry.within24h` /
-`within3d` / `within7d` / `expired`，必须走共享阶梯。变异验证：让卡片私自读一个
-桶，该用例立刻红并点名是哪个界面读的哪个桶。
+两处渲染的是**同一批 locale key**（`row.expiryWarning*`、`row.expiryEarliest`）、 同一份上游桶，却各自写了一套档位判断。
+
+这正是 4.6.7 那个 bug 的根源——那张卡上 写 `2026/10/31 23:59`、面板写 `23:59`，**差了一整天**，而当时没有一个测试 失败。
+
+现在档位由一个模块选出（`expiryNotice`），两处都调用它，并且新增一条 测试**从源码层面**通过测试约束这件事：两个界面都不得直接读 `expiry.within24h` / `within3d` / `within7d` / `expired`，必须走共享阶梯。
+
+变异验证：让卡片私自读一个 桶，该用例立刻红并列明是哪个界面读的哪个桶。
 
 **二、卡片的样式表缺一条守卫**。
 
-面板侧有「面板渲染的每个 class 都得有规则」的守卫（`composer-styles.spec.tsx`），
-卡片侧**没有**对应的——而卡片渲染的是同一批 `dsm-trae-expiry-*` class，规则却在
-另一个常量 `TRAE_CARD_CSS` 里。实测：删掉卡片的 `dsm-trae-expiry-days` 规则，
-全仓测试依然全绿。现补一条守卫覆盖卡片的四个语气 class 与两条共享规则。
+面板侧有「面板渲染的每个 class 都得有规则」的守卫（`composer-styles.spec.tsx`）， 卡片侧**没有**对应的——而卡片渲染的是同一批 `dsm-trae-expiry-*` class，规则却在 另一个常量 `TRAE_CARD_CSS` 里。
+
+实测：删掉卡片的 `dsm-trae-expiry-days` 规则， 全仓测试依然全部通过。现补一条守卫覆盖卡片的四个语气 class 与两条共享规则。
 
 ### 测试
 
@@ -567,7 +553,7 @@
   - 卡片样式表覆盖四个语气 class 的守卫。
 - **变异验证**（每一项都确认会转红）：
   - 删掉 3 天档的分支 → 档位测试红；
-  - 让卡片私自读一个桶 → 一致性守卫红并点名；
+  - 让卡片私自读一个桶 → 一致性守卫红并列明；
   - 删掉面板侧的 `dsm-trae-expiry-days` 规则 → 面板样式守卫红；
   - 删掉卡片侧的同一条规则 → 新增的卡片样式守卫红。
 - 全仓 **1232** 例通过（96 文件），双 tsconfig 类型检查通过。
@@ -599,7 +585,7 @@
   `conversation.input.left` 零出现。
 - 两个姊妹仓库各自补了一条**真正的座位断言**（此前都没有）：
   workbuddy 补的是「`inject()` 的座位名与 `register({ name })` 必须相等」
-  （只改后者时原守卫全绿，而 `name` 才是注册表实际索引的字段）；
+  （只改后者时原守卫全部通过，而 `name` 才是注册表实际索引的字段）；
   qoder 补的是「`input.right#…` 在册，且 `input.left#` 前缀不存在」
   （此前该文件完全没有座位断言）。
 
@@ -622,9 +608,8 @@
     `div.modes` 里的权限选择器，间距只有 8px。两个都是可点元素，误触后弹出的是
     积分浮层——一个纯读数被当成了操作目标。
   - **新位置**：宿主把 `conversation.input.right` 渲染在 `div.trailing` 的
-    `standardControls` 内、`conversation.input.model`（模型选择器）**之前**，
-    引用 `dsh-client-ui-conversation` 的 `InputBar` 结构：
-    `standardControls: [ renderSlot("conversation.input.right"), renderSlot("conversation.input.model") ]`。
+    `standardControls` 内、`conversation.input.model`（模型选择器）**之前**， 引用 `dsh-client-ui-conversation` 的 `InputBar` 结构： `standardControls: [ renderSlot("conversation.input.right"), renderSlot("conversation.input.model") ]`。
+
     迁过去后与权限选择器之间隔开整段空白。
   - **宿主不需要改**：`conversation.input.right` 早已是 `kind: list` / `scope: session`
     的现成座位。
@@ -714,7 +699,7 @@ trae 一家，原因：
 
 > **对齐宿主 DSH 0.2.1-rc.5（经停 rc.4）：纯版本推进，插件代码零改动。**
 > 两版之间 13 个提交里约 240 个文件只是各包 `package.json` 的版本号行，有实质代码的
-> 只有四处——而四处都不落在本插件消费的面上。插件消费的 13 个宿主包在
+> 只有四处——而四处都不落在本插件调用的面上。插件调用的 13 个宿主包在
 > rc.3→rc.5 之间**逐字节相同**。
 
 ### 变更
@@ -727,10 +712,8 @@ trae 一家，原因：
 ### 已核对确认无变化
 
 - 逐字节比对 npm 上 `0.2.1-rc.3` 与 `0.2.1-rc.5` 两版的全量文件树（`lib/**.js` 汇总哈希，
-  忽略 `package.json` 的版本号行）：插件消费的 13 个包——`dsh-llm`、`dsh-llm-pi-ai`、
-  `dsh-settings`、`dsh-host-webserver`、`dsh-atomic-write`、`dsh-home-paths`、`dsh-attachment`、
-  `dsh-client-ui-renderer`、`dsh-client-ui-settings`、`dsh-client-ui-settings-plugins`、
-  `dsh-client-ui-slots`、`dsh-client-locale`、`dsh-client-ui-primitives`——**全部逐字节相同**。
+  忽略 `package.json` 的版本号行）：插件调用的 13 个包——`dsh-llm`、`dsh-llm-pi-ai`、 `dsh-settings`、`dsh-host-webserver`、`dsh-atomic-write`、`dsh-home-paths`、`dsh-attachment`、 `dsh-client-ui-renderer`、`dsh-client-ui-settings`、`dsh-client-ui-settings-plugins`、 `dsh-client-ui-slots`、`dsh-client-locale`、`dsh-client-ui-primitives`——**全部逐字节相同**。
+
   （rc.3 时唯一有代码变化的是 `dsh-client-ui-primitives`；本版它停住了。）
 - 本插件注册的 5 个槽位（`plugins.bundle.config`、`plugins.row.config`、
   `conversation.input.left`、`conversation.composer.dock`、`conversation.input.model.label`）
@@ -742,7 +725,7 @@ trae 一家，原因：
 ### rc.4 的两处行为变化为什么不击中本插件
 
 - **`conversation.chat.reasoning.body` 新增 `rawText`，`text` 改为显示用文本**（会剥掉
-  `<signature>…</signature>` 前缀），上游专门发了升级指南。本插件全仓不注册、不消费任何
+  `<signature>…</signature>` 前缀），上游专门发了升级指南。本插件全仓不注册或调用任何
   `conversation.chat.*` 槽位（`grep -rn "conversation.chat" src tests` 零命中），也不包装
   reasoning 渲染。
 - **把目录加载的诊断从 stdout 改到 stderr**（理由是「ACP 保留 stdout」）。本插件宿主侧
@@ -754,14 +737,14 @@ trae 一家，原因：
 
 - `tests/dsh-peer-range.spec.ts` 的 `MUST_ADMIT` 补入 `0.2.1-rc.4` / `0.2.1-rc.5`——
   保持「当前正在使用的宿主版本必须在放行清单里」这条不变量。
-- 双 tsconfig 类型检查通过，全仓 **1222** 例测试全绿（96 文件），`tsdown` 构建通过；
+- 双 tsconfig 类型检查通过，全仓 **1222** 例测试全部通过（96 文件），`tsdown` 构建通过；
   重建后 `lib/client.js` 的 `require` 仍只有 react / react-dom / react/jsx-runtime，
   宿主进程存活（无渲染进程崩溃）。
 
 ### 文档
 
 - 新增 `docs/DSH_0.2.1_RC1_SYNC.md` 第十一节：`0.2.1-rc.5` 复核记录（取证、上游改动、
-  契约面、槽位核对、外壳共享模块表、peer 门禁）。
+  契约面、槽位核对、外壳共享模块表、peer 兼容性检查）。
 - `README.md` / `README.en.md` 的宿主版本结论推进到 `0.2.1-rc.5`，并新增
   「`0.2.1-rc.5` 同步结论」小节。
 
@@ -780,17 +763,15 @@ trae 一家，原因：
     `adapter returned invalid context metadata for provider "trae" model "doubao_1.8"`。
     失败粒度是 **provider 级**，不是单模型级。
   - **根因**：`FALLBACK_CONTEXT_WINDOW` 只被赋给 profile 的
-    `defaultContextWindow`，而那个字段由**内核自己的目录解析步骤**读取——本插件
-    从不走那条路径。它用 `createProvider({ models })` 手工装配 pi-ai provider，
-    `Models.getModel()` 直接返回 `toPiModel` 产出的原始行，**不做任何补默认值**；
-    而 `toPiModel` 在 `contextWindow === undefined` 时**省略**该字段。于是
-    `PiAiAdapter.modelInfo()` 解析出 `context: { contextWindow: undefined }`，
-    DSH 拒绝，且拒绝的是整条路由。常量写了，没有生效点。
+    `defaultContextWindow`，而那个字段由**内核自己的目录解析步骤**读取——本插件 从不走那条路径。它用 `createProvider({ models })` 手工装配 pi-ai provider， `Models.getModel()` 直接返回 `toPiModel` 产出的原始行，**不做任何补默认值**； 而 `toPiModel` 在 `contextWindow === undefined` 时**省略**该字段。
+
+    于是 `PiAiAdapter.modelInfo()` 解析出 `context: { contextWindow: undefined }`， DSH 拒绝，且拒绝的是整条路由。
+
+    常量写了，没有生效点。
   - **修法**：把回退**落到行本身**。新增 `servedContextWindow()`，`toPiModel`
-    现在**总是**输出 `contextWindow`：行自己的正整数窗口原样保留，其余一切
-    （缺失、`NaN`、`0`、负数、小数）回退到 `FALLBACK_CONTEXT_WINDOW`——因为
-    DSH 只接受正整数。profile 上的 `defaultContextWindow` 保留（内核路径仍会读），
-    但注释改成与事实一致：真正的保证在 `toPiModel`，那只是保险带。
+    现在**总是**输出 `contextWindow`：行自己的正整数窗口原样保留，其余一切 （缺失、`NaN`、`0`、负数、小数）回退到 `FALLBACK_CONTEXT_WINDOW`——因为 DSH 只接受正整数。
+
+    profile 上的 `defaultContextWindow` 保留（内核路径仍会读）， 但注释改成与事实一致：真正的保证在 `toPiModel`，那只是保险带。
   - **为什么小数也要回退**：目录解析器的 `finitePositive` 只校验 `isFinite` 与
     `> 0`，所以上游若发布 `context_window_tokens.dev = 200000.5`，它会原样进到
     适配器；DSH 对非整数的拒绝与缺失完全相同。这条此前没有任何用例锁住。
@@ -804,32 +785,17 @@ trae 一家，原因：
     继续锁这个不变量）。本修复只是让「万一漏了一条」退化成一条保守尺寸的模型，
     而不是死掉一个区域。
 
+> 更正：4.6.4 的 null/TTFT 缓存解释已被 #69 的后续计费对照修正，不能据此判定没有前缀缓存或仅有整请求复用。
+
 ## 4.6.4 (2026-10-28)
 
-> **缓存命中恒为 0% 不是插件丢了数字，是上游没有分配缓存池。** Trae 的
-> `metadata` 事件里 `prompt_cache_pool_record` 非空才代表这次请求挂了前缀
-> 缓存池；实测 CN/AI 双区、4 个账号、7 个模型、4 种 function，该字段
-> **100% 为 `null`**。没有池，`cache_read_input_tokens` 只能是 0 —— 0% 是
-> 正确读数。本版把这个事实变成可观测的，用户不必再怀疑插件吞了数据。
+> 本版增加缓存诊断字段转发。当时据 null 和延迟推断“没有缓存池”的结论已撤回；后续 #69 的计费对照观察到前缀缓存折扣。
 
 ### 修复
 
-- **上游的缓存池事实与管线名不再被丢弃**（#67）。
-  - **现象**：无论简单还是复杂提问，缓存命中恒为 0%，十个会话一致；
-    同时 tps 在 60–80 之间浮动。
-  - **根因**：不是插件。issue #10 的转发修复仍在（`lib/index.js` 含
-    `cached_tokens`，同版本下 `workbuddy`/`dsh-opencode-go` 命中显示正常），
-    是上游 `llm_utils_chat` 改由 `llm_raw_chat_v2` 管线、火山方舟 `ep-…`
-    端点承载后，不再为这些请求分配前缀缓存池。当初产出 5248/9216 的
-    `scripts/probe-cache-convention.mjs` 原样重跑，现在三轮全是 0。
-  - **修法**：`sse.ts` 新增 `diagnostic` 事件类型，解码 `metadata`
-    （`prompt_cache_pool_record`）与 `timing_cost`（`name` 管线名、
-    `provider_model_name`）；`solo-bridge.ts` 通过可选 `log` 上报
-    `promptCachePoolRecord` / `pipeline` / `providerModelName`；
-    `index.ts` 四个 `TraeSoloBridge` 构造点接入 `ctx.logger.warn`。
-    诊断事件不进答案文本、不改 usage 映射，**对外行为不变**。
-  - **为什么区分 `null` 与「字段不存在」**：`null` 是上游明确表示「没挂池」，
-    字段缺失只是没这条信息；两者混为一谈就又回到「看不出是谁的问题」。
+- `sse.ts` 新增 `diagnostic` 类型，解码 metadata 与 timing_cost。`solo-bridge.ts` 上报 `promptCachePoolRecord`、`pipeline` 和 `providerModelName`，`index.ts` 四处构造点接入日志。
+- 当时 CN/AI 双区、4 个账号、7 个模型、4 种 function 的样本中，缓存计数为 0，`prompt_cache_pool_record` 为 null。脚本三轮也均为 0。这些是字段观察，不能证明服务端未使用缓存或没有计费折扣。
+- null 与字段缺失分别保留。诊断事件不进入答案文本，也不改变 usage 映射。
 
 ### 修复（顺带守住一个回归）
 
@@ -848,7 +814,7 @@ trae 一家，原因：
 ### 说明
 
 - 诊断细节与完整证据链见 `docs/ISSUE67_DIAGNOSIS.md`（不随 npm 包发布）。
-- 上游若开始分配缓存池，`cached_tokens` 会自动恢复显示，插件侧无需再改。
+- 上游返回非零缓存计数时，插件按原值映射为 `cached_tokens`；计费折扣可能与该计数不同。
 
 ## 4.6.3 (2026-10-27)
 
@@ -869,11 +835,9 @@ trae 一家，原因：
     US 被判定为 `ai`。而 `REGION_GATEWAYS` 只有 cn/ai 两个键，于是「查不到」
     变成了「拿另一个区的网关」。
   - **修法**：新增 `TraeServiceRegion = 'cn' | 'ai' | 'us'`；`TraeRegion`
-    （存储/路由桶）仍是 `cn | ai`。`assertSupportedRegion()` 是唯一从区域
-    身份进到路由桶的入口，US 在**选择网关之前**抛
-    `TraeUnsupportedRegionError`。所有读网关的客户端（用量、SOLO wire、远程
-    目录、Raw Chat、IDE 名册）都走这一道，注入 `baseUrl` 的测试/诊断路径也
-    不例外。
+    （存储/路由桶）仍是 `cn | ai`。`assertSupportedRegion()` 是唯一从区域 身份进到路由桶的入口，US 在**选择网关之前**抛 `TraeUnsupportedRegionError`。
+
+    所有读网关的客户端（用量、SOLO wire、远程 目录、Raw Chat、IDE 名册）都走这一道，注入 `baseUrl` 的测试/诊断路径也 不例外。
   - **为什么不是一行 `us → ai` 映射**：`ai` 的网关/目录/chat 契约都是按新加坡
     实测出来的，而报告里的 US 实测恰好相反（远程目录 404、`llm_utils_chat`
     403 `40006`、`create_agent_task` 的 config 绑定未知）。映射过去只是换一种
@@ -888,10 +852,10 @@ trae 一家，原因：
   - 卡片改为显示**服务端原文**（账号刷新、模型刷新、状态读取），不再只打印
     `HTTP 401`——「网关拒绝了你」和「插件坏了」从此可以分辨。
 
-- **US 凭据不可选中、不计费，但会被点名**（#66）。
+- **US 凭据不可选中、不计费，但会被列明**（#66）。
   - `readAll()` 过滤掉本版本不服务的区域（作用域与无作用域 store 都过滤），
     因此它不会被 refresh、不会进账号表、不会发出任何请求；
-    `unsupportedCredentials()` 单独把它读出来给卡片点名。
+    `unsupportedCredentials()` 单独把它读出来给卡片列明。
   - 未登录态显示「美国区（US）暂不支持」并列出账号名，写明请求不会发往新加坡
     网关、重新登录没有变化；诊断面板多一行「未支持的区域」。
   - `resolve()` 在「只有 US 凭据」时抛明确错误，而不是笼统的
@@ -902,11 +866,11 @@ trae 一家，原因：
 - `tests/issue66-us-region.spec.ts`（23 例）：US 的三条解析路径（claim / host /
   完整凭据）都得到 `us` 而不是 `ai`；`payStatus` / 远程目录 / wire 名册 /
   Raw Chat / chat 面对 US 凭据**零 `fetch` 调用**（含注入 `baseUrl` 的两例）；
-  作用域与无作用域 store 都不解析它、但都能点名；401/403/404/US/普通异常的
+  作用域与无作用域 store 都不解析它、但都能列明；401/403/404/US/普通异常的
   状态映射；模型刷新路由逐条断言 401、501、500；状态文档携带通告且不重复英文
   异常文本。
 - `tests/issue66-card-us-notice.spec.tsx`（2 例）：未登录文档带
-  `unsupportedRegion` 时卡片点名账号；失败请求显示服务端 `error` 原文而非
+  `unsupportedRegion` 时卡片列明账号；失败请求显示服务端 `error` 原文而非
   `HTTP 401`。
 - **变异验证**：去掉 `regionOfUserRegion` 的 US 分支 → 2 例转红；刷新路由的
   `failJson()` 改回 500 → 2 例转红；删掉 `readAll()` 的区域守卫 → 1 例转红。
@@ -931,36 +895,29 @@ trae 一家，原因：
 
 - **`@earendil-works/pi-ai` 改标为可选 peer，安装不再被 generation 校验拦下**（#65）。
   - **现象**：从 DSH 插件市场安装后，日志先报
-    `generation-install: promoted to dsh-connect-trae+4.6.1+…`，紧接着报
-    `generation-install: generation peer validation failed: @earendil-works/pi-ai
-    does not resolve from the generation or installation closure`。这次安装因此
-    `exit=1`、**不登记进持久化清单**（`.generations/desired.json`、
-    `desktop-workbenches/market-installs.json`）；DSH 下次启动按清单重建
-    `.generations/live`，未登记的 generation 被清掉（`logs/harness.log`:
-    `swept 3 unreferenced plugin generation(s)`）——表现为「装完没问题，重启后消失」，
-    重装必然复现。
+    `generation-install: promoted to dsh-connect-trae+4.6.1+…`，紧接着报 `generation-install: generation peer validation failed: @earendil-works/pi-ai does not resolve from the generation or installation closure`。
+
+    这次安装因此 `exit=1`、**不登记进持久化清单**（`.generations/desired.json`、 `desktop-workbenches/market-installs.json`）；DSH 下次启动按清单重建 `.generations/live`，未登记的 generation 被清掉（`logs/harness.log`: `swept 3 unreferenced plugin generation(s)`）——表现为「装完没问题，重启后消失」， 重装必然复现。
   - **根因不是 pi-ai 特殊，而是宿主核心包的判定方式是包名前缀。** 插件市场
-    （`dshmarket` 的 `corePackageNames()`）从 DSH 安装目录的 `node_modules` 反推核心包集合，
-    规则是 `/^(?:dsh|cordis)/` 匹配于 `@deepseek-ai/` 之下；命中者的 peer 允许从**宿主锚点**
-    解析，未命中者必须出现在插件自己的安装闭包里。`@earendil-works/pi-ai` 两个前缀都不匹配，
-    而 DSH 只在运行时注入它，闭包里从来没有——于是必然失败。
+    （`dshmarket` 的 `corePackageNames()`）从 DSH 安装目录的 `node_modules` 反推核心包集合， 规则是 `/^(?:dsh|cordis)/` 匹配于 `@deepseek-ai/` 之下；命中者的 peer 允许从**宿主锚点** 解析，未命中者必须出现在插件自己的安装闭包里。
+
+    `@earendil-works/pi-ai` 两个前缀都不匹配， 而 DSH 只在运行时注入它，闭包里从来没有——于是必然失败。
   - **修法**：进 `peerDependenciesMeta` 标 `optional`（同作者的 `dsh-connect-workbuddy`
     早就是这个写法，本仓库是漏了，不是设计如此）。**peer 范围保留不动**
     （`>=0.85.1 <2.0.0`）：它编码的是适配器能吃哪几代 pi-ai（见 `src/pi-ai-runtime.ts`
     与 issue #27），与「装不装」是两件事，删范围会丢掉代际判据。
   - **为什么这次专门加测试**：修复是纯声明式的，构建期没有任何东西会察觉——`tsc` 只看到
-    字符串；`devDependencies` 里有实体 pi-ai，本地每次测试都能解析成功；CI 照常绿。
-    故障只在用户机器上、重启之后才出现。故新增 `tests/peer-optional.spec.ts`（6 例）
-    直接读随包 manifest 断言该标记，并把规则推广为「任何不在 `@deepseek-ai/{dsh,cordis}`
-    前缀下、却由宿主提供的 peer 都必须 optional」，避免下一个宿主依赖重开同一个洞。
+    字符串；`devDependencies` 里有实体 pi-ai，本地每次测试都能解析成功；CI 照常绿。 故障只在用户机器上、重启之后才出现。
+
+    故新增 `tests/peer-optional.spec.ts`（6 例） 直接读随包 manifest 断言该标记，并把规则推广为「任何不在 `@deepseek-ai/{dsh,cordis}` 前缀下、却由宿主提供的 peer 都必须 optional」，避免下一个宿主依赖重开同一个洞。
   - 贡献者：[@674830790](https://github.com/674830790)（issue #65，附完整日志与因果链）。
 
 ### 测试
 
 - `tests/peer-optional.spec.ts` 6 例：pi-ai 必须 `optional: true`；非核心前缀的宿主提供 peer
-  一律 optional；`optional` 必须是字面量 `true`（`"yes"`/`1` 之类 npm 不认，改了看着像修好
-  其实没修）；`peerDependenciesMeta` 不得出现未声明的 peer；pi-ai 仍须被 `devDependencies`
-  钉住。**变异验证**：删掉 `peerDependenciesMeta` 后该文件 2 例转红，确认守卫不是恰好绿。
+  一律 optional；`optional` 必须是字面量 `true`（`"yes"`/`1` 之类 npm 不认，改了看着像修好 其实没修）；`peerDependenciesMeta` 不得出现未声明的 peer；pi-ai 仍须被 `devDependencies` 通过测试约束。
+
+  **变异验证**：删掉 `peerDependenciesMeta` 后该文件 2 例转红，确认守卫不是恰好绿。
 - 全量 **93 files / 1186 tests** 通过（原 1180 + 新增 6）。
 
 ### 说明
@@ -974,7 +931,7 @@ trae 一家，原因：
 
 > **4.6.0 说「图片字节插件拿不到」，这一版把这句话纠正过来。** 那条按
 > `?prompt=&image_size=` 再打一次 GET 的路确实不是取图、而是**又一次生成**，但
-> 「uri → 字节」不是没有通道，只是请求体形态特殊。现在图片会被取回来、落成会话文件、
+> 「uri → 字节」不是没有通道，只是请求体形态特殊。现在图片会被取回来、保存为会话文件、
 > 直接显示在聊天里。
 
 ### 修复
@@ -987,7 +944,7 @@ trae 一家，原因：
     `{"url_map":{"<key>":"<byteimg 签名 URL>"}}`，再直接 GET 那个签名地址（**不带任何
     Trae 头**，签名在 query 里）即得字节——实测 `image/jpeg`、1,155,578 字节、头
     `ffd8ffe0`。对已有 key 这一步**零成本**，不会重新生成。
-  - **图片落成会话文件并直接显示**：`generate` 返回 `{url, credit?, bytes, mimeType}`，
+  - **图片保存为会话文件并直接显示**：`generate` 返回 `{url, credit?, bytes, mimeType}`，
     `execute` 把字节写进 `<session cwd>/trae-images/trae-YYYYMMDD-HHMMSS-<hex>.<ext>`
     （扩展名跟 mime 走），`output.schema` 恢复 `path` 并进 `required`，`render` 输出
     `![Trae 文生图](trae-images/…)`。DSH 的聊天按 session cwd 解析相对路径、再过宿主的
@@ -1004,10 +961,9 @@ trae 一家，原因：
     `agent.session.cwd` 这个字段不存在，`agent.session.header.cwd` 又只是**创建时**目录
     （`/cd` 之后就不对）。插件此前只能回退到 `process.cwd()`。
   - 现在照宿主自己的 `dsh-tool-*` 取法：`ctx.inject(['workingDirectory'])` 后调
-    `workingDirectory.ensure(exec.agent, exec.signal)`（它读 session projection
-    `workingDirectory`，即实时目录，并确认目录还在）。阶梯：宿主 service →
-    `agent.session.header.cwd` → `process.cwd()`。`TraeImageToolDeps` 新增可选
-    `directoryOf`，service 读取放在 `src/index.ts` 注入，`image-tool` 保持纯函数可单测。
+    `workingDirectory.ensure(exec.agent, exec.signal)`（它读 session projection `workingDirectory`，即实时目录，并确认目录还在）。
+
+    阶梯：宿主 service → `agent.session.header.cwd` → `process.cwd()`。`TraeImageToolDeps` 新增可选 `directoryOf`，service 读取放在 `src/index.ts` 注入，`image-tool` 保持纯函数可单测。
 - **取图那一跳的 HTTP 错误不再谎报成因**。
   - 此前它复用生图那套状态码映射，取图接口回 403 会报 `AUTH`（「上游拒绝了凭据」）、回
     429 会报 `RATE_LIMIT`——可这时图早已生成、积分早已扣掉，用户照这句话去重新登录，
@@ -1068,42 +1024,35 @@ trae 一家，原因：
     卡片模型栏勾上「允许模型自主生图」（`drawImageEnabled`）该面板才注册这个工具，
     取消勾选立即撤下。
   - **协议是实测出来的，不是从二进制里猜的**：`POST /api/ide/v1/tool_text_to_image`
-    （另有 SSE 变体），请求体**只认** `{prompt, image_size?}`——多带 `mode_type`/`session_id`/
-    `image_urls` 之类的已知字段直接 400 空 body，未知字段反被忽略；成功响应是**扁平**的
-    `{"message":"success","uri":"tos-cn-i-…"}`，没有 `{code,msg,data}` 信封。模型 `seedream_5`。
+    （另有 SSE 变体），请求体**只认** `{prompt, image_size?}`——多带 `mode_type`/`session_id`/ `image_urls` 之类的已知字段直接 400 空 body，未知字段反被忽略；成功响应是**扁平**的 `{"message":"success","uri":"tos-cn-i-…"}`，没有 `{code,msg,data}` 信封。
+
+    模型 `seedream_5`。
   - **尺寸边界**：总像素必须落在 **3686400 ~ 16777216**（`1024x1024` 报
     `image size must be at least 3686400 pixels`、`4608x4608` 报 at most，两者都**不扣费**）；
     预设 `2k`/`3k`/`4k` 可用，缺省 `1920x1920`。
   - **计费口径写进工具文案**：实测 `1920x1920` 一张约 **8.8 积分**（国内版价），上游不回传
     扣费数字。失败后加 **30 秒冷却**（按张计费，不过冷却的重试等于再买一张）。
   - **不取图，只回 key**：同路径的 GET 不是取图，**是又一次生成**。决定性探针（CN 个人版）：
-    POST 拿到 `…/1792954795741_44f94116_jpeg_1920x1920` 之后，用同一 `(prompt, size)` 带
-    全套网关头 + `x-ide-sign` 打 GET，回来的是**另一个** uri
-    （`…/1792954810505_b107ac11_jpeg_1920x1920`），耗时 27 秒、**一个像素都没有**——等于又画
-    一张、又扣一次（两次共约 17.6）。非法尺寸探针（`100x100`）同样印证：报错直接来自 Ark 的
-    `[callArkImageGeneration]`。所以发版代码**不再发这条 GET**：`generate` 只发一次 POST，
-    返回 `{url, credit?}`，渲染层把 key 显示成**行内代码**并注明「不能直接打开」，绝不拼进
-    `![](...)`（key 不是路径，拼进去只会得到以当前目录为基准的碎图标）。要真正把 uri 变成
-    字节，需要另一条通道（iCube material 的 `get_url` + `x-icube-token`，基址来自运行时
-    boot config），目前**没有打通**，代码里也不留假装能取的入口。
-    两例 `tests/image-tool-render.spec.ts` 与两例 `tests/image-tool-download.spec.ts`
-    （现已改名口径）用 stub fetch 断言**每次生成只发一次请求**。
+    POST 拿到 `…/1792954795741_44f94116_jpeg_1920x1920` 之后，用同一 `(prompt, size)` 带 全套网关头 + `x-ide-sign` 打 GET，回来的是**另一个** uri （`…/1792954810505_b107ac11_jpeg_1920x1920`），耗时 27 秒、**一个像素都没有**——等于又画 一张、又扣一次（两次共约 17.6）。
+
+    非法尺寸探针（`100x100`）同样印证：报错直接来自 Ark 的 `[callArkImageGeneration]`。所以发版代码**不再发这条 GET**：`generate` 只发一次 POST， 返回 `{url, credit?}`，渲染层把 key 显示成**行内代码**并注明「不能直接打开」，绝不拼进 `![](...)`（key 不是路径，拼进去只会得到以当前目录为基准的碎图标）。
+
+    要真正把 uri 变成 字节，需要另一条通道（iCube material 的 `get_url` + `x-icube-token`，基址来自运行时 boot config），目前**没有打通**，代码里也不留假装能取的入口。
+
+    两例 `tests/image-tool-render.spec.ts` 与两例 `tests/image-tool-download.spec.ts` （现已改名口径）用 stub fetch 断言**每次生成只发一次请求**。
   - **只有国内版面板提供**（`DRAW_IMAGE_PANELS = ['cn']`，见 `src/status-paths.ts`）。
     企业版走租户网关、国际版按另一套套餐计费，两者的生图行为都**没有测过**：企业版原先
     就因为这一点被拒绝，国际版没有理由凭「面板是消费者版」放行——而且工具文案里的
     8.8 积分是国内价，放到国际版就是错的。两处的勾选框都**置灰并写明原因**（不隐藏：
     隐藏会让人以为插件漏了这个功能），理由与「加进白名单必须先补实测证据」写在同一处注释里。
   - **注册开关是一个可测的纯函数**：`drawImagePanelsOf()` 三道门——面板在白名单内、
-    该面板的 provider 开着（opt-out 语义，旧配置仍算开）、用户显式勾选（**只认字面量
-    `true`**，`'yes'`、`1` 之类的手改值不算同意）。企业版即使被勾上也**结构性**拒绝，
-    不靠白名单列表的书写顺序。首版把这条规则写在 `apply()` 的闭包里，只能靠读代码确认，
-    现在由 `tests/image-tool-optin.spec.ts` 的 12 例钉住（缺省/非法形状/非布尔真值/关掉的
-    provider/企业版/国际版/多面板顺序/整段 section 与裸 `regions` map 同答）。
+    该面板的 provider 开着（opt-out 语义，旧配置仍算开）、用户显式勾选（**只认字面量 `true`**，`'yes'`、`1` 之类的手改值不算同意）。
+
+    企业版即使被勾上也**结构性**拒绝， 不靠白名单列表的书写顺序。首版把这条规则写在 `apply()` 的闭包里，只能靠读代码确认， 现在由 `tests/image-tool-optin.spec.ts` 的 12 例通过测试约束（缺省/非法形状/非布尔真值/关掉的 provider/企业版/国际版/多面板顺序/整段 section 与直接提供的 `regions` map 同答）。
   - **开关就在卡片里，不是一个只有 schema 的字段**：真值是 `regions.<panel>.drawImageEnabled`
-    （Host 的工具解析按面板读它，所以写的是 `regions` 而不是顶层设置键）。勾选即写、不经过
-    「保存」，写后**回读文档**核对——一个谎报授权的勾选框会让「工具没出现」看起来像 bug。
-    4 例卡片测试 `tests/card-draw-image-switch.spec.tsx` 断言写入字段是 `regions`、该槽位的
-    模型目录/图片模型/上下文预算/账号池一个都不能丢。
+    （Host 的工具解析按面板读它，所以写的是 `regions` 而不是顶层设置键）。勾选即写、不经过 「保存」，写后**回读文档**核对——一个谎报授权的勾选框会让「工具没出现」看起来像 bug。
+
+    4 例卡片测试 `tests/card-draw-image-switch.spec.tsx` 断言写入字段是 `regions`、该槽位的 模型目录/图片模型/上下文预算/账号池一个都不能丢。
   - **范围**：改图（需先走 TOS 上传预签名）与文生视频（异步素材轮询）**不做**，也不留半截入口。
 
 ### 文档
@@ -1262,7 +1211,7 @@ trae 一家，原因：
 
 ## 4.4.7 (2026-10-24)
 
-> **4.4.6 把「读不出来的账号副本」改名留住了，但这件事一直是静默的——现在卡片会把它点名，
+> **4.4.6 把「读不出来的账号副本」改名留住了，但这件事一直是静默的——现在卡片会把它列明，
 > 包括未登录那一屏。被顶掉的账号「去哪了」，从此不必再去 `~/.dsh` 里翻文件名。**
 >
 > 这一版不改任何账号、刷新、镜像的行为：读不懂的文件依然被隔离、依然不被覆盖。
@@ -1270,14 +1219,14 @@ trae 一家，原因：
 
 ### 新增
 
-- **隔离过的账号副本会被点名**（`feat(card)`）。
+- **隔离过的账号副本会被列明**（`feat(card)`）。
   - 宿主侧新增 `TraeCredentialStore.quarantinedCopies()`：**扫描**副本文件旁边的
     `.corrupt-*` 兄弟文件——不另设一本账，**证据本身就是证据**，用户删掉留存文件，提示也就跟着
     消失，没有第二处状态要清理。报告内容是它原来的路径、现在的路径、字节数，以及
     **能读成 JSON 时的账号数**（读不成就不猜：一个猜错的账号数比没有更糟）。
   - 状态文档新增 `quarantined` 字段，**signed-in 与 signed-out 两种形状都带**。
-  - 卡片「诊断」栏新增一行「损坏副本留存」，点名那份留存文件。
-  - **未登录那一屏也显示同一条通知**：账号消失之后用户落地的正是那一屏，而那一屏根本不渲染分栏，
+  - 卡片「诊断」栏新增一行「损坏副本留存」，列明那份留存文件。
+  - **未登录那一屏也显示同一条通知**：账号消失之后用户实施的正是那一屏，而那一屏根本不渲染分栏，
     诊断栏根本看不到——只把通知放进诊断栏，等于没做。
   - 一台健康的机器上什么都不显示：没有通知，也没有空盒子。
 
@@ -1285,7 +1234,7 @@ trae 一家，原因：
 
 - 新增 **9** 例：`tests/auth.spec.ts`（2 条——报告隔离文件、用户删掉后通知随之消失）、
   `tests/web-status.spec.ts`（2 条——signed-out 与 signed-in 文档都带上通知）、
-  `tests/card-quarantine.spec.tsx`（5 条——诊断栏点名、未登录屏可见、账号数可读/不可读、健机器保持沉默）。
+  `tests/card-quarantine.spec.tsx`（5 条——诊断栏列明、未登录屏可见、账号数可读/不可读、健机器保持沉默）。
 - 全仓 **1093** 例 / 85 个测试文件通过，双 tsconfig 类型检查通过。
 
 ### 文档
@@ -1295,14 +1244,16 @@ trae 一家，原因：
 > **给 #56 报告人的补充**：4.4.6 的隔离是静默的，所以「出现过隔离文件」这件事过去只能靠翻目录发现。
 > 4.4.7 之后，卡片会直接把那份文件指给你——如果你的 `~/.dsh` 下已经有 `.corrupt-*` 文件，
 > 升级后打开设置页就能看到它曾经存在，不必再自己找。
+> 说明：4.4.6 的宿主升级无需适配，不代表该版本没有 auth/pool 修复。
+
 ## 4.4.6 (2026-10-24)
 
 > **对齐宿主 DSH 0.2.1-rc.3（纯版本推进，插件代码零改动），并修掉账号链路上三处
 > 会静默丢数据的问题——其中一处可能正是 #56「被顶掉的账号若干时间后消失」的成因。**
 >
-> 宿主这一版只落地 5 个提交：三个是「导航项自定义」（面板固定/取消固定、More 菜单、埋点），
+> 宿主这一版只实施 5 个提交：三个是「导航项自定义」（面板固定/取消固定、More 菜单、埋点），
 > 一个是 DeepSeek API-key 通道改走官方 `/models` 目录，一个是版本号——**均与本插件不相干**。
-> 插件消费的 13 个宿主包里只有 `dsh-client-ui-primitives` 有代码变化，且全是新增，
+> 插件调用的 13 个宿主包里只有 `dsh-client-ui-primitives` 有代码变化，且全是新增，
 > 而本插件对它只有类型层引用，因此**不需要任何适配**。
 >
 > 真正的风险在插件自己身上：一份读不懂的副本文件会被当成「一个账号都没有」，
@@ -1333,11 +1284,10 @@ trae 一家，原因：
   推进到 `0.2.1-rc.3`。`cordis`（`4.0.5`）/ `schemastery`（`3.18.5`）/ `pi-ai`（仍 `1.1.0`）
   均未变——宿主 `app.asar` 实测随包的 pi-ai 仍是 1.1.0，3.4.2 起的双向适配结论原样成立。
 - **peer 范围无需改动**：`0.2.1-rc.3` 对 `>=0.1.7-rc.1 <0.3.0-0` 已判通过（实测）。
-- **插件代码零改动**：rc.3 对本插件消费的 13 个宿主包里，只有 `dsh-client-ui-primitives`
-  存在代码变化，且全部是**新增**（`TooltipSide` 增加 `'left'` 并改用实测边框盒换边放置、
-  `MenuItemButton` 增加 `current`、`Menu` 增加 `minWidthFromAnchor`、新增 `IconAppsAddOutline*`）。
-  本插件对 `dsh-client-ui-primitives` 只有**类型层引用**（`import type {} from ...`），
-  运行时不消费这些组件，故无需适配。
+- **插件代码零改动**：rc.3 对本插件调用的 13 个宿主包里，只有 `dsh-client-ui-primitives`
+  存在代码变化，且全部是**新增**（`TooltipSide` 增加 `'left'` 并改用实测边框盒换边放置、 `MenuItemButton` 增加 `current`、`Menu` 增加 `minWidthFromAnchor`、新增 `IconAppsAddOutline*`）。
+
+  本插件对 `dsh-client-ui-primitives` 只有**类型层引用**（`import type {} from ...`）， 运行时不消费这些组件，故无需适配。
 
 ### 已核对确认无变化
 
@@ -1357,13 +1307,13 @@ trae 一家，原因：
 - PR #58 新增回归用例：损坏副本文件被隔离且字节保留、合法文件中坏一行只丢该行、
   隔离失败时放弃写入且原字节不动、墓碑并发删除/写入序列化冒烟、池测量的 drop 与 write 不互相覆盖。
 - `tests/dsh-peer-range.spec.ts` 的 `MUST_ADMIT` 补入 `0.2.1-rc.3`——此前这份「必须放行的版本」
-  清单里没有当前正在使用的版本，范围若被误收窄到当前宿主之外，测试仍会全绿。
+  清单里没有当前正在使用的版本，范围若被误收窄到当前宿主之外，测试仍会全部通过。
 - 全仓 **1084** 例通过（84 个测试文件），双 tsconfig 类型检查通过。
 
 ### 文档
 
 - 新增 `docs/DSH_0.2.1_RC1_SYNC.md` 第十节：`0.2.1-rc.3` 复核记录（取证、依赖面、契约面、
-  槽位核对、peer 门禁）。
+  槽位核对、peer 兼容性检查）。
 - `README.md` / `README.en.md` 的宿主版本结论推进到 `0.2.1-rc.3`，并新增
   「`0.2.1-rc.3` 同步结论」小节。
 ## 4.4.5 (2026-10-23)
@@ -1375,7 +1325,7 @@ trae 一家，原因：
 > 模型请求 solo 的潜在风险」——查下来是同一个洞：插件列的是 12 个目录 function 的**并集**
 > （46 行），而 Trae 客户端**一次只渲染一个 function**（14–24 行）。本版接入第三条上游信号
 > （IDE 名册的 `is_invisible_to_user`），把「官方还展不展示」这个问题交回上游自己回答，
-> 目录 **46 → 34 行**（本机 CN 账号实测），一行都没删错、一次都没猜。
+> 目录 **46 → 34 行**（本机 CN 账号实测），该账号样本退役 12 行、改钉 6 行；不能据此保证所有账号结果相同。
 
 ### 修复
 
@@ -1388,17 +1338,15 @@ trae 一家，原因：
     `is_invisible_to_user`。端点与请求体本来就为 #46 备好了（`src/model-detail.ts`），缺的只是一个
     client 与解析器 —— 现在在 `src/official-roster.ts`。
   - **它是逐 (config, function) 的「模式名册」，不是生命周期标记**。实测 2026-10-23：
-    `DeepSeek-V4-Pro` 在 `solo_work_remote` 下被隐藏（那个模式展示的是 `-Official` 那份），
-    但在 `chat_v3` / `solo_coder` 下是可见的；`glm-5` 在 `solo_work_remote` / `solo_agent_remote`
-    隐藏、在 `solo_work_lite` / `solo_coder` 可见。把它读成「模型下架了」会**误删 6 个在用模型**，
-    所以判定分三种：
+    `DeepSeek-V4-Pro` 在 `solo_work_remote` 下被隐藏（那个模式展示的是 `-Official` 那份）， 但在 `chat_v3` / `solo_coder` 下是可见的；`glm-5` 在 `solo_work_remote` / `solo_agent_remote` 隐藏、在 `solo_work_lite` / `solo_coder` 可见。
+
+    把它读成「模型下架了」会**误删 6 个在用模型**， 所以判定分三种：
     - **退役**：所有 `llm_utils_chat` 接受的 function 都隐藏它（`glm-4.7` 只在
       `code_review_summary` 可见 —— 那是代码评审的助手配置，不是对话通道）。这类共 **12 行**，
       正是截图里「尾部整屏的老模型」。
     - **改钉**：自己的通道隐藏、但别的对话通道展示。改用官方自己那个通道，而不是我们先前猜的
-      并集首个 —— 这正好回答「拿 code 的模型请求 solo」：`Doubao-Seed-2.0-Code` / `glm-5.1` /
-      `qwen-3.5` 落到 `solo_coder`，`glm-5` / `DeepSeek-V4-Flash` / `DeepSeek-V4-Pro` 落到
-      `solo_work_lite`（按 `TRAE_DIRECTORY_FUNCTIONS` 的优先级选，不按文档顺序，所以两次刷新结果一致）。
+      并集首个 —— 这正好回答「拿 code 的模型请求 solo」：`Doubao-Seed-2.0-Code` / `glm-5.1` / `qwen-3.5` 落到 `solo_coder`，`glm-5` / `DeepSeek-V4-Flash` / `DeepSeek-V4-Pro` 落到 `solo_work_lite`（按 `TRAE_DIRECTORY_FUNCTIONS` 的优先级选，不按文档顺序，所以两次刷新结果一致）。
+
       共 **6 行**。
     - **保留**：名册没提到这个 config（实测 `kimi-k2.8-preview`、`qwen3.8-flash` 只存在于 Remote
       目录的 `chat_v3` 分组）、只把它当工具配置、或压根没有对话通道能判 —— **沉默不是判决**。
@@ -1407,7 +1355,7 @@ trae 一家，原因：
     的刷新做减噪，永远不会把刷新搞失败。名册成功读一次缓存 10 分钟，失败也缓存同样时长，
     避免每次刷新都赔一个超时。
   - **`config_switch` 只记录不判决**：这个字段的语义没实测过，拿它删模型风险太大。
-  - **实测**（本机 CN 账号，只读探针，零额度）：名册 105 configs / 544 pairs，耗时 343 ms；
+  - **实测**（本机 CN 账号，只读探针，不发送计费模型请求）：名册 105 configs / 544 pairs，耗时 343 ms；
     `46 → 34`（退役 12、改钉 6），通道分布 `solo_work_remote=20  solo_coder=7  solo_work_lite=3
     chat_v3=2  solo_agent_remote=1  默认=1`。
   - **测试**：`tests/official-roster.spec.ts`（23 条）覆盖解析器容错、三种判决、按通道优先级选目标、
@@ -1437,21 +1385,21 @@ trae 一家，原因：
     卡片要 import 它，而 `solo.ts` 带着 `node:crypto`。两份拷贝会让「线上先问哪个通道」与
     「界面上先画哪个通道」悄悄分叉，而分叉是不可见的。
   - **测试**：`tests/model-order.spec.ts`（21 条：通道优先级、组内排序、版本号数字比较、
-    无通道行排最后、未知通道归位、与到达顺序无关、同名兜底、不改入参、分组不丢不重、搜索三种匹配）
-    与 `tests/card-model-groups.spec.tsx`（7 条：渲染顺序、组头计数、搜索计数、按 config_name 命中、
-    无匹配提示、**搜索时「测试所有」仍覆盖全量**、折叠与搜索重新展开）。全量 `1070 条 / 84 文件` 通过。
+    无通道行排最后、未知通道归位、与到达顺序无关、同名兜底、不改入参、分组不丢不重、搜索三种匹配） 与 `tests/card-model-groups.spec.tsx`（7 条：渲染顺序、组头计数、搜索计数、按 config_name 命中、 无匹配提示、**搜索时「测试所有」仍覆盖全量**、折叠与搜索重新展开）。
+
+    全量 `1070 条 / 84 文件` 通过。
 
 - **模型列表默认只看「常用通道」，并把藏起来的已启用模型说出来**（`feat(client)`，issue #52 P2）。
-  诊断里设想的是三档（`当前通道 / 常用通道组 / 全部`），P1 落地后重新数一遍只剩两档站得住：
+  诊断里设想的是三档（`当前通道 / 常用通道组 / 全部`），P1 实施后重新数一遍只剩两档站得住：
   - **「常用通道组」= 全部**。P1 已经退役了所有「任何对话通道都不展示」的 config，剩下的每一行
     都至少有一个对话通道在展示它，这一档没有内容。
   - **「当前通道」= 20 行，会藏掉在用的 `glm-5`**。它的真实含义是「只留第一优先的
     `solo_work_remote`」；`glm-5` 只由 `solo_work_lite` 提供，不是 `-Official` 那份的影子。
     为了「看起来像客户端」而把在用的模型从默认视图里拿掉，不划算。
 
-  所以是两档，默认 **24**（`solo_work_remote` + `solo_work_lite` + 未标注行），「全部」**34**
-  （再加 `solo_coder` 7 / `chat_v3` 2 / `solo_agent_remote` 1）。24 同时落在客户端「每个模式
-  展示 14–24 个」的上沿 —— 默认视图第一次和报告人拿来比较的那个列表是同一个量级，而**一行都没删**。
+  所以是两档，默认 **24**（`solo_work_remote` + `solo_work_lite` + 未标注行），「全部」**34** （再加 `solo_coder` 7 / `chat_v3` 2 / `solo_agent_remote` 1）。
+
+  24 同时落在客户端「每个模式 展示 14–24 个」的上沿 —— 默认视图第一次和报告人拿来比较的那个列表是同一个量级，而**一行都没删**。
   - **视图只影响绘制**：「一键测试所有」「整区切到 Max」「全部恢复默认上下文」仍作用于完整目录。
     这些动作花额度或改设置，若因为屏幕少了 10 行就缩小范围，用户会以为「都测过了」。
   - **被藏起来的「已启用」行必须说出来**：默认视图藏 10 行，用户之前勾选过的那些勾选框就不在
@@ -1470,10 +1418,9 @@ trae 一家，原因：
   - **实测截图**（真机 34 行目录、真卡片组件、中文文案）：默认态 20+3+1 三组 24 行，
     「另有 1 个已启用的模型不在此视图内」；切到全部后按下态与组数一同变化。
   - **测试**：`tests/model-order.spec.ts` +5 条（`solo_work_*` 保留、未标注行按默认通道归入常用、
-    `all` 保持顺序且返回副本、按 region 判定、常用通道必须是该 region 优先级表的子集）与
-    `tests/card-model-groups.spec.tsx` +5 条（默认范围与计数、切换与 `aria-pressed`、
-    视图外命中提示与跳转、已启用行被藏时的提示与勾选状态、无可排除行时不渲染控件）；
-    原有 7 条按默认范围调整（涉及专用通道的断言先切「全部」）。全量 `1080 条 / 84 文件` 通过。
+    `all` 保持顺序且返回副本、按 region 判定、常用通道必须是该 region 优先级表的子集）与 `tests/card-model-groups.spec.tsx` +5 条（默认范围与计数、切换与 `aria-pressed`、 视图外命中提示与跳转、已启用行被藏时的提示与勾选状态、无可排除行时不渲染控件）； 原有 7 条按默认范围调整（涉及专用通道的断言先切「全部」）。
+
+    全量 `1080 条 / 84 文件` 通过。
   - **体积实测**（发版时在 main 基线上对照，更正 PR 描述里「与 4.4.4 一致」的说法）：
     client 387.12 → **412.87 kB**、index 438.67 → **457.48 kB** —— 增长来自两个新模块与
     分组 UI，属预期。
@@ -1521,15 +1468,13 @@ trae 一家，原因：
 ### 新增
 
 - **模型选择器里也画活动优惠胶囊**（`feat(client)`，移植自 workbuddy 的 #120）。
-  DSH 的模型选择器由宿主编排，插件能塞进去的只有一个字符 —— 而字符的颜色由 emoji 字体决定，
-  不是我们能定的。宿主为此留的唯一缝隙是 `conversation.input.model.label` 插槽（契约原文：
-  「渲染非交互的内联内容，例如带颜色的名称或徽标」，官方自己就用它挂 DeepSeek 的发布徽标）。
+  DSH 的模型选择器由宿主编排，插件能塞进去的只有一个字符 —— 而字符的颜色由 emoji 字体决定， 不是我们能定的。宿主为此留的唯一缝隙是 `conversation.input.model.label` 插槽（契约原文： 「渲染非交互的内联内容，例如带颜色的名称或徽标」，官方自己就用它挂 DeepSeek 的发布徽标）。
+
   插件在该插槽注册 `TraeModelLabel`：
   - **只显示一个倍率**。`traeModelDisplayName` 已经把目录倍率拼进名字（`Kimi-K2 · x0.55`），
-    宿主原样渲染该字符串，所以插槽若再追加一个倍率就会印成 `· x0.55 · x0.55` —— 这正是
-    workbuddy 的 #120 回归。现在后缀被**按形状**拆回名字之外（`/ · x(\d+(?:\.\d+)?)$/`），
-    再画在那个能承载折后价的 span 里：有折扣时显示折后价，没有时显示目录价，**永远只有一个数字**，
-    且是此刻成立的那个。
+    宿主原样渲染该字符串，所以插槽若再追加一个倍率就会印成 `· x0.55 · x0.55` —— 这正是 workbuddy 的 #120 回归。
+
+    现在后缀被**按形状**拆回名字之外（`/ · x(\d+(?:\.\d+)?)$/`）， 再画在那个能承载折后价的 span 里：有折扣时显示折后价，没有时显示目录价，**永远只有一个数字**， 且是此刻成立的那个。
   - **在渲染时刻判定，不在解析时刻**。判据是钟点（闲时窗口开合、活动到期），所以快照只取一次、
     胶囊每次渲染现算，并挂一只**共享的分钟定时器**（20 行标签只花一个 interval）；夜间折扣不会
     在第二天早上继续挂着。
@@ -1560,19 +1505,17 @@ trae 一家，原因：
   - 账号下拉 `.dsm-trae-pool-account-select`（511 行）的 `max-width:min(320px,50%)`
     被 `.dsm-trae-select`（600 行）的 `max-width:220px` 覆盖，框比设计值窄。
 
-  三处都改成双类选择器（`.a.b`，特异性 0-2-0），与规则顺序解耦。姊妹插件 `promo` 没有这个问题
-  —— 是搬样式时把新规则插错位置的连带伤。
-  **验证**：写脚本扫两端 JSX 里全部 33 组多类组合，按「交集属性 + 定义行号」判定谁覆盖谁，
-  Trae 修完 0 处、promo 本来 0 处；`tsc` 两端静默，`vitest run` 81 文件 / 1014 条全过。
+  三处都改成双类选择器（`.a.b`，特异性 0-2-0），与规则顺序解耦。姊妹插件 `promo` 没有这个问题 —— 是搬样式时把新规则插错位置的连带伤。
+
+  **验证**：写脚本扫两端 JSX 里全部 33 组多类组合，按「交集属性 + 定义行号」判定谁覆盖谁， Trae 修完 0 处、promo 本来 0 处；`tsc` 两端静默，`vitest run` 81 文件 / 1014 条全过。
 
 - **`regionsMapOf` 不再跳到过期的同名区域**（`fix(region)`，已单独提交，移植自 workbuddy 的 5.5.x）。
-  旧规则是「有 `regions` 键就往下跳」，但 **`regions` map 自己也可能带 `regions` 键** —— 早期构建
-  往 map 里写过旧兄弟字段（真实 profile 里 `accounts` / `regions` / `cliBridge` 就并排躺在
-  `cn` 旁边）。跳下去读到的是**同一 panel 的另一份更旧的拷贝**，于是已保存的开关/手动排序读回空值，
-  表现为「设置没保存」，而文件里其实还在。
+  旧规则是「有 `regions` 键就往下跳」，但 **`regions` map 自己也可能带 `regions` 键** —— 早期构建 往 map 里写过旧兄弟字段（真实 profile 里 `accounts` / `regions` / `cliBridge` 就并排躺在 `cn` 旁边）。
+
+  跳下去读到的是**同一 panel 的另一份更旧的拷贝**，于是已保存的开关/手动排序读回空值， 表现为「设置没保存」，而文件里其实还在。
   - 新规则按**形状**判定：外层只要含 panel id（`cn` / `enterprise` / `ai`）就是 map，不跳；
     否则才视为整段设置文档。
-  - **变异验证**：把判定改回旧行为，新增用例必红（实测 1 条失败）；恢复后 22 条全绿。
+  - **变异验证**：把判定改回旧行为，新增用例必红（实测 1 条失败）；恢复后 22 条全部通过。
 
 ### 重构
 
@@ -1585,7 +1528,7 @@ trae 一家，原因：
   `dsm-trae-pool-copyfile`。新增双语 key `row.poolMoreRulesTitle`。
 
 - **账号池的信息架构重排**（`refactor(pool)`，结论移植自 workbuddy 的 5.4.0，代码按 Trae 的结构重写）。
-  这一批不是改功能，是改**同一件事说几次、在哪里说**。十条原则里 Trae 欠九条，逐条落地：
+  这一批不是改功能，是改**同一件事说几次、在哪里说**。十条原则里 Trae 欠九条，逐条实施：
   1. **总开关移到标题下方**。它原本是「账号池设置」框的最后一行，被它控制一切的成员表在它上方
      一百多行；池开/池关意味着「未入池」这一列**有没有意义**，所以选模式的控件必须排在
      依赖模式的控件之前。开关那一行同时给出**运行中的模式**（自动挑号 / 手动选号）——
@@ -1609,7 +1552,7 @@ trae 一家，原因：
      「点保存才生效」——立即生效的动作不能住在只承诺保存的区块里。
   8. **测试模型只说一遍**。设置区「目标测速模型」、表头「目标模型」、行尾各说一次，
      同一个名字在一屏里出现三遍。表头改为「**状态**」（它描述的是结果），行尾仅在
-     **实际测的模型 ≠ 本池保存的模型**时才点名——那才是看着像 bug 而其实不是的情形。
+     **实际测的模型 ≠ 本池保存的模型**时才列明——那才是看着像 bug 而其实不是的情形。
      来源（实时请求 / 批量测试）仍然保留，它不在这两个地方说过。
   9. 顺带删掉因此变死的两条规则（`.dsm-trae-pool-bind`、`.dsm-trae-pool-tag-current`）
      与一个死键（`row.poolCurrentBadge`）；`row.poolCurrentHeader` 原本已定义却从未使用，
@@ -1617,9 +1560,9 @@ trae 一家，原因：
 - **测试相应重写**：`「派单中」 names only the pool's own answer` 那组改为断言**信息搬到了哪里**
   ——标题行的计费账号、池外旁注、以及池关闭时槽位里是选择器而不是徽标。新增三组共 10 条
   结构断言：开关在成员表之前且标签读运行态；批量按钮在「已选」之后、表格之前；保存条
-  `position:sticky`；表头是「状态」、相同模型不复述而不同模型必点名。
+  `position:sticky`；表头是「状态」、相同模型不复述而不同模型必列明。
   - **变异验证**（通过 ≠ 有效）：把 `modelDiffers` 改回「有模型就显示」→ **2 条必红**；
-    把动作条移出成员区 → **1 条必红**；恢复后 50 条全绿。
+    把动作条移出成员区 → **1 条必红**；恢复后 50 条全部通过。
 
 ### 验证
 
@@ -1648,10 +1591,9 @@ trae 一家，原因：
   { "type": "object", "properties": { "tool": { "type": "string", "required": true } } }
   ```
 
-  JSON Schema draft-4 起已把 per-property boolean `required` 移除，改为父级字符串数组
-  `{ "required": ["tool"] }`。deepseek-v4.1-flash 这类严校验后端对前者直接判
-  `invalid JSON Schema`，整请求被拒。由于模型路由到哪个后端由上游决定、随 config 变化，
-  凡带工具的请求都必须是 draft-4 干净的，与探针上次试过后端无关。
+  JSON Schema draft-4 起已把 per-property boolean `required` 移除，改为父级字符串数组 `{ "required": ["tool"] }`。
+
+  deepseek-v4.1-flash 这类严校验后端对前者直接判 `invalid JSON Schema`，整请求被拒。由于模型路由到哪个后端由上游决定、随 config 变化， 凡带工具的请求都必须是 draft-4 干净的，与探针上次试过后端无关。
   - 新增 `normalizeTraeToolSchema` / `normalizeTraeToolSchemas`（`src/raw-chat.ts`）：
     递归把属性内 boolean `required` 提升到父级 `required` 数组（与既有数组去重合并）后
     删除 boolean；覆盖 `items` / `anyOf` / `oneOf` / `allOf` 等任意嵌套。**幂等** ——
@@ -1664,7 +1606,7 @@ trae 一家，原因：
 
 ### 测试补强
 
-- **989 例测试全绿**（`pnpm run test`），新增 **7 例**：draft-3 提升、嵌套
+- **989 例测试全部通过**（`pnpm run test`），新增 **7 例**：draft-3 提升、嵌套
   `items`/`anyOf` 递归、与既有 `required` 数组合并、draft-4 幂等（字节不变）、
   `properties` 之外的 boolean `required` 与 `required: false` 不误伤、调用方 `tools`
   不被原地修改、SOLO 信封 wire 载荷为 draft-4。
@@ -1701,11 +1643,11 @@ trae 一家，原因：
   - **实测结果**：目录 **42 → 46 行**，提升行 7 → 11。新增
     `kimi-k2-0905`、`minimax-m2-auto`、`minimax-m2.1-auto`、`glm-4.6-auto`
     （全部为 168K / `solo_coder`，显示名形如 `MiniMax-M2 (minimax-m2-auto)`）。
-  - 比较基准是**最强的占用者**，因此与 wire 名单的顺序无关（有回归测试钉住）。
+  - 比较基准是**最强的占用者**，因此与 wire 名单的顺序无关（有回归测试通过测试约束）。
 
 ### 测试补强
 
-- **982 例测试全绿**（`pnpm run test`），新增 **4 例**：重名但更强者被提升且名字带 id、
+- **982 例测试全部通过**（`pnpm run test`），新增 **4 例**：重名但更强者被提升且名字带 id、
   重名且相等/更弱者仍被排除、`-auto` 孪生按能力取舍、比较基准取最强占用者。
 
 ### 实测记录（4.4.0 遗留边界现已关闭）
@@ -1720,7 +1662,7 @@ trae 一家，原因：
 | `kimi-k2` | `inline_chat` · `chat_v3` · `solo_work_remote` | 三个 function 全部 AVAILABLE |
 | 4.4.1 新增的 4 行 | `solo_coder` | 全部 AVAILABLE |
 
-合计 21 次真实调用，消耗 **约 11 额度**（约 0.43/次）。
+合计 21 次真实调用，原记录总消耗约 11 额度。原写每次 0.43 与总额不一致；按 11/21 计算约 0.52/次，仅作算术对照。
 因此 `4.4.0` 中「`kimi-k2` 归属 `inline_chat`、可调用性尚未取证」这条边界**一并关闭**。
 
 ### 已知边界
@@ -1745,59 +1687,53 @@ trae 一家，原因：
 
 - **模型表补齐 wire 名单里有、Remote 目录里没有的模型**（`fix(catalog)`，issue #46）。
   - 目录是「Remote 骨架 × wire 名单」两张表 join 出来的，而 `mergeTraeModelSources()`
-    **只遍历骨架** —— wire 有、骨架没有的行被整体丢掉。这不是零星遗漏，而是**一整类别的系统性缺失**：
-    **实测**本机 CN 账号上，Remote 骨架里带日期的 config_name **一个都没有**（`kimi-k2-0905`、
-    `seed-code-pro-0430`、`search_agent_qwen_fast-0710` 全在 wire 名单里），于是**每一个带日期的
-    模型插件都拿不到**。这正是报告人「IDE 有 `DeepSeek-V4.1-Flash-1017`、插件没有」的直接成因。
+    **只遍历骨架** —— wire 有、骨架没有的行被整体丢掉。这不是零星遗漏，而是**一整类别的系统性缺失**： **实测**本机 CN 账号上，Remote 骨架里带日期的 config_name **一个都没有**（`kimi-k2-0905`、 `seed-code-pro-0430`、`search_agent_qwen_fast-0710` 全在 wire 名单里），于是**每一个带日期的 模型插件都拿不到**。
+
+    这正是报告人「IDE 有 `DeepSeek-V4.1-Flash-1017`、插件没有」的直接成因。
   - 提升**不是无条件的**：`isPromotableWireModel()` 要求四个上游信号同时成立 ——
-    `usage === 'chat_completion'`（真模型，不是 IDE 的工具配置也不是账号的自定义模型）、
-    `config_source === 1`（Trae 预设，不是用户自己的 custom model）、
-    显示名是**真名字**（非空、非上游占位符 `-`、非 config 标识符、且不等于自己的 id）、
-    显示名**未被已存在的行占用**（否则同一模型会以两个 id 出现两次）。
-    **实测**：50 行 wire-only 收敛为 7 个真模型，其余 43 行（工具配置 / 自定义模型 / 别名 /
-    `-auto` 孪生行 / codename config）仍被正确排除。
+    `usage === 'chat_completion'`（真模型，不是 IDE 的工具配置也不是账号的自定义模型）、 `config_source === 1`（Trae 预设，不是用户自己的 custom model）、 显示名是**真名字**（非空、非上游占位符 `-`、非 config 标识符、且不等于自己的 id）、 显示名**未被已存在的行占用**（否则同一模型会以两个 id 出现两次）。
+
+    **实测**：50 行 wire-only 收敛为 7 个真模型，其余 43 行（工具配置 / 自定义模型 / 别名 / `-auto` 孪生行 / codename config）仍被正确排除。
   - 被提升的行是**完整的目录行**：带自己的 id（那就是它的 `config_name`，所以不产生
     `wireConfigName`）、所属 function、上下文窗口、输出上限、倍率与促销规则。
 
 - **Remote 目录多问几个 function**（`fix(solo-remote)`，issue #46）。
-  `TRAE_REMOTE_DIRECTORY_FUNCTIONS` 增加 `chat`、`inline_chat`、`solo_agent_lite`、
-  `solo_design_lite`、`solo_design_remote`。`kimi-k2` 在 Remote 侧**只**归属 `inline_chat`，
-  而插件没问它 —— 这就是 `Kimi-K2-0905` 那一族拿不到的原因。
-  **实测**：Remote 骨架 33 → 35 行，新增 `kimi-k2`（`Kimi-K2-0905`）与 `doubao_1_8`
-  （`Doubao-Seed-1.8`）。问网关不提供的 function 无害（未知名字被忽略，不报错）。
+  `TRAE_REMOTE_DIRECTORY_FUNCTIONS` 增加 `chat`、`inline_chat`、`solo_agent_lite`、 `solo_design_lite`、`solo_design_remote`。
+
+  `kimi-k2` 在 Remote 侧**只**归属 `inline_chat`， 而插件没问它 —— 这就是 `Kimi-K2-0905` 那一族拿不到的原因。
+
+  **实测**：Remote 骨架 33 → 35 行，新增 `kimi-k2`（`Kimi-K2-0905`）与 `doubao_1_8` （`Doubao-Seed-1.8`）。
+
+  问网关不提供的 function 无害（未知名字被忽略，不报错）。
 
 - **账号池开关不再被「保存模型列表」冲掉**（`fix(client)`）。
-  插件有 4 处写 `regions`，其中 3 处都**先展开旧 slot 再覆盖自己管的字段**；只有
-  「保存模型列表」那处是**从零重建整个 region slot** 的，而它并不知道 slot 里还有 `pool`
-  这个字段 —— 整体替换把账号池偏好冲掉了。症状：**开账号池 → 保存模型列表 → 池被关掉 →
-  重开插件显示「未保存」**。
-  修法：新增 `nextRegionDirectory()`（`src/status-paths.ts`），展开旧 slot 再用目录字段覆盖。
-  **顺带修掉**同一处的另一个受害者：`creditPosition`（积分读数的座位）也一直被冲掉，
-  保存模型列表会把读数重置回默认位置。
+  插件有 4 处写 `regions`，其中 3 处都**先展开旧 slot 再覆盖自己管的字段**；只有 「保存模型列表」那处是**从零重建整个 region slot** 的，而它并不知道 slot 里还有 `pool` 这个字段 —— 整体替换把账号池偏好冲掉了。
+
+  症状：**开账号池 → 保存模型列表 → 池被关掉 → 重开插件显示「未保存」**。 修法：新增 `nextRegionDirectory()`（`src/status-paths.ts`），展开旧 slot 再用目录字段覆盖。
+
+  **顺带修掉**同一处的另一个受害者：`creditPosition`（积分读数的座位）也一直被冲掉， 保存模型列表会把读数重置回默认位置。
   > 这与 issue #42 记录的 `wireConfigName` 丢失是**同一类缺陷**：整块替换 slot 时，
-  > 保存方不知道的字段就消失了。#42 丢的是 `wireConfigName`（每次保存都 4001），
+  > 保存方不知道的字段就消失了。#42 丢的是 `maxTokens`（每次保存都 4001），
   > 这次丢的是 `pool` 与 `creditPosition`。
 
 - **同一模型在不同 function 下发布不同显示名时，取最充实的那一份**（`fix(solo)`）。
-  上游对同一个 config 在不同 function 下发布不同的 `display_name`（实测：`doubao-for-auto`
-  在 `chat_v3` 下为空、在 `solo_coder` 下是 `Seed-Code`），而插件的 wire client 是**先到先得**，
-  于是「拥有它的 function 恰好不知道名字」的模型在插件里显示成 config id 本身。
-  现在**行归拥有者**（function 决定可调用性，必须不动）、**名字取最充实的那一份**。
-  上游对无名字 config 发布的占位符 `-` 不算真名字。
+  上游对同一个 config 在不同 function 下发布不同的 `display_name`（实测：`doubao-for-auto` 在 `chat_v3` 下为空、在 `solo_coder` 下是 `Seed-Code`），而插件的 wire client 是**先到先得**， 于是「拥有它的 function 恰好不知道名字」的模型在插件里显示成 config id 本身。
+
+  现在**行归拥有者**（function 决定可调用性，必须不动）、**名字取最充实的那一份**。 上游对无名字 config 发布的占位符 `-` 不算真名字。
 
 ### 行为说明
 
 - **显示名仍以 Remote 目录为准，刻意没有改成 wire 名单的**（issue #46）。
-  最初的方案是「以 wire 为准，因为 IDE 渲染的是 wire 的 `display_name`」——
-  **这个假设被实测否掉了**：wire 名单与 IDE 名单**32/81 行不一致**，而 Remote 骨架只有 **3/33**。
-  原因是 wire 名单**按 function 分片**，插件的 wire client 读的是聊天 function，
-  常落在 IDE 选择器并不渲染的那个名字上。代码与回归测试里把这个**被否掉的结论**钉住了，
-  以免日后凭「听起来合理」再改回去。
+  最初的方案是「以 wire 为准，因为 IDE 渲染的是 wire 的 `display_name`」—— **这个假设被实测否掉了**：wire 名单与 IDE 名单**32/81 行不一致**，而 Remote 骨架只有 **3/33**。
+
+  原因是 wire 名单**按 function 分片**，插件的 wire client 读的是聊天 function， 常落在 IDE 选择器并不渲染的那个名字上。
+
+  代码与回归测试里把这个**被否掉的结论**通过测试约束了， 以免日后凭「听起来合理」再改回去。
 
 ### 测试
 
-- **978 例测试全绿**（`pnpm run test`），其中新增 **17 例**：
-  - `tests/catalog.spec.ts`（+6）：显示名保持骨架（钉住被否掉的方案）、提升 wire-only 模型、
+- **978 例测试全部通过**（`pnpm run test`），其中新增 **17 例**：
+  - `tests/catalog.spec.ts`（+6）：显示名保持骨架（通过测试约束被否掉的方案）、提升 wire-only 模型、
     不提升工具/自定义/别名、别名不重复、`isPromotableWireModel` 的五种边界。
   - `tests/solo.spec.ts`（+4）：读 `usage` / `config_source`、上游没说时保持 undefined、
     跨 function 取最充实的名字。
@@ -1810,7 +1746,7 @@ trae 一家，原因：
 
 - 新增 [`docs/ISSUE46_DIAGNOSIS.md`](https://github.com/dingminhua/dsh-connect-trae/blob/main/docs/ISSUE46_DIAGNOSIS.md)
   与 [`docs/ISSUE46_REPLY_DRAFT.md`](https://github.com/dingminhua/dsh-connect-trae/blob/main/docs/ISSUE46_REPLY_DRAFT.md)。
-- 新增三个只读探针（`scripts/probe-issue46-*.mjs`），只读、零额度，输出诊断与修复后验证的全部结论；
+- 新增三个只读探针（`scripts/probe-issue46-*.mjs`），只读、不发送计费模型请求，输出诊断与修复后验证的全部结论；
   `scripts/decrypt-block.js` 是从 `probe-toolcalls.mjs` 原样抽出的解密例程，供各探针共用。
 
 ### 已知边界
@@ -1879,7 +1815,7 @@ trae 一家，原因：
   `/tmp/panels-preview-<section>.html`（真实中文文案、30 模型目录），页面里的 `#audit` 给出
   面板盒、分栏下划线与模型列表 `scrollHeight`/`clientHeight` 的实测值，用 `--dump-dom` 读回，
   用来证明「没有内滚」而不是靠肉眼。
-- 全量 `vitest run` = 79 文件 / 961 测试全绿；两份 tsconfig 均 exit 0；`tsdown` 构建成功。
+- 全量 `vitest run` = 79 文件 / 961 测试全部通过；两份 tsconfig 均 exit 0；`tsdown` 构建成功。
 
 ### 文档
 
@@ -1914,9 +1850,10 @@ trae 一家，原因：
 
 - **跨 group 去重不再丢促销规则**（`fix(solo-remote)`）。同一次目录响应里，同一个模型在部分 group 带
   `activity_discount`、在部分 group 完全没有，而 group 顺序每次调用都可能不同（issue #23 的同一现象）。
-  `preferStrongerRow` 原先只按容量选行（等容量时先到先得），会把带规则的那一行丢掉，导致同一份上游数据
-  相邻两次调用一次 1 枚徽标、一次 0 枚。现在选行仍按容量，但把另一行携带的规则**并到赢家身上**；
-  没有改成「选带规则的行」，因为那会丢掉 1M Max 档——徽标不能以用户失去上下文预算为代价。
+
+  `preferStrongerRow` 原先只按容量选行（等容量时先到先得），会把带规则的那一行丢掉，导致同一份上游数据 相邻两次调用一次 1 枚徽标、一次 0 枚。
+
+  现在选行仍按容量，但把另一行携带的规则**并到赢家身上**； 没有改成「选带规则的行」，因为那会丢掉 1M Max 档——徽标不能以用户失去上下文预算为代价。
 - **活动徽标的两处边界收紧**（`fix(promo)`）。
   - 两条规则评分并列（都没有 `current`、各 1 个窗口）时，原先留先到的那条，今晚有没有徽标就取决于网关的
     分组顺序；改按规则内容的规范化 JSON（键名排序）取定，任意分组顺序结果一致。
@@ -1940,7 +1877,7 @@ trae 一家，原因：
 - `tests/solo-remote.spec.ts` 补跨 group 去重 4 例：容量与规则并存、评分排序、并列按内容取定、
   同一份数据换 group 顺序结果不变。
 - 全仓 **78 文件 951 例**通过；`tsc` 两个工程干净；`build` 通过（CJS 344.00 kB / ESM 426.33 kB）；
-  CI（ubuntu + windows）全绿。
+  CI（ubuntu + windows）全部通过。
 
 ## 4.1.0 (2026-10-21)
 
@@ -1963,63 +1900,66 @@ trae 一家，原因：
 - **受限网络下模型目录走聊天网关备用 host，目录分组 function 兜底 `wireFunction`**（`fix(cn)`）。修复分三层：
   - **目录 host 回退**：官方 remote host 网络错误 / 超时 / 5xx 时，按序尝试聊天网关的同一路径
     （CN 为 `trae-api-cn.mchost.guru/api/remote/v1`，实测同路径同响应结构）；401/403/404 等语义性拒绝**不回退**。
-    进程内记住最近一次**给出了非空目录**的 host。官方 host 失败后进入 5 分钟冷却：冷却期内先走记住的备用
-    host、官方 host 排在链尾（备用也挂了时仍有一次机会），冷却到期后官方 host 重新排第一 —— 只把官方 host
-    「排在第二」并不能让它被重试，因为循环在第一个成功处返回，所以必须显式冷却重试，恢复的网络才会在
-    一个冷却窗口内重新接管。空目录（200-but-empty）既不算成功（不记忆）也不终止链路（继续试下一个 base），
-    否则一个还没同步的镜像会永久堵死官方 host。回退只作用于 remote/v1 目录这一个 base；
-    `get_detail_param`、`llm_utils_chat` 照旧走各自原有 host。
+
+    进程内记住最近一次**给出了非空目录**的 host。官方 host 失败后进入 5 分钟冷却：冷却期内先走记住的备用 host、官方 host 排在链尾（备用也挂了时仍有一次机会），冷却到期后官方 host 重新排第一 —— 只把官方 host 「排在第二」并不能让它被重试，因为循环在第一个成功处返回，所以必须显式冷却重试，恢复的网络才会在 一个冷却窗口内重新接管。
+
+    空目录（200-but-empty）既不算成功（不记忆）也不终止链路（继续试下一个 base）， 否则一个还没同步的镜像会永久堵死官方 host。
+
+    回退只作用于 remote/v1 目录这一个 base； `get_detail_param`、`llm_utils_chat` 照旧走各自原有 host。
   - **目录分组 function 归因**：`fetchModels` 不再丢弃 `data.list[].function`——解析时把**可聊**分组的 function
-    附到每个模型（同一模型出现于多个分组时按 `TRAE_DIRECTORY_FUNCTIONS` 的实测优先级取，而非请求参数
-    `functions=` 的顺序；后者是历史列表，与 wire roster 自己的收集顺序不同，混用会让同一模型在「roster 有没有
-    返回」两种网络下拿到不同 function，`solo_agent_remote` 在 Remote 付费门后，优先它会多出 1005）。
-    `mergeTraeModelSources` 的 `wireFunction` 优先取 `get_detail_param` 的结论，目录分组兜底（roster 知道
-    账号的付费/可用状态，目录不知道）。同一 function 名重复出现时按名分桶保留全部，不再只留最后一组。
+    附到每个模型（同一模型出现于多个分组时按 `TRAE_DIRECTORY_FUNCTIONS` 的实测优先级取，而非请求参数 `functions=` 的顺序；后者是历史列表，与 wire roster 自己的收集顺序不同，混用会让同一模型在「roster 有没有 返回」两种网络下拿到不同 function，`solo_agent_remote` 在 Remote 付费门后，优先它会多出 1005）。
+
+    `mergeTraeModelSources` 的 `wireFunction` 优先取 `get_detail_param` 的结论，目录分组兜底（roster 知道 账号的付费/可用状态，目录不知道）。
+
+    同一 function 名重复出现时按名分桶保留全部，不再只留最后一组。
   - **非可聊 function 只降级、不丢行**：`solo_agent`、`builder_v3` 是 IDE/Remote-agent roster，聊天通道实测
-    4011/4001，所以**不把这两个 function 写进 `wireFunction`**；模型本身**保留**，改由默认 chat function
-    调用。把它们整行丢掉等于在本次修复针对的受限网络里重新藏起 issue #19 的成果（详见上方导语）。
-    仅带 `wireFunction`（无 `wireConfigName`）的目录行，聊天请求会带上该 function，但 `config_name` 仍由
-    resolver 提供（目录 id 只是展示名，网关 `config_name` 大小写敏感，见 issue #38）。默认 function 与
-    fallback 模型常量未动。
+    4011/4001，所以**不把这两个 function 写进 `wireFunction`**；模型本身**保留**，改由默认 chat function 调用。
+
+    把它们整行丢掉等于在本次修复针对的受限网络里重新藏起 issue #19 的成果（详见上方导语）。 仅带 `wireFunction`（无 `wireConfigName`）的目录行，聊天请求会带上该 function，但 `config_name` 仍由 resolver 提供（目录 id 只是展示名，网关 `config_name` 大小写敏感，见 issue #38）。
+
+    默认 function 与 fallback 模型常量未动。
   - 已知取舍：模型被目录放在 `chat_v3` 分组下、但实际不可聊时，插件仅凭目录数据无法区分，仍会展示，
     聊天失败走现有 4001 提示翻译（诊断入口见 `docs/ISSUE19_DIAGNOSIS.md`）。
 
 ### 测试
 
 - 回归用例：host 回退（官方网络错误 → 备用 host 同路径同查询；401 不回退；5xx 回退；**空目录继续尝试下一个
-  base 且不被记住**；记住最近成功 host；**冷却到期后官方 host 重新排第一**；显式 baseUrl 钉住单 host）、
+  base 且不被记住**；记住最近成功 host；**冷却到期后官方 host 重新排第一**；显式 baseUrl 通过测试约束单 host）、
   分组 function 归因（可聊分组优先；**同一 function 名重复出现时不丢模型**；容量来自后分组时保留先到先得的
   function）、合并兜底与 `withChatCallableFunctions` 的**降级而非丢弃**、bridge 对 wireFunction-only 目录行
   保留 resolver 的 `config_name`（大小写）、以及受限网络端到端（wire roster 为空时 9 个 `solo_agent`-only
   模型仍然在目录里）。
-- 全仓 **921** 例通过，0 skipped；`tsc` 两个工程干净；`build` 通过；CI（ubuntu + windows）全绿。
+- 全仓 **921** 例通过，0 skipped；`tsc` 两个工程干净；`build` 通过；CI（ubuntu + windows）全部通过。
 
 ## 4.0.1 (2026-10-19)
 
 > CN 区模型卡「最大输出」整列空白（issue #42）修复：上游**是**发布输出上限的——`get_detail_param` 的
 > CN 80 个 config **80/80** 都带 `model_detail_list[].max_tokens`——但目录合并 `mergeTraeModelSources()`
 > 把 wire 侧的 `maxTokens` 丢掉了。这个字段从合并函数诞生那天（1.1.0）起就没被复制过，卡片、
-> `/models/refresh` 与 DSH 模型注册因此永远收到「未知」。附带落地同一 issue 的批量请求：整区上下文
+> `/models/refresh` 与 DSH 模型注册因此永远收到「未知」。附带实施同一 issue 的批量请求：整区上下文
 > 一键切换两个按钮。
 
 ### 修复
 
 - **目录合并带上 wire 的 `max_tokens`**（`fix(catalog)`）。合并时其余字段（contextWindow / maxContextWindow /
-  倍率 / reasoning / multimodal / config_name）一路都复制了，唯独漏了 `maxTokens` 一行。修复后 CN 实测
-  32 行目录 30 行带值；**仍空白的行是诚实的**——`kimi-k2.8-preview`、`qwen3.8-flash` 这类 TraeCode 通道行
-  在 SOLO 名单里没有对应 config，拿不到候选值，宁空白不编造。取值链其余部分不动：`collectModels` 读
-  `model_detail_list[0]` 实测无损（71/80 config 的双项 `__dev`/`__max` 上限恒等）。该值是**元数据**，
-  请求体照旧不下发 `max_tokens`（上限由 Trae 服务端决定），行为无变化。
+  倍率 / reasoning / multimodal / config_name）一路都复制了，唯独漏了 `maxTokens` 一行。
+
+  修复后 CN 实测 32 行目录 30 行带值；**仍空白的行是诚实的**——`kimi-k2.8-preview`、`qwen3.8-flash` 这类 TraeCode 通道行 在 SOLO 名单里没有对应 config，拿不到候选值，宁空白不编造。
+
+  取值链其余部分不动：`collectModels` 读 `model_detail_list[0]` 实测无损（71/80 config 的双项 `__dev`/`__max` 上限恒等）。
+
+  该值是**元数据**， 请求体照旧不下发 `max_tokens`（上限由 Trae 服务端决定），行为无变化。
 - 报告人「想确认的一点」（输出上限是否挂在后面的 detail 项或别的键）已逐项 dump 排除，全文见
   `docs/ISSUE42_DIAGNOSIS.md`，取证脚本 `scripts/probe-cn-maxtokens.mjs`（只读，随仓库提交）。
 
 ### 新增
 
 - **卡片模型管理区两个批量上下文按钮**（`feat(card)`，issue #42 附带需求）：「**整区切到 Max**」给本区
-  每个带 Max 档的模型一次性写入其 `maxContextWindow`（正是 `applyContextBudgets` 认的精确值），
-  没有 Max 档的行不动、已有手动预算保留；「**全部恢复默认上下文**」清空本区预算。二者作用于草稿、
-  按「保存」生效，落盘形状与逐行单选完全一致——因此**没有**新增 `contextBudgetMode` 配置键，
-  运行时零新分支、旧配置零迁移。报告人数的 18 次点击现在是一次。
+  每个带 Max 档的模型一次性写入其 `maxContextWindow`（正是 `applyContextBudgets` 认的精确值）， 没有 Max 档的行不动、已有手动预算保留；「**全部恢复默认上下文**」清空本区预算。
+
+  二者作用于草稿、 按「保存」生效，落盘形状与逐行单选完全一致——因此**没有**新增 `contextBudgetMode` 配置键， 运行时零新分支、旧配置零迁移。
+
+  报告人数的 18 次点击现在是一次。
 - README 新增「最大输出与上下文预算」一节（issue #42 建议 1 换内容采纳：事实已变，文档写明上游发布该值、
   空白行另有其因）。
 
@@ -2129,17 +2069,16 @@ trae 一家，原因：
 
 > 本版把「账号在本机到底存了几份、删一个账号到底删掉了什么」讲清楚并做对：本机每个 Trae 登录都会
 > 自动变成插件的一份副本，卡片只显示、也只使用副本；「删除」现在也真的落到 Trae 应用本身（连同它在
-> `storage.json` 里的登录一起注销，改写前留备份、应用运行中则拒绝并点名）。另外修掉了一批让测速与
+> `storage.json` 里的登录一起注销，改写前留备份、应用运行中则拒绝并列明）。另外修掉了一批让测速与
 > 池子「看起来坏了」的问题：目标模型不在已启用列表时的假 4001、重启后立刻测速的 4001、一处点击
 > 两条日志、一次整批等待才上屏。默认测试套件不再有 skipped。
 
 ### 新增
 
 - **本机每个 Trae 登录都会自动变成插件的一份副本，卡片只显示、也只使用副本。** Trae 应用只有一个
-  登录槽，下次登录就把上一个覆盖掉；插件改为每次刷新（读账号列表）时把本机现有登录**镜像**成自己的
-  副本，因此换号不再丢号：已有副本的账号**不动**（副本里可能是插件刷新过、比应用更新的令牌）；没有
-  副本的本机登录**补建**一份，写进该区域自己的凭据文件；卡片与账号池只列副本，来源统一显示「插件副本」。
-  镜像在插件加载时就跑一遍（三个面板各一次），不必等用户点开那个面板。
+  登录槽，下次登录就把上一个覆盖掉；插件改为每次刷新（读账号列表）时把本机现有登录**镜像**成自己的 副本，因此换号不再丢号：已有副本的账号**不动**（副本里可能是插件刷新过、比应用更新的令牌）；没有 副本的本机登录**补建**一份，写进该区域自己的凭据文件；卡片与账号池只列副本，来源统一显示「插件副本」。
+
+  镜像在插件加载时就运行一次（三个面板各一次），不必等用户点开那个面板。
 - **一张卡片上同时支持多号**：登录 A 号后刷新 → 生成 A 副本；在 Trae 里换 B 号后刷新 → A 的副本仍在、
   B 也生成副本，池子里两个号都能用。
 - **设置区写明了「登录一个号就刷新一次」这条规则。** 卡片顶部的账号说明与账号池设置区都提示：Trae 只有
@@ -2157,16 +2096,13 @@ trae 一家，原因：
 ### 变更
 
 - **「删除」现在也落到本机：连 Trae 自己那份登录一起注销，并留备份。** 上一版只删插件自己写的
-  `~/.dsh/.trae-auth.*.json`，可账号同时也登录在 Trae 应用里（桌面 `storage.json` 的
-  `iCubeAuthInfo://icube.cloudide`），Trae 每次都会把它再报上来，于是行永远回来。现在 `deleteAccount`
-  先删自己那几份，再改写各版本 `storage.json`（删掉该键、从 `iCubeAuthInfo://usertag` 里摘掉该
-  userId、其余键原样保留），为此 `decrypt.ts` 补了 `encryptTraeStorageValue` / `traeStorageValueType`
-  （同一套固定盐值 AES-128-CBC，与解密器互为逆运算）。
+  `~/.dsh/.trae-auth.*.json`，可账号同时也登录在 Trae 应用里（桌面 `storage.json` 的 `iCubeAuthInfo://icube.cloudide`），Trae 每次都会把它再报上来，于是行永远回来。
+
+  现在 `deleteAccount` 先删自己那几份，再改写各版本 `storage.json`（删掉该键、从 `iCubeAuthInfo://usertag` 里摘掉该 userId、其余键原样保留），为此 `decrypt.ts` 补了 `encryptTraeStorageValue` / `traeStorageValueType` （同一套固定盐值 AES-128-CBC，与解密器互为逆运算）。
   - **应用开着就不写**：Trae 把 `storage.json` 放在内存里、退出时回写，运行中改写一定会被覆盖。新增
-    `src/trae-process.ts` 的 `probeRunningTraeApps`（macOS/Linux 读 `ps`，Windows 读 `tasklist` 保守判定），
-    运行中的版本进 `blockedApps`，卡片写明「先完全退出 X 再删」——这是用户能自己执行的下一步，而不是
-    一个读不懂的失败。进程名互为前缀（`Trae` vs `Trae CN`），匹配按最长优先并消费已匹配项，否则只开
-    Trae CN 时会误报国际版在运行。
+    `src/trae-process.ts` 的 `probeRunningTraeApps`（macOS/Linux 读 `ps`，Windows 读 `tasklist` 保守判定）， 运行中的版本进 `blockedApps`，卡片写明「先完全退出 X 再删」——这是用户能自己执行的下一步，而不是 一个读不懂的失败。
+
+    进程名互为前缀（`Trae` vs `Trae CN`），匹配按最长优先并消费已匹配项，否则只开 Trae CN 时会误报国际版在运行。
   - **可回退**：改写前在同目录留 `storage.json.dsh-backup-<时间戳>`，写后回读校验，`encoded` 还在就
     视为失败（可能被别的写入者覆盖）。
   - 返回值扩展为 `{deleted, stillSignedIn, hadCopy, signedOutApps, blockedApps}`；`deleted` 的语义从
@@ -2189,23 +2125,18 @@ trae 一家，原因：
 ### 修复
 
 - **池子的「目标模型」不在已启用模型列表里时，测速会假报「上游不提供」。** Trae 把它答成
-  `4001 config_name rejected`，卡片再把它渲染成「所有已选成员当前均不可用」，于是每个账号都像是坏的。
-  根因是同一个模型在两套目录里各取一半：目标模型的下拉来自**完整**目录，而请求走的是**已启用**子集
-  （`enabledModelIds`）——子集里没有该模型的行，桥接层就拿不到它所属的 SOLO function，只能按默认
-  `solo_work_lite` 发送；`Doubao-Seed-Code` 只被 `solo_agent_remote` 收录，于是稳定的 4001。现在启动时的
-  wire 解析表**登记合并目录里的每一行**（`configName = wireConfigName ?? id`，并带上 `wireFunction`），
-  不再只登记「wire 名与显示 id 不同」的行；显示名回退按**先到先得**，避免同名（`Seed-Code`）互相覆盖。
-  桥接层另外在目录行只带 config_name、不带 function 时**从解析表借用 function**——仅当两边 config_name
-  一致，不一致时保留目录答案。
+  `4001 config_name rejected`，卡片再把它渲染成「所有已选成员当前均不可用」，于是每个账号都像是坏的。 根因是同一个模型在两套目录里各取一半：目标模型的下拉来自**完整**目录，而请求走的是**已启用**子集 （`enabledModelIds`）——子集里没有该模型的行，桥接层就拿不到它所属的 SOLO function，只能按默认 `solo_work_lite` 发送；`Doubao-Seed-Code` 只被 `solo_agent_remote` 收录，于是稳定的 4001。
+
+  现在启动时的 wire 解析表**登记合并目录里的每一行**（`configName = wireConfigName ?? id`，并带上 `wireFunction`）， 不再只登记「wire 名与显示 id 不同」的行；显示名回退按**先到先得**，避免同名（`Seed-Code`）互相覆盖。
+
+  桥接层另外在目录行只带 config_name、不带 function 时**从解析表借用 function**——仅当两边 config_name 一致，不一致时保留目录答案。
 - **重启后立刻点测速不再 4001。** wire 表要等宿主刷新模型列表才会填上，这段时间里探针仍然只能按默认
   function 发送。池子的「测速 / 一键测试」与「测试模型」现在在 wire 表未解析时先补一次目录发现：失败
   不阻断，探针照旧报告上游的真实答案。
 - **测速不再「卡住」：按行流式读取 + 3 分钟硬超时。** Host 的 `action=test` 本来就是一行一个账号的
-  NDJSON，卡片原来 `await response.text()` 才解析，等于整批跑完才一次性上屏；改 `testLinesOf()` 用
-  `response.body.getReader()` 边到边解析，每个账号测完立刻出现，`response.body` 缺失时回退 `text()`。
-  另外加 `TEST_TIMEOUT_MS = 180_000` + `AbortController`：连接被重启/断流吊住时（Host 重启后旧页面
-  开着的请求就是这种）按钮原来会永久禁用、只能刷新页面；现在到点自动取消、按钮恢复，日志给出
-  `row.poolLogTimeout`。
+  NDJSON，卡片原来 `await response.text()` 才解析，等于整批运行完成才一次性上屏；改 `testLinesOf()` 用 `response.body.getReader()` 边到边解析，每个账号测完立刻出现，`response.body` 缺失时回退 `text()`。
+
+  另外加 `TEST_TIMEOUT_MS = 180_000` + `AbortController`：连接被重启/断流吊住时（Host 重启后旧页面 开着的请求就是这种）按钮原来会永久禁用、只能刷新页面；现在到点自动取消、按钮恢复，日志给出 `row.poolLogTimeout`。
 - **一次点击只记一条测速日志。** Host 的 `test` 流先逐账号推 `{row}`，末尾再推一份 `{rows}` 汇总重复
   同样的行；卡片把两处都当新结果，于是一次点击出现两条「LaoDing：正常。」。现在按 `accountId` 去重，
   第二次只刷新单元格、不再记日志（单号测速路径同样去重）。
@@ -2217,16 +2148,15 @@ trae 一家，原因：
 ### 构建
 
 - **默认测试套件不再有 skipped。** 旧的 `tests/card-shot.spec.tsx` 是 `CARD_SHOT=1` 才跑的手动截图工具
-  （写 `/tmp/card-preview.html`、要靠 headless Chrome 量几何）。它被默认 glob 收集，导致 `pnpm test`
-  永远报 **1 skipped**，「全绿」因此不再等价于「全都跑了」。现移到 `tools/card-shot.tsx`（不匹配
-  `tests/**/*.spec.*`）、去掉 `describe.skipIf`、新增 `vitest.card.config.ts` 与 `pnpm card:shot`；
-  `tools/**/*.tsx` 纳入 `tsconfig.client.json`，仍受 typecheck 保护。
+  （写 `/tmp/card-preview.html`、要靠 headless Chrome 量几何）。它被默认 glob 收集，导致 `pnpm test` 永远报 **1 skipped**，「全部通过」因此不再等价于「全都跑了」。
+
+  现移到 `tools/card-shot.tsx`（不匹配 `tests/**/*.spec.*`）、去掉 `describe.skipIf`、新增 `vitest.card.config.ts` 与 `pnpm card:shot`； `tools/**/*.tsx` 纳入 `tsconfig.client.json`，仍受 typecheck 保护。
 
 ### 测试
 
 - `auth` 两例锁定删除语义：① 「连应用登录一起删（并留下备份）」——断言 `signedOutApps:['cn']`、
   插件副本与桌面登录都不再含该账号、目录里恰有一份 `dsh-backup`、之后再登录会被重新镜像；② 「应用
-  运行中拒绝并点名」——断言 `deleted:false` / `blockedApps:['cn']`、桌面文件原样、无备份、插件副本仍被删。
+  运行中拒绝并列明」——断言 `deleted:false` / `blockedApps:['cn']`、桌面文件原样、无备份、插件副本仍被删。
 - 新增 `trae-process` 4 例覆盖进程名前缀歧义（只开 `Trae CN` 不误报国际版、只开 `Trae` 不误报 CN 等）。
 - `solo-bridge` 3 例锁定 wire 表：给**每一行**都登记 function（含 id 即 config_name 的 `Doubao-Seed-Code`）、
   同名显示名先到先得、目录行缺 function 时借用解析表的 function 且 config_name 不一致时不借。
@@ -2390,8 +2320,10 @@ trae 一家，原因：
 
 - **账号面板 signed-out 时仍列出账号名册**（`src/client/TraeUsageCard.tsx`）：渲染门控从
   `status !== 'signed-in' || accounts.length === 0` 改为 `status !== 'error' && accounts.length > 0`。
-  Host 在「有名册但绑定的账号用不了」时回的就是 `signed-out` + 原因 + 名册——三者同一条响应，
-  此前名册被状态丢弃。改绑完成后原因仍单独显示在表格下方一行，不再连带吞掉账号行。
+
+  Host 在「有名册但绑定的账号用不了」时回的就是 `signed-out` + 原因 + 名册——三者同一条响应， 此前名册被状态丢弃。
+
+  改绑完成后原因仍单独显示在表格下方一行，不再连带吞掉账号行。
 
 ### 测试
 
@@ -2474,7 +2406,7 @@ trae 一家，原因：
 
 ## 3.7.1 (2026-10-18)
 
-> **对齐 DSH 0.2.1-rc.2，并把发布后核验收敛为一条命令。** 宿主 rc.1 → rc.2 对本插件消费的
+> **对齐 DSH 0.2.1-rc.2，并把发布后核验收敛为一条命令。** 宿主 rc.1 → rc.2 对本插件调用的
 > API 是**零变化**（逐字节核对确认），所以本版没有行为改动——它做的是两件事：把开发树钉到
 > 用户实际运行的那份宿主上，以及让「npm 上的包是否等于 tag 指向的源码」不再依赖手工核对。
 
@@ -2508,7 +2440,7 @@ trae 一家，原因：
 
 - `tests/dsh-peer-range.spec.ts` 的 `MUST_ADMIT` 补入 `0.2.1-rc.1` / `0.2.1-rc.2` / `0.2.1`。
   此前这份「必须放行的版本」清单里**没有当前正在使用的版本**——范围若被误收窄到
-  当前宿主之外，测试仍会全绿。变异验证：把上界改到 `<0.2.1-rc.2` → 对应用例立刻变红。
+  当前宿主之外，测试仍会全部通过。变异验证：把上界改到 `<0.2.1-rc.2` → 对应用例立刻变红。
 - 新增 7 例（`tests/verify-release.spec.ts`），用 PATH 上的假 `npm`/`tar` 提供受控发布包，
   子进程跑**真脚本**：一致→0、篡改→1、多出文件→1、无 tag→2、未发布→2、二进制逐字节比对、
   tag 之后有提交仍→0。
@@ -2517,9 +2449,9 @@ trae 一家，原因：
 
 ### 已核对确认无变化
 
-- 逐字节比对插件消费的宿主包（`.d.ts` 与 `lib/*.js`）——`dsh-llm`、`dsh-llm-pi-ai`、
+- 逐字节比对插件调用的宿主包（`.d.ts` 与 `lib/*.js`）——`dsh-llm`、`dsh-llm-pi-ai`、
   `dsh-settings`、`dsh-host-webserver`、`dsh-atomic-write`、`dsh-home-paths`、
-  `dsh-attachment`、`dsh-client-ui-renderer`，以及 `dsh-app-boot` 的 peer 门禁：**全部相同**。
+  `dsh-attachment`、`dsh-client-ui-renderer`，以及 `dsh-app-boot` 的 peer 兼容性检查：**全部相同**。
 - pi-ai 仍为 `1.1.0`，`openai-completions.js` 与 `utils/transcript.js` 未变，
   上一轮的双向适配结论原样成立。
 - 线上请求体探针在真实 rc.2 栈上复跑，结果与 rc.1 一致。
@@ -2536,16 +2468,15 @@ trae 一家，原因：
   `cordis` → `^4.0.5`，`schemastery` → `3.18.5`（`pnpm-workspace.yaml` 的 override 同步抬升），
   `@earendil-works/pi-ai` → **`1.1.0`（精确固定，不用 `^`）**，使本地 typecheck 与测试
   跑在与用户**字节一致**的契约上。
-- **`@earendil-works/pi-ai` peer 上界收窄为 `<2.0.0`**：原先 `>=0.85.1` 无上界，会默默放行
+- **`@earendil-works/pi-ai` peer 上界限定为 `<2.0.0`**：原先 `>=0.85.1` 无上界，会默默放行
   未审阅的 2.x。两端均已实测（0.85.1 ✅、1.1.0 ✅、1.3.0 ✅、2.0.0 ❌）。
 
 ### 修复
 
 - **pi-ai 1.1.0 的类型契约**：1.1.0 把 `ProviderStreams` 的第二参改成带 `unique symbol`
-  品牌标记的 `TranscriptContext`，只有 `normalizeContext()` 能产出，于是 `withContextAdaptation`
-  在两处调用点报 `TS2345`（升级后才暴露，0.85.1 下类型可通）。适配层本来就在归一化器
-  **下方**、且旧代分支**必须**产出无品牌形状，所以在这唯一一条边界上做显式转型，
-  并在 `src/adapter.ts` 与测试侧 `send()` helper 处写明理由。
+  品牌标记的 `TranscriptContext`，只有 `normalizeContext()` 能产出，于是 `withContextAdaptation` 在两处调用点报 `TS2345`（升级后才暴露，0.85.1 下类型可通）。
+
+  适配层本来就在归一化器 **下方**、且旧代分支**必须**产出无品牌形状，所以在这唯一一条边界上做显式转型， 并在 `src/adapter.ts` 与测试侧 `send()` helper 处写明理由。
 
 ### 测试
 
@@ -2553,15 +2484,15 @@ trae 一家，原因：
   `createProvider` + 真实 `openAICompletionsApi()`，断言线上 body 里 `roles[0] === 'system'`、
   system 文本等于原提示、`tools` 长度为 1；并覆盖「已归一化输入不二次包裹」的幂等性。
 - 新增 **反向对照**：**不**套适配器时，现代副本会把提示与工具全部丢光（`roles: ["user"]`、
-  `system: null`、`tools: 0`，且**不报错**）——这条钉住适配器为什么是承重的。
+  `system: null`、`tools: 0`，且**不报错**）——这条通过测试约束适配器为什么是承重的。
 - 全仓 **663** 例测试通过（原 660 + 3），双 tsconfig 类型检查通过，构建通过。
 
 ### 已核对、无需改动
 
 - **peer 范围**：DSH 用 `satisfies(runtime, range, { includePrerelease: true })` 求值且只校验
   `@deepseek-ai/dsh*`，`0.2.1-rc.1` 对 `>=0.1.7-rc.1 <0.3.0-0` 已判通过（实测）。预发布悬崖
-  只在**默认选项**下成立，不适用于本插件的门禁。
-- **宿主 API**：`dsh-llm` / `dsh-settings` / `dsh-host-webserver` / `dsh-llm-pi-ai` 消费点签名未变。
+  只在**默认选项**下成立，不适用于本插件的兼容性检查。
+- **宿主 API**：`dsh-llm` / `dsh-settings` / `dsh-host-webserver` / `dsh-llm-pi-ai` 调用点签名未变。
 - **客户端外壳**：产物仍只 `require` react / react-dom / react/jsx-runtime，槽位与主题令牌未变。
 
 ## 3.6.1 (2026-10-16)
@@ -2613,7 +2544,7 @@ trae 一家，原因：
     现改为**每区域一个文件保存凭据数组**（格式版本 1→2），**旧文件仍可读**、在下一次写入时自动升级。
   - 导入按钮在**未登录时也可用** —— 一台从没登录过的机器，正是最需要导入别处导出的文件的时候。
 
-  > **区域门禁是正向匹配**：导入文件里的 `domain` 是文件作者可控的值，而本插件「认不出就当作国内版」
+  > **区域兼容性检查是正向匹配**：导入文件里的 `domain` 是文件作者可控的值，而本插件「认不出就当作国内版」
   > 的规则对**上游下发**的数据是对的、对**导入文件**是危险的（伪造域名会被塞进国内版）。
   > 因此导入走一条**只认正向识别**的通道：空值、认不出的值、以及明确属于另一区域的值一律**跳过并计数**，
   > 绝不静默落库。国内版与国际版是两个并行的供应商栈，跨区导入会导致跨区计费。
@@ -2621,9 +2552,9 @@ trae 一家，原因：
 ### 修复
 
 - **修复一个会导致账号丢失的写入缺陷（本次实现导入功能时发现）**：本插件的刷新路径原先把
-  「刚刷新好的那一个凭据」当作**整个文件**写回。在单凭据时代这没问题；一旦一个区域能保存多个账号
+  「刚刷新好的那一个凭据」当作**整个文件**覆盖保存。在单凭据时代这没问题；一旦一个区域能保存多个账号
   （正是导入带来的），**刷新一个账号就会把同区域的其他账号全部删掉**。
-  已改为**读-改-写**：只替换被刷新账号自己那一条，其余条目原样保留。回归测试专门钉住了这一点。
+  已改为**读-改-写**：只替换被刷新账号自己那一条，其余条目原样保留。回归测试专门通过测试约束了这一点。
 
 - **上游未下发 function 配置时，报错读起来不再像本地故障（issue #39）**：
   - 报告者遇到的现象是每次调用都返回 `2001 no function config found for appId=…`，
@@ -2636,10 +2567,10 @@ trae 一家，原因：
 
 ### 测试
 
-- 新增 4 个测试文件、共 34 例：导入导出格式（解析 / 脱敏预览 / 往返 / 区域门禁）、
+- 新增 4 个测试文件、共 34 例：导入导出格式（解析 / 脱敏预览 / 往返 / 区域兼容性检查）、
   导入路由（HTTP 边界上的伪造区域拒绝、导入前重新解析文件而非信任预览）、
   存储升级与**刷新不吞账号**、以及端到端的「一处导出 → 另一处导入」。
-- 区域门禁做了**变异验证**：把门禁改成 fail-open（正是同族插件 `#42` 修过的那个缺陷）后，
+- 区域兼容性检查做了**变异验证**：把兼容性检查改成 fail-open（正是同族插件 `#42` 修过的那个缺陷）后，
   格式层与路由层**各有用例变红**；把毫秒单位改成错误的换算同样被抓住。
 - 全仓 **655** 例测试通过，类型检查通过。
 
@@ -2689,10 +2620,10 @@ trae 一家，原因：
 
 - **输入框读数的显示位置可选：输入框工具栏 / 输入框下方**（学自 `dsh-connect-workbuddy` issue #62）：
   - **为什么需要**：那个位置本身是脆的。`conversation.input.left`（输入框工具栏）是一个**共享的 list 插槽**，
-    外壳自己的控件和**任何其他 bundle** 都注册在那里，而 list 插槽**无法保证每个占用者都可见** ——
-    同族的报告者装了第三方插件（`dsh-auto-continue`）之后，积分读数就**整个消失了**。
-    本插件其实已经因为这个原因丢过一次这行读数：它早年放在**侧边栏底部**，那是一个共享的**根级行**，
-    与 `dsh-connect-workbuddy` 的两行并排时被挤成只剩一个「Tr」的残片（2.12.0 才迁到输入框工具栏）。
+    外壳自己的控件和**任何其他 bundle** 都注册在那里，而 list 插槽**无法保证每个占用者都可见** —— 同族的报告者装了第三方插件（`dsh-auto-continue`）之后，积分读数就**整个消失了**。
+
+    本插件其实已经因为这个原因丢过一次这行读数：它早年放在**侧边栏底部**，那是一个共享的**根级行**， 与 `dsh-connect-workbuddy` 的两行并排时被挤成只剩一个「Tr」的残片（2.12.0 才迁到输入框工具栏）。
+
     **同一个坑踩了两次，这次把位置交给用户。**
   - **两个席位**：
     - `composer`（**默认**）—— 输入框工具栏 `conversation.input.left`，与模型选择同一行，即现在的样子；
@@ -2721,13 +2652,13 @@ trae 一家，原因：
 - **卡片控件读的是设置文档，不是 Host 的 usage 应答**（这里**故意与同族不同**）。
   同族那样做是因为它的 0.1.7 部署上浏览器设置镜像**实测是过期的那份**；本仓库没有复现到这种过期，
   而读镜像才能让控件**首帧就是对的** —— 只靠 usage 文档喂值的控件会先停在默认值上等一次网络往返，
-  这正是「看起来没生效」的观感。这一点有守卫钉住（见下）。
+  这正是「看起来没生效」的观感。这一点有守卫通过测试约束（见下）。
 
 ### 测试
 
 - **+19**（全仓 **598 → 617**）：
   - `tests/credit-position.spec.tsx`（新增 13 例）：默认 `composer`（含设置存在之前的 profile、
-    手改的未知值 `'sidebar'`）；**按区域**而非全局读取；整段设置与裸 `regions` 映射两种入参都接受
+    手改的未知值 `'sidebar'`）；**按区域**而非全局读取；整段设置与直接提供的 `regions` 映射两种入参都接受
     （传错形状在本卡片上真的出过货）；写入只改该区域该字段（模型列表 / 预算 / enabled / 兄弟区域都不动）；
     席位与两个开关相互独立；gate 在**指定席位渲染 / 另一席位渲染 0 个 / 两个席位都不渲染（隐藏或区域关闭）/
     别的 provider 两个席位都不渲染 / 按会话所指区域取席位（CN 与 AI 各在各自席位）**；
@@ -2737,10 +2668,9 @@ trae 一家，原因：
     区域关闭时**禁用而不是隐藏**（控件消失会读成功能没了）、与显示开关相互独立（隐藏后仍保留所选席位）、
     只读 scope 拒绝写入。
   - `tests/client-activation.spec.tsx`（更新 2 处 + 新增 1 条断言）：插槽清单由 3 个变 4 个，
-    并**钉住两个席位的 slot id 互不相同** —— 两个注册共用一个 id 会让后一个静默替换前一个，
-    于是设置能选到一个已不在册的席位、读数反而彻底消失（正是本特性要修的那个缺陷）。
-    测试替身原先只认 `key` 字段，现在同时认 `id`/`key`（真实的 0.1.7 注册表两者都用），
-    否则一条关于 slot 身份的新断言会静默读到 `undefined` 而假绿。
+    并**通过测试约束两个席位的 slot id 互不相同** —— 两个注册共用一个 id 会让后一个静默替换前一个， 于是设置能选到一个已不在册的席位、读数反而彻底消失（正是本特性要修的那个缺陷）。
+
+    测试替身原先只认 `key` 字段，现在同时认 `id`/`key`（真实的 0.1.7 注册表两者都用）， 否则一条关于 slot 身份的新断言会静默读到 `undefined` 而假绿。
   - **变异验证**（各自变红后恢复）：删掉 gate 的席位判定 → 4 例红；把读取的默认值去掉（升级前的 profile
     读成 `undefined`）→ 4 例红；只注册一个席位 → 2 例红；控件不读所存席位 → 2 例红。
   - 构建产物核对：`lib/client.js` 内两个插槽名与两个 slot id 均在。
@@ -2754,40 +2684,37 @@ trae 一家，原因：
 
 - **保存 / 写设置时有一层忙碌遮罩**（新增 `src/client/BusyOverlay.tsx`，共用组件）：
   - **此前完全没有。** 保存状态只表现为控件变灰加按钮文案从「保存」变「保存中…」——
-    用户盯着某个具体行等它落地时，屏幕上没有任何「正在进行」的迹象。
+    用户盯着某个具体行等它实施时，屏幕上没有任何「正在进行」的迹象。
   - 遮罩由卡片的**两条**写路径共同驱动：`saveModels` 的 `saving`（保存模型列表）与
     `writePreference` 的 `savingSettings`（跟随登录 / 输入框读数两个开关）。
-  - 遮罩在该写路径的 `finally` 里随忙碌标记一起落下，也就是 **Host 重读落地的时刻**——
+  - 遮罩在该写路径的 `finally` 里随忙碌标记一起落下，也就是 **Host 重读实施的时刻**——
     延迟从「看不见」变成「看着它发生」。
 
 ### 修复
 
 - **遮罩的配色与动效改用宿主自己的令牌与节奏**（对齐同族 workbuddy 4.4.2）：
   - **遮罩卡片底色**若沿用同族的旧值 `--dsw-alias-bg-primary`，那个变量**在宿主令牌集里根本不存在**
-    （实测宿主 bundle 零命中；宿主只有 `bg-base` / `bg-layer-1..3` / `bg-module-platform` / `bg-overlay` 等），
-    于是一路回退到写死的近黑 —— 卡片变成一块黑板子，上面的字看不清。现改用宿主给弹层用的
-    `--dsw-alias-bg-layer-2`，亮暗两套主题各自成立；阴影也从手写的 drop shadow 换成宿主的
-    `--dsw-elevation-prominent`。
+    （实测宿主 bundle 零命中；宿主只有 `bg-base` / `bg-layer-1..3` / `bg-module-platform` / `bg-overlay` 等）， 于是一路回退到写死的近黑 —— 卡片变成一块黑板子，上面的字看不清。
+
+    现改用宿主给弹层用的 `--dsw-alias-bg-layer-2`，亮暗两套主题各自成立；阴影也从手写的 drop shadow 换成宿主的 `--dsw-elevation-prominent`。
   - **遮罩底色**原写死 `rgba(0,0,0,.38)`，既不跟随主题、也没有宿主的模糊。改用宿主自己遮罩用的
     `--dsw-alias-bg-mask-1`（亮 `.24` / 暗 `.5`）+ `--dsw-mask-blur`，与外壳里其他遮罩一致。
   - **提示行**用 `label-secondary` —— 原先的 `label-tertiary` 是宿主最暗的一档
     （亮 `neutral-bluish-600`、暗 `neutral-bluish-400`），给元数据用的，不该承载一句要等的人必须读的话。
   - **spinner 换成宿主同款弧线**。此前那种 18px 的 CSS border 环、`.7s` 匀速转，比宿主自己的状态
-    转圈（`_dsh-state-dot-spin`：SVG 弧线 + dash 呼吸、`1.5s`）快了近一倍 —— 比起形状本身，
-    **这个速度差才是它看着廉价的主因**。现按宿主 bundle 实测到的几何逐条对齐：
-    `viewBox 0 0 20 20`、`r=8`、`stroke-width 2`、track `opacity .25`、弧线 `stroke-dasharray 12 150`
-    与 dash 呼吸、`1.5s`、`currentColor` 继承所在层级；reduced-motion 降级为**静态弧线**
-    （与宿主降级方式一致），并补 `aria-hidden`，免得 `role="status"` 之外多报一次。
+    转圈（`_dsh-state-dot-spin`：SVG 弧线 + dash 呼吸、`1.5s`）快了近一倍 —— 比起形状本身， **这个速度差才是它看着廉价的主因**。
+
+    现按宿主 bundle 实测到的几何逐条对齐： `viewBox 0 0 20 20`、`r=8`、`stroke-width 2`、track `opacity .25`、弧线 `stroke-dasharray 12 150` 与 dash 呼吸、`1.5s`、`currentColor` 继承所在层级；reduced-motion 降级为**静态弧线** （与宿主降级方式一致），并补 `aria-hidden`，免得 `role="status"` 之外多报一次。
 
 ### 测试
 
 - **+4**（`tests/card-styles.spec.tsx` 5 → 9，全仓 **594 → 598**）：
-  - 遮罩选择器守卫：逐条钉住五个遮罩规则，且要求整条 `{` 结尾匹配，避免改名前缀后被子串误判为存在。
-  - 弧线节奏守卫：钉住 `dsm-trae-veil-dash` 关键帧与 reduced-motion 降级，防止退回到自绘 border 环。
+  - 遮罩选择器守卫：逐条通过测试约束五个遮罩规则，且要求整条 `{` 结尾匹配，避免改名前缀后被子串误判为存在。
+  - 弧线节奏守卫：通过测试约束 `dsm-trae-veil-dash` 关键帧与 reduced-motion 降级，防止退回到自绘 border 环。
   - **渲染守卫（唯一能证明「遮罩真的出现」的断言）**：jsdom 不做层叠，前几条都只证明样式表里有这些
     名字。这条在 `scope.set` 挂起的条件下点「跟随 Trae 当前登录的账号」，断言遮罩确实进 DOM
     （`role=status` / `aria-busy=true` / `aria-live=polite`）、文案为 `row.veilSaving`、弧线与卡片都在，
-    写盘落地后卸载。
+    写盘实施后卸载。
   - 令牌白名单补三条（`--dsw-alias-bg-mask-1` / `--dsw-mask-blur` / `--dsw-elevation-prominent`），
     三者均经宿主 bundle 实测存在。白名单断言「大小必须等于实际用到的令牌数」，遮罩引入新令牌后必须同步补齐。
   - 变异验证（各自变红后恢复）：把 `.dsm-trae-veil{` 改成 `.dsm-trae-veilz{` → 仅选择器守卫变红；
@@ -2837,10 +2764,11 @@ trae 一家，原因：
     `undefined`——与该适配器要防的「静默丢失」完全同类。现已逐字对齐库的语义（`content` 在前、
     按声明顺序接 section、跳过 `null`）。
   - **折上的语义与 `normalizeContext` 逐字对齐，包括「混合形状」**：当上下文**同时**带顶层字段和
-    system 消息时（部分归一化的宿主），pi-ai 自己的做法是**前插**（于是有两条 system 消息，provider 再按
-    空行折叠），本插件因此同样前插。实测该输出经真实 0.87.1 的 `resolveTranscript` 折叠后，与
-    `normalizeContext` 的结果**逐字相同**。早先版本在混合形状下直接原样返回，会静默丢掉顶层提示与其
-    工具——这条是评审的变异测试暴露的（见「测试」）。
+    system 消息时（部分归一化的宿主），pi-ai 自己的做法是**前插**（于是有两条 system 消息，provider 再按 空行折叠），本插件因此同样前插。
+
+    实测该输出经真实 0.87.1 的 `resolveTranscript` 折叠后，与 `normalizeContext` 的结果**逐字相同**。
+
+    早先版本在混合形状下直接原样返回，会静默丢掉顶层提示与其 工具——这条是评审的变异测试暴露的（见「测试」）。
 - **代际判据落在 0.86，不是 0.87**（issue #27）：
   - 报告与兄弟插件的既有实现都按 `>= 0.87 → modern` 划分。实测**真实边界是 0.86.0**——
     `dist/utils/transcript.js`、`normalizeContext`、估算器的 system 分支、以及「不再读 `systemPrompt`/`tools`」
@@ -2868,21 +2796,20 @@ trae 一家，原因：
 - **全仓 549 → 594（+45）**：
   - `tests/pi-ai-context.spec.ts`（38 例）：代际判定（含 0.86/0.87 边界、数值排序、`1.x`、不可读版本）、
     `decidePiAiGeneration` 的三条分支（含本机**永不可达**的「什么都没探测到」——市场安装的默认答案，
-    必须显式钉住）、折返（提示提升、**工具提升**、`toolsRemoved`/`toolsAdded` 顺序回放、既有顶层 `tools`
+    必须显式通过测试约束）、折返（提示提升、**工具提升**、`toolsRemoved`/`toolsAdded` 顺序回放、既有顶层 `tools`
     权威、空文本 system 消息只丢文本不丢工具、文本块、**`sections` 三条载体**、混合形状、畸形输入）、
     折上（提升、移除顶层字段、幂等、空提示、**混合形状前插**）、
     `withContextAdaptation`（两个入口都适配、同形状透传为**同一对象**、保留 `fetchDeferred` 等其余字段），
     以及**对真实解析到的那份 pi-ai 的集成对拍**：`estimateContextTokens` 不抛错、`convertMessages` 后
     `messages[0].role === 'system'` 且 `tools` 仍在。
   - `tests/pi-ai-adapter-wiring.spec.ts`（7 例）：**接线层**用例。上面那批函数级用例在把适配层从工厂里删掉后
-    **依然全绿**（已用变异验证），正是「函数没问题、只是没人调用」这一原始缺陷的形状；本文件 mock 掉
+    **依然全部通过**（已用变异验证），正是「函数没问题、只是没人调用」这一原始缺陷的形状；本文件 mock 掉
     `openai-completions.lazy`，经 `adapter.current() → piProvider → streamSimple` 走真实装配路径断言交付给
     api 的形状。
   - **变异验证 8 次，8 次全部被抓**（①–⑤ 为自查，⑥–⑧ 由独立评审提出）：
-    ① 工厂里移除适配层 → 5 例失败；② 折返只搬 prompt 不搬 tools → 6 例失败；③ 边界写成 `>= 87` →
-    1 例失败；④ 折上时不移除顶层字段 → 2 例失败；⑤ 折返不做幂等短路 → 5 例失败；
-    **⑥ 折返忽略 `sections` → 2 例失败**；**⑦ 折上跳过多 system 消息的混合形状 → 1 例失败**；
-    **⑧ 不可探测时默认 `legacy` → 1 例失败**。恢复后 57 文件 594 例全绿。
+    ① 工厂里移除适配层 → 5 例失败；② 折返只搬 prompt 不搬 tools → 6 例失败；③ 边界写成 `>= 87` → 1 例失败；④ 折上时不移除顶层字段 → 2 例失败；⑤ 折返不做幂等短路 → 5 例失败； **⑥ 折返忽略 `sections` → 2 例失败**；**⑦ 折上跳过多 system 消息的混合形状 → 1 例失败**； **⑧ 不可探测时默认 `legacy` → 1 例失败**。
+
+    恢复后 57 文件 594 例全部通过。
   - 确认新增用例真的在跑：改动前基线 **549**、改动后 **594**，净增 45，与新增用例数一致。
 
 ### 独立评审
@@ -2919,7 +2846,9 @@ trae 一家，原因：
 - **`4011` 的文案不再断言一个与上游原文矛盾的原因**（issue #33）：
   - **原行为**：`TRAE_ERROR_HINTS[4011]` 写死为「Trae refused this model under the SOLO function the request used」，并把 Trae 自己的原文降级成 `· upstream:` 后缀。用户看到的主句是「模型/function 错了」，于是按那个方向去查。
   - **为什么那个断言站不住**：本机 CN 实时凭据上跑 **22 个 function × 6 个模型**的最小请求矩阵，
-    「模型不在该 function 名单里」**无一例外回 `4001`**（`the param is invalid`）——22 个 function 全部如此，**没有一次回 4011**；而报告人用的 `glm-5.3` 归属的正是 `solo_work_remote`（插件本来就发这个 function），同一份请求体**正常出字**。也就是说「function 选错」这个条件已经被 `4001` 占用了，4011 不可能是它。
+    「模型不在该 function 名单里」**无一例外回 `4001`**（`the param is invalid`）——22 个 function 全部如此，**没有一次回 4011**；而报告人用的 `glm-5.3` 归属的正是 `solo_work_remote`（插件本来就发这个 function），同一份请求体**正常出字**。
+
+    也就是说「function 选错」这个条件已经被 `4001` 占用了，4011 不可能是它。
   - **改后**：`4011` 如实描述为「Trae 限流了这条 SOLO 通道（是限流，不是余额）」，Trae 原文照旧附在后面。
 - **`4011` 的 HTTP 状态改为 `429`（`soft_rate`），让状态码、文案与内核判定三者一致**：
   - **原行为**：4011 被归类为 `400 / client`（按本插件 `fallback-upstream.ts` 的语义，`client` 属于「可换通道重放」的一类，绝不是「等一下再来」的一类）。但内核 `@deepseek-ai/dsh-llm-pi-ai` 是**按消息文本**分类的（`/\b429\b|rate.?limit/i` → `RATE_LIMIT`），而 `RATE_LIMIT` 在 `DEFAULT_RETRYABLE_CODES` 里、`maxRetries = 5`。
@@ -2928,7 +2857,7 @@ trae 一家，原因：
 - **一键测试不再把「被限流」判成「上游不提供」**（issue #33）：
   - `UNSUPPORTED_CODES` 此前是 `{4001, 4011}`，于是 4011 会得到 `unsupported`——卡片文案「上游不提供」，是一个**永久性的负面结论**。这与该模块自己写在文件头的原则直接冲突（「the verdict must never turn an inconclusive answer into "unavailable"」）。报告人用一键测试时会被告知一个能用的模型已经死了。
   - **改后**：4011 归入 `rate_limited`（卡片「被限流」），`unsupported` 只由 `4001` 产生。
-  - **顺带把「一个码只能有一个 verdict」变成结构性约束**：原来每个 verdict 一个 `Set`，一个码同时出现在两个集合里时，结果取决于分支书写顺序——实测把 4011 加回「unsupported」集合**所有测试都过**。现在改成单一 `CODE_VERDICTS` 映射表 + 加载期唯一性断言，并补了交叉断言用例钉住它。
+  - **顺带把「一个码只能有一个 verdict」变成结构性约束**：原来每个 verdict 一个 `Set`，一个码同时出现在两个集合里时，结果取决于分支书写顺序——实测把 4011 加回「unsupported」集合**所有测试都过**。现在改成单一 `CODE_VERDICTS` 映射表 + 加载期唯一性断言，并补了交叉断言用例通过测试约束它。
 - **登记两个此前不认识的错误码**：
   - **`4008` = 额度/配额耗尽**（原文 `Your requests have exceeded the quota.`）。它与 `4011` **是两个不同的码**：Trae 把「额度用完」和「被限流」分开报，所以 issue #33 里「我额度还有很多」与「我被 4011 拦住」可以同时成立。只登记文案与分类，**不改它的既有语义**（仍 `400 / client`）。本机只在国际版账号上观察到（该账号当前对多数模型都回 4008），CN 未触发——属**未验证项**。
   - **`4023` = 模型名不存在**（原文 `the model is unknown`）。
@@ -2939,14 +2868,14 @@ trae 一家，原因：
 - **全仓 541 → 549（+8）**：
   - `tests/solo-bridge.spec.ts`：4011 文案改为「限流」并保留 Trae 原文、`4008` 与 `4011` 文案分开、`4023` 命名、未登记码回退；`bridgeTraeSoloStreamOrFail` 的 4011 用例改为断言 `429 / soft_rate`；`4008` 的既有用例改为断言新文案。
   - `tests/model-probe.spec.ts`：4011 → `rate_limited`（含「消息里只有码、没有 429 状态」的路径与「流中拒绝」路径）、`4008` → `unknown`、`4001` → `unsupported`，以及一条**表级交叉断言**（每个已知码都只映射到一个 verdict）——它正是为上面那个「顺序依赖」缺陷加的。
-  - **变异验证 6 次，6 次全部被抓**：① 去掉 4011 的 429 映射 → 1 例失败；② 恢复旧 4011 文案 → 2 例失败；③ 把 4011 在映射表里改回 `unsupported` → 4 例失败（**这条在改造前是抓不到的**）；④ 去掉 4008 的 `unknown` 映射 → 2 例失败；⑤ 删除「表内唯一性」的交叉断言依赖的行为 → 2 例失败；⑥ 其余组合。恢复后 55 文件 549 例全绿。
+  - **变异验证 6 次，6 次全部被抓**：① 去掉 4011 的 429 映射 → 1 例失败；② 恢复旧 4011 文案 → 2 例失败；③ 把 4011 在映射表里改回 `unsupported` → 4 例失败（**这条在改造前是抓不到的**）；④ 去掉 4008 的 `unknown` 映射 → 2 例失败；⑤ 删除「表内唯一性」的交叉断言依赖的行为 → 2 例失败；⑥ 其余组合。恢复后 55 文件 549 例全部通过。
 - 确认新增用例真的在跑：改动前基线 **541**、改动后 **549**，净增 8，与新增用例数一致。
 
 ### 文档
 
 - `docs/ISSUE33_DIAGNOSIS.md`：完整取证——`4008`/`4011`/`4001`/`4023`/`1001`/`1005` 的码→语义对照、
-  22 function × 6 模型的调用矩阵、`glm-5.3` 的归属验证、本机 30 并发未触发限流的对照，以及内核
-  `dsh-llm-pi-ai` 按文本分类 + `DEFAULT_RETRYABLE_CODES` 的证据链（为什么截图里是 5/5 与 7328 毫秒）。
+  22 function × 6 模型的调用矩阵、`glm-5.3` 的归属验证、本机 30 次请求、并发上限 10 未触发限流的对照，以及内核 `dsh-llm-pi-ai` 按文本分类 + `DEFAULT_RETRYABLE_CODES` 的证据链（为什么截图里是 5/5 与 7328 毫秒）。
+
   同时明确列出**未证实项**（4011 的粒度是「通道」还是「账号」、`4008` 的边界与恢复时间、CN 是否也用 4008）。
 
 ## 3.4.0 (2026-10-12)
@@ -2960,21 +2889,24 @@ trae 一家，原因：
     - 已过期的包**单独计桶**，不进入前瞻窗口——剩余毫秒数为负时会满足所有前瞻条件（`end - now < 24h`），混在一起会让一个早就死掉的包看起来永远临近。
     - 抽出 `usableExpiry()` 谓词（`> 0` 且有限），与每包投影共用同一判断，两者不可能对同一批数据得出矛盾结论。`0` 与 `NaN`/`Infinity` 均被排除。
   - **`TraeWebCreditExpiry` / `TraeWebExpiringCredits` 仅当有包携带可用到期时间时才存在**——「没拿到数据」不得渲染成「没有要过期的」，这与 #31 里 `expiresAtMs` 缺省即省略的设计一致。
-  - **两处 UI 不再一视同仁**：使用量标签页新增到期提示条，按 **7 天 → 24 小时 → 已过期**逐级加重，写明金额、套餐数和最早到期时间；输入框下面的积分面板（真正常驻看额度的地方）同样渲染提示条。仅国内版：国际版是订阅制（`payStatus`），没有逐包到期数据。
+  - **两处 UI 不再一视同仁**：使用量标签页新增到期提示条，按 **7 天 → 3 天 → 24 小时 → 已过期**逐级加重，写明金额、套餐数和最早到期时间；输入框下面的积分面板（真正常驻看额度的地方）同样渲染提示条。仅国内版：国际版是订阅制（`payStatus`），没有逐包到期数据。
   - 中英双语文案（`row.expiryWarningSoon` / `row.expiryWarningWeek` / `row.expiryWarningLapsed` / `row.expiryEarliest`）。
   - 新增测试覆盖分桶边界、正余额排除、已过期/未到期分离、最早到期选取、非有限值与 `0` 的处理，以及「无数据」与「没有要过期的」这两个必须区分的状态。
 
 ### 测试
 
 - `tests/composer-styles.spec.tsx` 的 fixture 补上带 `expiry` 的数据，让输入框面板的到期提示条真正被渲染并接受「每个渲染出的 class 在样式表里有规则」的守卫检查；并做了负向验证——临时删掉一条样式规则，测试精确报出缺失的 class（`dsm-trae-expiry-detail`），确认守卫是真的在覆盖而不是假通过。
-- `tests/web-status.spec.ts` 新增 `expiry summary` 一组，钉住分桶与两种状态的区分。
+- `tests/web-status.spec.ts` 新增 `expiry summary` 一组，通过测试约束分桶与两种状态的区分。
 
 ## 3.3.0 (2026-10-11)
 
 ### 新增
 
 - **一键测试所有模型**：模型区在「一键测试启用模型」旁新增「一键测试所有模型」，对当前 region 的**全部可见模型**发起可用性探测。两个按钮共用同一套探测路径，唯一区别是提交的 id 集合（勾选的行 / 全部可见行）。
-- **`/usage` 的每个积分包携带自己的到期时刻**（`credits.accounts[].expiresAtMs`）。剩余额度只回答「还有多少」，回答不了「哪一笔先到期」，而后者才是「该先用哪个」的依据。上游本来就在 `user_entitlement_pack_list[].entitlement_base_info.end_time` 里逐包给出该时刻，这里只是把它投影进卡片文档——**不新增任何上游读**，卡片自身也不因此多一次请求。没有可用时刻的包**不带该字段**（而不是给 0）：0 是 1970，会排在所有真实日期之前，读起来像「早已过期」。
+- **`/usage` 的每个积分包携带自己的到期时刻**（`credits.accounts[].expiresAtMs`）。
+  剩余额度只回答「还有多少」，回答不了「哪一笔先到期」，而后者才是「该先用哪个」的依据。 上游本来就在 `user_entitlement_pack_list[].entitlement_base_info.end_time` 里逐包给出该时刻，这里只是把它投影进卡片文档——**不新增任何上游读**，卡片自身也不因此多一次请求。
+
+  没有可用时刻的包**不带该字段**（而不是给 0）：0 是 1970，会排在所有真实日期之前，读起来像「早已过期」。
 
 ### 新增（国际版的输入框读数）
 
@@ -2988,9 +2920,9 @@ trae 一家，原因：
 
 - **刷新账号后显示的账号，就是真正被写进设置的账号**。报告的现象是：刷新后提示「找到 1 个账号 · 仍绑定 丁敏华」，而设置文档里 `accounts.cn` **一直是空的**。
   - 根因是把路由的 `selected` 标志读成了「已经绑定过」。该标志回答的是「**哪个账号正在使用**」，而不是「哪个账号被显式保存过」：没有保存过绑定时，存储层会用**探测到的默认值**（Trae App 当前登录的那个）来回答。于是「从未显式绑定」被读成「检测到的默认值正在使用，无需写入」——刷新恰好**什么都没保存**，而卡片却把它显示成已绑定；下一次存储重建（重启、或 Trae 换登录）就静默改回别的账号。
-  - 现在按「**这个区域实际在用的账号**（存储层的裁决，也正是卡片显示的那个）写盘」，仅在路由完全没给出裁决时才退回该区域自己的名册；**已经是保存中绑定**的行不重复写——一次点击不该为无变化重写设置文档（那会触发 `loader/volatile-update`、重跑 `applySelection` 并重建两个存储）。
+  - 现在按「**这个区域实际在用的账号**（存储层的裁决，也正是卡片显示的那个）写盘」，仅在路由完全没给出裁决时才退回该区域自己的名册；**已经是保存中绑定**的行不重复写——一次点击不该为无变化重写设置文档（那会触发 `loader/volatile-update`、重新运行 `applySelection` 并重建两个存储）。
   - 提示语随之区分两件事：`已绑定 X`（这次真的写入了）与 `仍绑定 X`（这次没写，X 是既有绑定）。旧措辞把「保存了」和「本来就没动」压成同一句话，正是这个缺口看不见的原因。
-- `tests/card-accounts-rescan.spec.tsx`（新增 6 条）钉住不变式：**刷新后卡片显示为在用的账号，必须就是设置文档记录的账号**——显示一个、保存零个是 bug，而它在截图里完全看不出来。覆盖：未绑定时必须写入、必须携带另一区域的绑定（不能把国内版的选择刷掉）、已是保存绑定时不得重写、路由未标 `selected` 时仍绑定它、只读 scope 不写且如实报告、以及提示语必须区分「已绑定」与「仍绑定」。
+- `tests/card-accounts-rescan.spec.tsx`（新增 6 条）通过测试约束不变式：**刷新后卡片显示为在用的账号，必须就是设置文档记录的账号**——显示一个、保存零个是 bug，而它在截图里完全看不出来。覆盖：未绑定时必须写入、必须携带另一区域的绑定（不能把国内版的选择刷掉）、已是保存绑定时不得重写、路由未标 `selected` 时仍绑定它、只读 scope 不写且如实报告、以及提示语必须区分「已绑定」与「仍绑定」。
 
 ### 新增（输入框读数开关扩展到国际版）
 
@@ -3020,17 +2952,23 @@ trae 一家，原因：
 
 ### 修复（三处静默失效，任何行为测试都测不到）
 
-- **`TraeUsagePack.endTimeMs` 装的是秒，不是毫秒**（外部贡献，PR #31 by [@welsongit](https://github.com/welsongit)）。该字段直接取自上游的 `entitlement_base_info.end_time`（`src/usage.ts`），而 Trae 给出的 `end_time` 是**秒**：对照真机 CN 账号，`1788340660` 是 2026-09-02；按毫秒读则是 1970-01-21。字段名写的是 `Ms`，于是任何照名字取用的调用方都会得到一个 1970 的日期——它排在所有真实日期之前，读起来像「早已过期」。
+- **`TraeUsagePack.endTimeMs` 装的是秒，不是毫秒**（外部贡献，PR #31 by [@welsongit](https://github.com/welsongit)）。
+  该字段直接取自上游的 `entitlement_base_info.end_time`（`src/usage.ts`），而 Trae 给出的 `end_time` 是**秒**：对照真机 CN 账号，`1788340660` 是 2026-09-02；按毫秒读则是 1970-01-21。
+
+  字段名写的是 `Ms`，于是任何照名字取用的调用方都会得到一个 1970 的日期——它排在所有真实日期之前，读起来像「早已过期」。
   - 该字段此前**没有任何读取方**（全仓只有写入点、没有一处消费），所以这个错误没有表现，也就没被发现。
   - 现在在解析处按量级归一（`> 1e12` 视为毫秒、否则按秒换算），与 `src/auth.ts` 对存储过期字段的既有判定一致；上游若某天改用毫秒也不会被乘成公元 57000 年。
-  - `tests/web-status.spec.ts` 新增用例钉住这条契约：到期时刻必须成为毫秒，且「上游没给」时字段**缺席**而不是 0。
+  - `tests/web-status.spec.ts` 新增用例通过测试约束这条契约：到期时刻必须成为毫秒，且「上游没给」时字段**缺席**而不是 0。
 
 - **游离的右括号吞掉了一整条规则**：`.dsm-trae-models-actions` 之后有一个孤立的 `}`（全文 193 个 `{` 对 194 个 `}`）。它让紧随其后的 `.dsm-trae-usage-alternative` **完全不生效**——积分耗尽提示框因此没有琥珀底、没有边框，按钮被挤到文字下方（flex 失效）而不是并排。jsdom 不做层叠计算，一个没样式但类名与文本都正确的元素能通过任何行为断言，所以这个 bug 骗过了当时全部 517 个测试。
 - **6 个 DSH 并不存在的 token**：`--dsw-alias-bg-layer-4`、`--dsw-alias-state-warning-bg/-border/-primary`、`--dsw-state-warning`、`--dsw-state-success`。`var(--nope, #333740)` 是合法 CSS，**看起来已被兜底处理**，但兜底值会在**两个主题下都生效**：
   - 那个 hover 因此长期是深色 `#333740`：浅色主题下按钮底色本是白的，一 hover 变成深炭色而文字仍是近黑 `#0f1115`，**几乎看不见**；深色主题下 `#353638 → #333740` 每个通道只差 2，**等于没有反馈**。改用 DSH 真正为此提供的 `--dsw-alias-interactive-bg-hover`（半透明叠加层，自适应任何底色且文字始终可读）。
   - 警告类 token 改用真实名称 `state-warn-primary/-secondary/-tertiary`，其中 `-tertiary` 本身按主题取值（浅色 amber-100 / 深色 amber-900），警告框从此随主题正确显示。
 - **开关打开态的旋钮在深色主题下不可见**：旋钮硬编码 `#fff`，而轨道用 `--dsw-alias-brand-primary`——该 token 不是蓝色，而是**反差色**（浅色近黑 / 深色近白）。深色主题下即白旋钮配近白轨道。旋钮改用 `--dsw-alias-bg-layer-1`（与轨道在两个主题下都相反）。
-- **「仍绑定在上一个账号」提示看不懂**。该提示只在 App 登录与插件绑定确实不一致时出现（`liveLogin()` 在 `liveId === this.accountId` 时返回 `undefined`），事实没错，但措辞有三个问题：只点名 App 登录的账号、把绑定账号写成**「上一个账号」**（而这条提示存在的意义恰恰是省掉去列表里找这一步）；用「当前登录」与列表里绑定账号的**「当前使用」**徽标撞车，两个「当前」指向不同账号，读起来像自相矛盾；且「上一个」断言了插件无从得知的顺序。现改为同时点名两个账号（`Trae 已登录 X，但本插件绑定的是 Y。`），按钮也改为点明目标（`改用 X`）。
+- **「仍绑定在上一个账号」提示看不懂**。
+  该提示只在 App 登录与插件绑定确实不一致时出现（`liveLogin()` 在 `liveId === this.accountId` 时返回 `undefined`），事实没错，但措辞有三个问题：只列明 App 登录的账号、把绑定账号写成**「上一个账号」**（而这条提示存在的意义恰恰是省掉去列表里找这一步）；用「当前登录」与列表里绑定账号的**「当前使用」**徽标撞车，两个「当前」指向不同账号，读起来像自相矛盾；且「上一个」断言了插件无从得知的顺序。
+
+  现改为同时列明两个账号（`Trae 已登录 X，但本插件绑定的是 Y。 `），按钮也改为点明目标（`改用 X`）。
 
 ### 测试
 
@@ -3062,10 +3000,12 @@ trae 一家，原因：
 
 ### 刻意改变的决定（撤销本次重做里的圆钮开关）
 
-本次界面重做把 tab 切换与设置项做成了**自绘圆钮开关**（34×20 轨道 + 14px 旋钮），理由写在当时的 CSS 注释里：「让 tab 栏和设置区看起来是同一个产品，而不是旁边放一个原生复选框」。用户看到 WorkBuddy 卡片后指出「选择的样式……都和 WorkBuddy 有区别」，现全部改回**平台原生复选框 + `accent-color`**。
+本次界面重做把 tab 切换与设置项做成了**自绘圆钮开关**（34×20 轨道 + 14px 旋钮），理由写在当时的 CSS 注释里：「让 tab 栏和设置区看起来是同一个产品，而不是旁边放一个原生复选框」。
+
+用户看到 WorkBuddy 卡片后指出「选择的样式……都和 WorkBuddy 有区别」，现全部改回**平台原生复选框 + `accent-color`**。
 
 - **原设计有两个说不通的地方。** 其一，同一个插件里的**输入框工具栏开关**（`.dsm-trae-mainui-switch-label`）一直就是原生 checkbox + `accent-color`，圆钮只出现在卡片里，插件自己就不统一；其二，圆钮的选中色用 `--dsw-alias-brand-primary`，而该 token 是 DSH 的**反差色**（浅色 `#0f1115` / 深色 `#f9fafb`），不是强调色——于是「打开」渲染成一枚**纯黑大胶囊**，比卡片里任何元素都重，且和两步之外的原生复选框毫无关系。
-- **原生复选框顺带解决主题与可访问性**：勾选态、深色模式、键盘焦点环、高对比度模式全部交给宿主，插件不再维护旋钮几何。行为不变（仍是同一个 `type="checkbox"`，`aria-label` / `aria-labelledby` 与写设置路径都没动），因此行为测试全绿。
+- **原生复选框顺带解决主题与可访问性**：勾选态、深色模式、键盘焦点环、高对比度模式全部交给宿主，插件不再维护旋钮几何。行为不变（仍是同一个 `type="checkbox"`，`aria-label` / `aria-labelledby` 与写设置路径都没动），因此行为测试全部通过。
 - **测试同步改写**：原来锁死旋钮的断言（`dsm-trae-switch-track`、`input:checked+track`、`::after`）改为锁**反向不变式**——必须存在 `accent-color` 规则，且**不得**再出现手绘轨道或 `clip:rect` 隐藏原生框的写法，防止圆钮被无意间改回来。
 
 ### 刻意改变的决定（取代 3.2.0 中「不提供逐账号签到」）
@@ -3083,14 +3023,14 @@ trae 一家，原因：
 
 - **「设置」区块（新）**：标题 + 说明 + 每项一行「标签 + 说明 + 开关」。
   - 两项偏好（`followAppLogin` 跟随 Trae 登录、`showPointsInMainUi` 输入框积分读数）改为**草稿式提交**：改动先留在卡片里，出现「有未保存的修改」提示，点「保存」才写入，点「放弃修改」还原为已保存的值。
-  - 保存**只写被改动的那一项**——另一项若在别处（DSH 设置表单、另一个窗口）被改过，不会被本次保存用卡片里的旧值覆盖。写入仍走原有回读校验（`set()` 返回成功不算落地，必须读回一致），失败照旧显示错误行而不是静默回滚。
+  - 保存**只写被改动的那一项**——另一项若在别处（DSH 设置表单、另一个窗口）被改过，不会被本次保存用卡片里的旧值覆盖。写入仍走原有回读校验（`set()` 返回成功不算实施，必须读回一致），失败照旧显示错误行而不是静默回滚。
   - 开关是真正的开关样式（含键盘焦点环），不再是一个贴在右下角、没有任何说明的裸复选框。
 - **「Trae 账号」区块（新）**：下拉框换成表格，列为 **账号 / 通用积分 / Token 到期 / 操作**。
   - 每行显示账号名、**产品名**（Trae / Trae 国际版 / TRAE SOLO / TRAE SOLO 国际版——不再是难以辨认的 `solo` 原始标记）、region、来源（桌面端 / Trae CLI / 插件副本）、Token 到期时间。
   - 当前绑定账号带「当前使用」标记且该行操作禁用；点击其它行的「切换」即换绑。切换**只写本 region 的槽位**，另一 region 的绑定原样保留（两个供应商并行时的既有约定，issue #11）。
   - 余额列**按需读取**：点「读取各账号余额」才发请求（该路由每账号一次上游读取，因此**绝不在卡片打开时自动读**，否则看一眼卡片就要为整个账号列表付费）；绑定账号的余额直接来自用量文档，不额外发请求。读取失败会**报错且不清空账号列表**，未知余额显示 `—` 而不是 `0`。
 
-### 刻意不做的事（与 3.1.1 一致，这里再次钉死）
+### 刻意不做的事（与 3.1.1 一致，这里再次明确约束）
 
 - **没有一键签到、没有逐账号签到**。签到仍是当前账号的单次点击：Trae 的签到按**每台设备每天一次**计（2026-10-11 本机实测：`did_checked_in` 随 `x-device-id` 变化而翻转），设备额度用完后其它账号 claim 只会被 `9095` 拒绝，批量只会制造一排假失败。账号表格里**不提供**任何签到操作，签到按钮仍只有全卡唯一一个；测试直接断言这一点。
 - **没有「隐藏/删除账号」**。WorkBuddy 有这项是因为它有宿主侧的隐藏名单（`.dismissed.json`）；Trae 侧没有这套持久化，本次是纯前端重组与交互补齐，不假装提供该能力。
@@ -3109,7 +3049,7 @@ trae 一家，原因：
 - **刻意不做「一键签到」**：签到按钮只对当前选中的账号生效，点击一次只发一次 claim 请求（防回归测试见下），**不会**遍历本机其它账号逐个签到。理由是本机实测的 Trae 规则：
   - **Trae 的签到按「每台设备每天一次」计，不按账号**（2026-10-11 本机实测：同一 CN 账号同一天，带本机 `x-device-id` 读签到状态得 `did_checked_in: true`——本机额度已用；去掉该请求头再读同一时刻变 `false`——设备级键控坐实）。
   - 「账号未领、设备已签」（`checked_in: false, did_checked_in: true`）正是**切换账号后的常态**：新账号今天在本机领不到，claim 只会被业务码 `9095`（"该设备今日已参与签到"）拒绝。所以**一键全签没有意义**——只有第一个账号能成功，其余全部被拒，只会制造一排虚假的「签到失败」。
-- 行为不变，只是把上述边界写进文档并钉死：设备已签时宿主路由**先读状态、不发 claim**（测试断言 upstream 调用数为 0），把 `9095` 呈现为「本机今日已签到，可换设备或明天」的说明而非错误。
+- 行为不变，只是把上述边界写进文档并明确约束：设备已签时宿主路由**先读状态、不发 claim**（测试断言 upstream 调用数为 0），把 `9095` 呈现为「本机今日已签到，可换设备或明天」的说明而非错误。
 
 ### 测试
 
@@ -3130,9 +3070,14 @@ trae 一家，原因：
      - 私钥就存在 `storage.json` 的 `iCubeAuthInfo://icube-dc:<deviceId>` 里，与凭证同一套 AES 加密，**用现有的 `decryptTraeStorageValue` 即可解出**（四版通吃）——不需要 keychain。
      - ClientID **按「是否 SOLO 包」分叉，不按 region**：桌面（cn/sg）→ `ono9krqynydwx5` + `IDE_PC`；SOLO（**solo 与 solo-sg**）→ `en1oxy7wnw8j9n` + `SOLO_PC`。**旧的「SOLO CN 用桌面 ClientID」在新契约下会得到 `10101 无效参数`**——这正是旧 `REFRESH_CONTRACT` 表的失效点。
 
-  实现：`src/refresh.ts` 重写为「当前契约（带签名）优先、旧契约回退」，`src/identity.ts` 新增 `deviceKeyPairOf()` 读出 keypair 并补 `DeviceName`/`DeviceModel`，宿主把 keypair 随 DeviceInfo 传入。**没有 keypair 时（CLI-only 或旧安装）直接走旧契约**，不发送注定被 `20405 Device proof required` 拒绝的请求。
+  实现：`src/refresh.ts` 重写为「当前契约（带签名）优先、旧契约回退」，`src/identity.ts` 新增 `deviceKeyPairOf()` 读出 keypair 并补 `DeviceName`/`DeviceModel`，宿主把 keypair 随 DeviceInfo 传入。
 
-- **顺带修掉一个更隐蔽的老 bug：旧契约的 ClientID 一直用错。** 实测四个 edition 在旧 `/cloudide` 路径上**都能刷新成功**，但**必须用各自对应的 ClientID**（用错 → `10101 refresh token is not matched to the client`）。这说明该分叉**属于 OAuth client，不属于 endpoint**，而 3.1.0 之前插件在旧路径上**写死桌面 ClientID**，所以 **`solo` 与 `solo-sg` 的旧路径一直是 400**——国际 SOLO 账号一旦过期就再也刷不回来，正是本次报告的现象。现在两条路径共用同一张按 edition 分叉的 ClientID 表，四个 edition 在**两条路径上均实测 200**。
+  **没有 keypair 时（CLI-only 或旧安装）直接走旧契约**，不发送注定被 `20405 Device proof required` 拒绝的请求。
+
+- **顺带修掉一个更隐蔽的老 bug：旧契约的 ClientID 一直用错。** 实测四个 edition 在旧 `/cloudide` 路径上**都能刷新成功**，但**必须用各自对应的 ClientID**（用错 → `10101 refresh token is not matched to the client`）。
+  这说明该分叉**属于 OAuth client，不属于 endpoint**，而 3.1.0 之前插件在旧路径上**写死桌面 ClientID**，所以 **`solo` 与 `solo-sg` 的旧路径一直是 400**——国际 SOLO 账号一旦过期就再也刷不回来，正是本次报告的现象。
+
+  现在两条路径共用同一张按 edition 分叉的 ClientID 表，四个 edition 在**两条路径上均实测 200**。
 
 - 错误码语义已实测归档（`docs/INTL_SG_EVIDENCE.md` §2.2.1）：`20405` 完全没带 proof、`20403` proof 对不上、`10101` ClientID 用错、`20101` refresh token 本身失效。
 
@@ -3151,7 +3096,10 @@ trae 一家，原因：
 
 ### 修复
 
-- **跟随 Trae 当前登录的账号（issue #29）**。在 Trae 桌面端**退出换登录**后，插件此前一直绑定**换号前**的账号继续计费，而同族插件 `dsh-connect-workbuddy` 会自动跟随 App 的新登录；报告人需要每次手动打开账号下拉切一次。根因是两处：`TraeCredentialStore.preferred()` 只取 `credentials[0]`（**不认哪个来源是 App 的 live 登录**），`current()` 在 `accountId` 有值时**严格绑定、find 不命中也不回退**（刻意为之，见 `src/auth.ts` 的注释——避免悄悄给用户换一个计费账号）。
+- **跟随 Trae 当前登录的账号（issue #29）**。
+  在 Trae 桌面端**退出换登录**后，插件此前一直绑定**换号前**的账号继续计费，而同族插件 `dsh-connect-workbuddy` 会自动跟随 App 的新登录；报告人需要每次手动打开账号下拉切一次。
+
+  根因是两处：`TraeCredentialStore.preferred()` 只取 `credentials[0]`（**不认哪个来源是 App 的 live 登录**），`current()` 在 `accountId` 有值时**严格绑定、find 不命中也不回退**（刻意为之，见 `src/auth.ts` 的注释——避免悄悄给用户换一个计费账号）。
 
   分两条路径修，**都不改变未勾选用户的任何行为**：
 
@@ -3235,7 +3183,9 @@ trae 一家，原因：
 
 ### 切换的正确性
 
-`accounts` 是**共享字段**，卡片和这个表格是它的**两个写入者**。因此把 `configuredAccountsOf`（深解包 + 合并规则）从卡片私有**提到 `status-paths.ts` 共用**：两个写入者必须共用同一条合并规则，否则会分叉。这条规则本身是踩出来的——`{ ...configured, [region]: id }` 若不解包会把 `{get()}` 引用散播进配置文档，**丢掉另一个区域的选择并把函数泄漏进去**。
+`accounts` 是**共享字段**，卡片和这个表格是它的**两个写入者**。因此把 `configuredAccountsOf`（深解包 + 合并规则）从卡片私有**提到 `status-paths.ts` 共用**：两个写入者必须共用同一条合并规则，否则会分叉。
+
+这条规则本身是踩出来的——`{ ...configured, [region]: id }` 若不解包会把 `{get()}` 引用散播进配置文档，**丢掉另一个区域的选择并把函数泄漏进去**。
 
 写入仍然**读后校验**：`set()` resolve 不等于落库，读回不是目标值就报错，而不是把标记画在一个从未被选中的账号上。
 
@@ -3449,7 +3399,9 @@ if (process.env.NODE_ENV !== "production") { … }
 
 插件的客户端 bundle 由 shell 的模块加载器载入（`window.__ModuleLoader__.load({ factory: (require) => … })`），它只注册了极少数模块名。tsdown 会把该值导入转成一个外部 `require(...)`，而浏览器无法解析它——**整个客户端半边因此加载失败**。
 
-**这个不变量一直写在仓库里**：`tests/client-activation.spec.tsx` 明确记录「入口的运行时依赖只有 React 和本地文件——所有 DSH 包都是 type-only 导入、编译期被擦除」。2.12.0 破坏了它，而且**所有测试依然全绿**：测试里该包被 mock、Node 也能从 node_modules 解析它，**问题只存在于浏览器中**。
+**这个不变量一直写在仓库里**：`tests/client-activation.spec.tsx` 明确记录「入口的运行时依赖只有 React 和本地文件——所有 DSH 包都是 type-only 导入、编译期被擦除」。
+
+2.12.0 破坏了它，而且**所有测试依然全部通过**：测试里该包被 mock、Node 也能从 node_modules 解析它，**问题只存在于浏览器中**。
 
 ### 修复
 
@@ -3469,7 +3421,7 @@ if (process.env.NODE_ENV !== "production") { … }
 
 ### 教训
 
-「所有测试全绿」不能证明插件能加载。这个仓库的测试把 DSH 包都 mock 掉了（Node 需要），因此**构建产物里出现什么 require，测试看不见**。现在这条静态守卫补上了这个盲区。
+「所有测试全部通过」不能证明插件能加载。这个仓库的测试把 DSH 包都 mock 掉了（Node 需要），因此**构建产物里出现什么 require，测试看不见**。现在这条静态守卫补上了这个盲区。
 
 ## 2.13.0 (2026-10-07)
 
@@ -3497,7 +3449,7 @@ if (process.env.NODE_ENV !== "production") { … }
 
 ### Features
 
-- **整块可点击**：`Trae CN · 3,392` 本身就是一个按钮（`aria-haspopup="dialog"`），**行内不再有刷新按钮**。这一行与权限/专家/模型控件共享，必须保持窄；而把操作收进浮层，正好与旁边的「专家」控件是同一套交互。
+- **整块可点击**：`Trae CN · 3,392` 本身就是一个按钮（`aria-haspopup="dialog"`），**行内不再有刷新按钮**。这一行与权限/专家/模型控件共享，必须保持窄；而把操作移到浮层，正好与旁边的「专家」控件是同一套交互。
 - **点击弹出锚定浮层**（浮现在控件上方，`Esc` 或点击外部关闭），内含：
   - **账号**（回答「这是谁的额度」）
   - **Work 积分** 与 **通用积分** 两个桶，各自数值
@@ -3508,7 +3460,9 @@ if (process.env.NODE_ENV !== "production") { … }
 
 ### 依赖注入的架构决定
 
-浮层所需的那两个 hook **由客户端入口注入**，组件本身不 import `@deepseek-ai/dsh-client-ui-primitives`。原因：该包是浏览器 bundle（自身 `import '*.module.css'`，并依赖 `clsx`/`mdast-util-*` 等 Node 无法解析的传递依赖），组件一旦 import 它，Node 测试环境就无法加载它。
+浮层所需的那两个 hook **由客户端入口注入**，组件本身不 import `@deepseek-ai/dsh-client-ui-primitives`。
+
+原因：该包是浏览器 bundle（自身 `import '*.module.css'`，并依赖 `clsx`/`mdast-util-*` 等 Node 无法解析的传递依赖），组件一旦 import 它，Node 测试环境就无法加载它。
 
 - 组件对 `popover` 缺省时使用**惰性桩**（不定位、不自动关闭），保证两个 hook **每次渲染都被调用**——条件调用会改变 hook 数量、违反 hooks 规则。
 - 组件测试因此无需 mock 任何东西即可渲染。
@@ -3586,7 +3540,7 @@ Tr                        ← 我们的行只剩开头两个字母
 
 ### Tests
 
-- 全仓 435 保持通过。这一处是**纯布局**问题：jsdom 不做布局计算，因此**单元测试无法覆盖**——判断依据是真实界面截图与两处 CSS 的逐行对比。这一点如实记录，避免留下「测试全绿所以没问题」的错觉。
+- 全仓 435 保持通过。这一处是**纯布局**问题：jsdom 不做布局计算，因此**单元测试无法覆盖**——判断依据是真实界面截图与两处 CSS 的逐行对比。这一点如实记录，避免留下「测试全部通过所以没问题」的错觉。
 
 ## 2.10.2 (2026-10-07)
 
@@ -3646,7 +3600,9 @@ Tr                        ← 我们的行只剩开头两个字母
 
 ### 为什么不只用插件卡片里的复选框
 
-第一版把开关**只**放在插件卡片里，结果在装了 **dshmarket** 的宿主上等于不存在：市场插件接管了插件页，而它的 UI **完全不渲染插件自带的配置卡片**（其客户端 bundle 里 `plugins.row.config` / `plugins.bundle.config` **0 处引用**）。于是积分行被挡住、开关又在打不开的页面里。现在把开关同时放在**模型区**（用户管理模型时视线所在）与**积分行本身**，并默认显示——不再依赖任何一个可能不可达的页面。
+第一版把开关**只**放在插件卡片里，结果在装了 **dshmarket** 的宿主上等于不存在：市场插件接管了插件页，而它的 UI **完全不渲染插件自带的配置卡片**（其客户端 bundle 里 `plugins.row.config` / `plugins.bundle.config` **0 处引用**）。
+
+于是积分行被挡住、开关又在打不开的页面里。现在把开关同时放在**模型区**（用户管理模型时视线所在）与**积分行本身**，并默认显示——不再依赖任何一个可能不可达的页面。
 
 ### 修复（本版合并的 2.9.1–2.9.4）
 
@@ -3814,7 +3770,8 @@ Tr                        ← 我们的行只剩开头两个字母
 ### Bug Fixes
 
 - **跨货架去重改为「保留容量最强的行」**（`TraeSoloRemoteCatalogClient.fetchModels`）：
-  - **根因**：remote `/models` 按 function 分组，同一模型 id 出现在多个组里，各组报告不同容量。实测（本机 CN 凭证，2026-10-05）同一次响应里 `Doubao-Seed-2.1-Pro` 的各组值：`builder_v3` → `116000`/无 Max；`solo_work_remote` / `solo_work_lite` → `256000`/无 Max；`chat_v3` / `solo_agent` / `solo_agent_remote` → `256000`/**`1000000`**（`max_mode: true`）。
+  - **根因**：remote `/models` 按 function 分组，同一模型 id 出现在多个组里，各组报告不同容量。
+  实测（本机 CN 凭证，2026-10-05）同一次响应里 `Doubao-Seed-2.1-Pro` 的各组值：`builder_v3` → `116000`/无 Max；`solo_work_remote` / `solo_work_lite` → `256000`/无 Max；`chat_v3` / `solo_agent` / `solo_agent_remote` → `256000`/**`1000000`**（`max_mode: true`）。
   - **为什么旧写法必错**：原来的去重是 `seen` Set 的「第一次遇到就锁定」，而我当时的代码注释还写着「保持网关自己的组顺序稳定」——**那个假设是错的**：连打 5 次实测得到 **5 种不同的组顺序**。于是容量的发布值取决于哪一组恰好先回来。`applyContextBudgets` 只能在 `maxContextWindow` 存在时升窗，所以丢失该字段会让配置了 1M 的模型被静默压到 256K 或更低，DSH 因此在远早于用户设定的阈值处反复压缩。
   - **修法**：按 ① 带 Max 档优先 ② 都有 Max 取更大 ③ 都无 Max 取更宽的 dev 窗口 的顺序择强；平手保留先到者（模型顺序仍由网关决定）。同一 id 的各行在 `multimodal` / `reasoning` / 积分倍率上完全一致（同日实测逐字段核对），因此按容量择强不会丢失能力信息。
   - **实测对比**（本机 CN，连打 6 次实时目录，同一预算配置）：
@@ -3852,7 +3809,7 @@ Tr                        ← 我们的行只剩开头两个字母
     | **登录凭据被拒** | 凭据失效；整轮测试立即停止（否则后续每个模型都只会重复同一句） |
     | **本次未测出** | 超时、连接中断、代理、5xx——**一律不算「不可用」** |
   - **`本次未测出` 是一等公民**：把限流或断连显示成「不可用」，用户会去删掉一个其实能用的模型。只有上游明确的拒绝才算负面结论。
-  - **这是插件里唯一消耗额度的操作**（另一个是签到，改变的是账号状态）。因此：只由用户点击触发、没有定时也没有启动时自动跑；按钮带说明；一次测试发送的提示词固定为一句「ping」且不带工具。
+  - **这是插件里会消耗额度的操作；对话、账号池测试和生图也可能消耗额度**（另一个是签到，改变的是账号状态）。因此：只由用户点击触发、没有定时也没有启动时自动跑；按钮带说明；一次测试发送的提示词固定为一句「ping」且不带工具。
   - **逐个请求、串行执行**：Trae 对突发请求限流明显，并发探测会自己制造出「被限流/未测出」；每测完一个立刻更新该行徽标，所以不是空等一分钟。
   - **结果只在会话内存里**：不写进设置——某个模型「上游不提供」是某一刻、某个账号的事实，持久化下来只会在上游改主意后继续误报。
   - **路由守卫**：POST + 回环来源 + 区域参数；待测 id 必须存在于该区域的实时目录（不能拿任意的上游 config 名去消耗额度），数量上限 64。
@@ -3862,7 +3819,7 @@ Tr                        ← 我们的行只剩开头两个字母
 - **全仓 395 → 413（+18）**：
   - `tests/model-probe.spec.ts`（新增 16 例）：分类规则的每一个分支，重点是「不许把不确定判成不可用」——超时、断连、5xx、无输出的 200 流全部保持 `unknown`；`1005` → `gated`、`4001/4011` → `unsupported`、401 → `auth`、429 → `rate_limited`；流中途抛出的拒绝**带错误码时仍要分类**（不能退回 unknown）；串行顺序与「认证失败即停止」；探测请求体是最小的 `ping` 且不含 `tools`。
   - `tests/web-status.spec.ts`（+2 例）：新路由把 id 交给**该区域**的探测实现并回传结论；方法/来源/请求体不合法时**一次调用都不发出**（用探测调用次数断言，而不是只看状态码），以及超过上限的列表被拒。
-- **变异验证 3 次全部被抓**：把「不确定」改成负面结论 → 1 例失败；去掉认证失败即停止 → 1 例失败；不识别 `1005` 门禁码 → 2 例失败。恢复后 46 文件 413 例全绿。
+- **变异验证 3 次全部被抓**：把「不确定」改成负面结论 → 1 例失败；去掉认证失败即停止 → 1 例失败；不识别 `1005` 兼容性检查码 → 2 例失败。恢复后 46 文件 413 例全部通过。
 - **真机验证（本机免费账号，国际版）**：`gpt-5.4` / `kimi-k3` → 可用；`gpt-6-luna` → 需要更高档位（`1005`）；`gpt-6-astra` / `gpt-5.6-sol` / `glm-5.2` → 上游不提供。三种结论都在真实链路上得到验证。
 
 ## 2.6.0 (2026-10-02)
@@ -3875,7 +3832,7 @@ Tr                        ← 我们的行只剩开头两个字母
 
 - **模型列表改为「全部呈现」：不再隐藏拿不到调用 id 的模型**（issue #19）：
   - **原行为**：`mergeTraeModelSources` 会剔除「目录里有、但任何 function 的可调用名单里都没有」的行（2026-08-30 的结论：这类模型发出去必然 `4001 param is invalid`，所以不该暴露）。
-  - **为什么反转**：那个结论把**账号范围的事实**当成了**普遍事实**。可调用名单按账号档位下发，本机免费账号问不到不等于付费账号没有——报告人是 Pro，他的账号能正常调用本机免费账号被门禁（`1005`）挡住的模型。插件隐藏了他 Trae IDE 里明明有的模型，这才是更糟的结果。
+  - **为什么反转**：那个结论把**账号范围的事实**当成了**普遍事实**。可调用名单按账号档位下发，本机免费账号问不到不等于付费账号没有——报告人是 Pro，他的账号能正常调用本机免费账号被兼容性检查（`1005`）挡住的模型。插件隐藏了他 Trae IDE 里明明有的模型，这才是更糟的结果。
   - **现在的行为**：这些行照常出现在列表与勾选界面里；因为没有 wire 目标，调用会走显示 id + 默认 function，上游拒绝时由 2.5.0 引入的错误翻译如实转述，用户看到的是：
     ```
     Trae does not serve this model under the SOLO function the request used
@@ -3889,12 +3846,15 @@ Tr                        ← 我们的行只剩开头两个字母
 - **国内版目录补齐：读全 7 个货架，新增 11 个模型**（issue #19 跟进）：
   - 国内版的发现名单此前只有 `solo_agent_remote` + `solo_work_remote`，把 `solo_coder`（12 个）、`chat_v3`（18 个）、`solo_agent`（18 个）、`solo_work_lite`（15 个）等组全部漏读——与国际版此前那个缺口形状相同。现在两个区域使用同一份组名单。
   - 调用名单同步补上 `solo_agent_remote` / `chat_v3` / `solo_coder`（都在最后，只补缺口）：实测国内版新增可见 `Doubao-Seed-Code`、`Doubao-Seed-2.0-Code`、`glm-5.1`、`glm-5`、`glm-5v-turbo`、`DeepSeek-V4-Pro`、`DeepSeek-V4-Flash`、`kimi-k2.5`、`qwen-3.5`、`minimax-m2.7`、`qwen-3.6-plus` 等。
-  - **纠正一处我自己的测量错误**：2.5.1 曾记「CN 的 `solo_coder` 组里 3 个模型任何 function 都 4001，所以不能扩大 CN」——那是**探测脚本的 bug**：调用时用了展示名而不是该 function 返回的 `config_name`。用正确的 config_name 重测，`doubao-seed-2.0-code`、`deepseek-v4-pro`、`deepseek-v4-flash` 在 `solo_coder` / `chat_v3` 等下**全部正常出字**。（同一个坑在同一轮里踩了两次，见 `docs/RELEASE_EXPERIENCE.md` 的教训类型。）
+  - **纠正一处我自己的测量错误**：2.5.1 曾记「CN 的 `solo_coder` 组里 3 个模型任何 function 都 4001，所以不能扩大 CN」——那是**探测脚本的 bug**：调用时用了展示名而不是该 function 返回的 `config_name`。
+  用正确的 config_name 重测，`doubao-seed-2.0-code`、`deepseek-v4-pro`、`deepseek-v4-flash` 在 `solo_coder` / `chat_v3` 等下**全部正常出字**。
+  （同一个坑在同一轮里踩了两次，见 `docs/RELEASE_EXPERIENCE.md` 的教训类型。
+  ）
 
 ### Tests
 
 - **全仓 395 → 395**（改写 4 条既有断言为新的行为契约）：merge 保留无 wire 目标的行且不伪造 `wireConfigName` / `wireFunction`；国内版发现名单必须含 `solo_coder` / `chat_v3` / `solo_work_lite`；国内版调用名单的顺序与内容。
-- **变异验证 3 次全部被抓**：把 merge 改回「丢弃无线行」→ 2 例失败；把国内版调用名单改回两项 → 1 例失败；把国内版发现名单改回两项 → 2 例失败。恢复后 45 文件 395 例全绿。
+- **变异验证 3 次全部被抓**：把 merge 改回「丢弃无线行」→ 2 例失败；把国内版调用名单改回两项 → 1 例失败；把国内版发现名单改回两项 → 2 例失败。恢复后 45 文件 395 例全部通过。
 
 ### Docs
 
@@ -3908,16 +3868,21 @@ Tr                        ← 我们的行只剩开头两个字母
 
 - **国际版模型目录 11 → 17：`chat_v3` 是一个从未被请求的宽名单**（issue #19 跟进）：
   - **现象**：2.5.0 之后报告人仍看不到 `Dola-Seed-2.0-Code`、`kimi-k2.7-code`、`deepseek-v4-flash-0731` 等模型。
-  - **根因**：2.5.0 只扩大了**发现侧**（remote 目录读全部组），而**最终目录 = 发现 ∩ wire**（`mergeTraeModelSources` 会剔除 join 不到 `config_name` 的模型——这是防止「显示了但一点就 4001」的保护，本身正确）。问题是插件的 wire 名单只问过 `solo_work_remote` / `solo_work_lite` / `solo_agent_remote`，而 **`chat_v3` 从未被请求**——它恰恰是名单最宽的一个：ai 区域 40 个 `config_name`（仅次于不可用于聊天的 `solo_agent` 的 43 个），并且列着一批别的 function 都没有的模型。
-  - **实测（本机实时凭据，AI 区域）**：把 `chat_v3` 加入 wire 名单（**放在最后**，因此只会补缺口、不改变任何既有模型的 function 归属）后，用插件自身代码路径（`TraeSoloRemoteCatalogClient` + `TraeSoloUpstreamClient` + `mergeTraeModelSources`）跑实时上游：发现 22 → wire 51 → **最终目录 11 → 17**。新增的 6 个全部挂在 `chat_v3`：`Dola-Seed-2.0-Code`、`deepseek-v4-flash-0731`、`kimi-k2.7-code`、`deepseek-v3.2`、`gemini-3-flash-premium`、`gemini_2.5_flash_premium`；每个都用插件自己的 `prepareSoloBody` 信封逐个验证**可正常出字**（同一模型在 `solo_agent_remote` 下回 `4001 param is invalid`）。
+  - **根因**：2.5.0 只扩大了**发现侧**（remote 目录读全部组），而**最终目录 = 发现 ∩ wire**（`mergeTraeModelSources` 会剔除 join 不到 `config_name` 的模型——这是防止「显示了但一点就 4001」的保护，本身正确）。
+  问题是插件的 wire 名单只问过 `solo_work_remote` / `solo_work_lite` / `solo_agent_remote`，而 **`chat_v3` 从未被请求**——它恰恰是名单最宽的一个：ai 区域 40 个 `config_name`（仅次于不可用于聊天的 `solo_agent` 的 43 个），并且列着一批别的 function 都没有的模型。
+  - **实测（本机实时凭据，AI 区域）**：把 `chat_v3` 加入 wire 名单（**放在最后**，因此只会补缺口、不改变任何既有模型的 function 归属）后，用插件自身代码路径（`TraeSoloRemoteCatalogClient` + `TraeSoloUpstreamClient` + `mergeTraeModelSources`）跑实时上游：发现 22 → wire 51 → **最终目录 11 → 17**。
+  新增的 6 个全部挂在 `chat_v3`：`Dola-Seed-2.0-Code`、`deepseek-v4-flash-0731`、`kimi-k2.7-code`、`deepseek-v3.2`、`gemini-3-flash-premium`、`gemini_2.5_flash_premium`；每个都用插件自己的 `prepareSoloBody` 信封逐个验证**可正常出字**（同一模型在 `solo_agent_remote` 下回 `4001 param is invalid`）。
   - **发现侧同步**：`deepseek-v3.2`、`gemini-3-flash-premium`、`gemini_2.5_flash_premium` 只出现在 `chat_v3` 组，因此 remote 目录也补问该组（否则它们根本不会被发现）。
-  - **仍然不显示的**：`gpt-6-astra`、`gpt-5.6-Sol/Terra/Luna`、`glm-5.2` —— 它们在**任何** function 的 wire 名单里都不存在，对 `llm_utils_chat` 每个通道都返回 `4011`/`4001`。它们属于 Trae IDE 的内置通道，不是插件能走的 SOLO 通道；merge 剔除它们是**正确行为**（宁可没有，也不放一个点了就报错的模型）。另外 `gpt-5.5` 现在可以显示了（它在 `solo_work_remote` 的 wire 名单里，此前只是被发现侧漏读）。
-  - **CN 区域故意未动**：CN 的 `solo_coder` 组确实还藏着模型（`glm-5`、`glm-5.1`、`qwen-3.5` 可调用），但它与另外三个「任何 function 都 4001」的模型（`doubao-seed-2.0-code`、`deepseek-v4-pro`、`deepseek-v4-flash`）**混在同一组**，而 merge 无法按 function 区分它们。扩大 CN 发现等于把它们一起暴露出来——正是这条 join 规则要防的事，因此留待逐个模型定出可用 function 后再做。
+  - **仍然不显示的**：`gpt-6-astra`、`gpt-5.6-Sol/Terra/Luna`、`glm-5.2` —— 它们在**任何** function 的 wire 名单里都不存在，对 `llm_utils_chat` 每个通道都返回 `4011`/`4001`。
+  它们属于 Trae IDE 的内置通道，不是插件能走的 SOLO 通道；merge 剔除它们是**正确行为**（宁可没有，也不放一个点了就报错的模型）。
+  另外 `gpt-5.5` 现在可以显示了（它在 `solo_work_remote` 的 wire 名单里，此前只是被发现侧漏读）。
+  - **CN 区域故意未动**：CN 的 `solo_coder` 组确实还藏着模型（`glm-5`、`glm-5.1`、`qwen-3.5` 可调用），但它与另外三个「任何 function 都 4001」的模型（`doubao-seed-2.0-code`、`deepseek-v4-pro`、`deepseek-v4-flash`）**混在同一组**，而 merge 无法按 function 区分它们。
+  扩大 CN 发现等于把它们一起暴露出来——正是这条 join 规则要防的事，因此留待逐个模型定出可用 function 后再做。
 
 ### Tests
 
 - **全仓 392 → 395**：新增「ai wire 名单把 `chat_v3` 排在最后（且断言它必须是最后一位，防止将来被挪到前面抢走既有模型的 config）」、「ai 发现名单请求 `chat_v3`」、以及一条**守护 CN 不被顺手扩大**的断言（CN 名单既不含 `chat_v3` 也不含 `solo_coder`）。
-- **变异验证 3 次全部被抓**：把 `chat_v3` 挪到名单最前（优先级被夺）→ 3 例失败；从 ai 发现名单去掉 `chat_v3` → 2 例失败；顺手扩大 CN 发现名单 → 2 例失败。恢复后 45 文件 395 例全绿。
+- **变异验证 3 次全部被抓**：把 `chat_v3` 挪到名单最前（优先级被夺）→ 3 例失败；从 ai 发现名单去掉 `chat_v3` → 2 例失败；顺手扩大 CN 发现名单 → 2 例失败。恢复后 45 文件 395 例全部通过。
 
 ### Docs
 
@@ -3931,9 +3896,13 @@ Tr                        ← 我们的行只剩开头两个字母
 ### Features
 
 - **国际版模型目录改为读取全部组并集——此前只读 `solo_agent_remote` 一个组，另外 9 个模型从未出现**（issue #19 症状一）：
-  - Trae 的 remote `/models` 答复**按 function 分组**，且组间不是互替关系：实测 `solo_agent` 组 19 个模型、`solo_agent_remote` 组 10 个。旧代码请求 `solo_agent_remote,solo_work_remote` 后**只遍历 preferred 一个组**，报告人 Trae IDE 里能看到、插件里却没有的 `GPT-6-Astra`、`GPT-5.6-Sol/Terra/Luna`、`GPT-5.5`、`GLM-5.2` 等**恰好全部在没读的 `solo_agent` 组里**。
+  - Trae 的 remote `/models` 答复**按 function 分组**，且组间不是互替关系：实测 `solo_agent` 组 19 个模型、`solo_agent_remote` 组 10 个。
+  旧代码请求 `solo_agent_remote,solo_work_remote` 后**只遍历 preferred 一个组**，报告人 Trae IDE 里能看到、插件里却没有的 `GPT-6-Astra`、`GPT-5.6-Sol/Terra/Luna`、`GPT-5.5`、`GLM-5.2` 等**恰好全部在没读的 `solo_agent` 组里**。
   - 现在 `TRAE_REMOTE_DIRECTORY_FUNCTIONS` 按区域声明要请求的组（AI 区域三个全取），**每个返回的组都并入目录**，同一模型先出现者胜、只发一次。请求一个网关不认识的组是无害的（未知组名被忽略而非拒绝）。
-  - **发现面变宽，调用面反而收窄**：目录 union 让模型「可见」，但模型**只能通过列出它的那个 function 调用**。实测 `get_detail_param` 对 `solo_agent` 有求必应地返回 43 条，而 `llm_utils_chat` 对**所有**以 `function: "solo_agent"` 发出的模型一律回 `code 4011`——所以 wire 函数表 `TRAE_DIRECTORY_FUNCTIONS.ai` 从 `['solo_agent','solo_work_remote','solo_work_lite']` 改为 `['solo_work_remote','solo_work_lite','solo_agent_remote']`：让目录可见的新模型仍通过真正可调用的 function 去调，`solo_agent_remote` 放最后，使两个 function 都列出的模型保持无 Remote 门禁的 IDE function。CN 区域未重新测量，维持原列表不变（union 会保留网关返回的任何组）。
+  - **发现面变宽，调用面反而收窄**：目录 union 让模型「可见」，但模型**只能通过列出它的那个 function 调用**。
+  实测 `get_detail_param` 对 `solo_agent` 有求必应地返回 43 条，而 `llm_utils_chat` 对**所有**以 `function: "solo_agent"` 发出的模型一律回 `code 4011`——所以 wire 函数表 `TRAE_DIRECTORY_FUNCTIONS.ai` 从 `['solo_agent','solo_work_remote','solo_work_lite']` 改为 `['solo_work_remote','solo_work_lite','solo_agent_remote']`：让目录可见的新模型仍通过真正可调用的 function 去调，`solo_agent_remote` 放最后，使两个 function 都列出的模型保持无 Remote 兼容性检查的 IDE function。
+
+  CN 区域未重新测量，维持原列表不变（union 会保留网关返回的任何组）。
 
 ### Bug Fixes
 
@@ -3942,22 +3911,25 @@ Tr                        ← 我们的行只剩开头两个字母
   - Trae 同时返回的**权威档位字段** `user_pay_identity` / `user_pay_identity_str`（实测免费账号为 `0` / `"Free"`）此前在插件源码里**零引用**，被直接丢弃。
   - 现在 `payStatus()` 完整保留两个档位字段（缺失时省略，不伪造），卡片判定改为 `has_package ∪ 档位非 Free`，并把档位名渲染进套餐行：「已有有效套餐 · Pro」/「暂无有效套餐 · Free」——免费用户看到**为什么**没有套餐，而不是只看到一个布尔。
   - **只有精确的 `Free`（大小写不敏感）算免费**：未知或未来的档位名按付费处理。把付费会员错标成免费，比把免费账号显示成未知档位，是伤害更大的那个错误。
-- **订阅门禁错误被吞成「Stream ended without finish_reason」**（issue #19 症状三）：
-  - **现象**：免费/低档位账号选中需订阅的模型（如 `GPT-6-Sol`），得到的是一句像网络故障的报错，且会被重试多次。Trae 实际返回的是 **HTTP 200** + `event:error {"code":1005,"extra":"{\"plan\":N}"}`（`extra` 是 wire 上的 JSON **字符串**，订阅门禁只体现在 `extra.plan`）。
+- **订阅兼容性检查错误被吞成「Stream ended without finish_reason」**（issue #19 症状三）：
+  - **现象**：免费/低档位账号选中需订阅的模型（如 `GPT-6-Sol`），得到的是一句像网络故障的报错，且会被重试多次。Trae 实际返回的是 **HTTP 200** + `event:error {"code":1005,"extra":"{\"plan\":N}"}`（`extra` 是 wire 上的 JSON **字符串**，订阅兼容性检查只体现在 `extra.plan`）。
   - **根因**：旧实现把上游答复原样以 200 转发，中途 `controller.error()` 截断流——HTTP 头已按 200 发出，`code 1005` 与 `plan` 在 HTTP 边界处丢失，pi-ai 只看到「流没给 finish_reason 就断了」，按传输故障处理。
-  - **修法**：`bridgeTraeSoloStreamOrFail` 在转发前**窥探流头**——任何输出开始之前的拒绝被翻译成真实的错误结果：`1005` → `402 hard_credit`（携带 plan 与「需要付费档」的文案，`hard_credit` 是让客户端停止而非重试的语义，402 是如实的状态码），`4011` / `4001` / 未知码 → `400 client`。code、plan、以及 Trae 那句与 code 相矛盾的原文（如 4011 自称"rate limit"）**全部保留在 message 里**。
+  - **修法**：`bridgeTraeSoloStreamOrFail` 在转发前**窥探流头**——任何输出开始之前的拒绝被翻译成真实的错误结果：`1005` → `402 hard_credit`（携带 plan 与「需要付费档」的文案，`hard_credit` 是让客户端停止而非重试的语义，402 是如实的状态码），`4011` / `4001` / 未知码 → `400 client`。
+  code、plan、以及 Trae 那句与 code 相矛盾的原文（如 4011 自称"rate limit"）**全部保留在 message 里**。
   - 输出已开始后到来的拒绝（拒绝打断正在进行的回答）：流以翻译后的可读错误终止，而不是裸截断。
   - **窥探不伤健康流**：被窥探消费的头部字节逐字节重放；队列/进度/输出等任何 Trae 自有事件即触发直通，缓冲不超过首个事件。排队事件、分片工具调用等既有行为不变。
-  - **顺带登记两个此前不认识的错误码**（`grep` 证实源码与测试均零命中）：`1005` = 订阅门禁（档位不够，`extra.plan` 指明所需档位）；`4011` = 该 function 不提供此模型（其自报文案声称 rate limit，具有误导性）。已知的 `4001` = `config_name` 不被该 function 接受，语义不变。
+  - **顺带登记两个此前不认识的错误码**（`grep` 证实源码与测试均零命中）：`1005` = 订阅兼容性检查（档位不够，`extra.plan` 指明所需档位）；`4011` = 该 function 不提供此模型（其自报文案声称 rate limit，具有误导性）。已知的 `4001` = `config_name` 不被该 function 接受，语义不变。
 
 ### Tests
 
 - **全仓 373 → 392（+19），含 5 次变异验证全部被抓**：
-  - `tests/solo-bridge.spec.ts` **+11**：`describeTraeFailure` 文案 5 例（1005 带 plan、4011 用 hint 而把误导原文降级为 detail、未知码回退、无 code 事件不虚构后缀、已解包的 extra 对象也能读 plan）；`bridgeTraeSoloStreamOrFail` 策略 5 例（1005→402 `hard_credit`、4011→400 `client`、无名事件经错误码带识别、健康流含排队事件直通且头部重放逐字节不丢、输出先行后拒绝的流中场景以可读 message 终止）；`TraeSoloBridge` 端到端 1 例（完整链路上订阅门禁成为错误结果而非被截断的 200 流）。其中「流中拒绝」用分块流构造：单块 body 会被窥探一起解码，无法测到该路径。
-  - `tests/card-subscription.spec.tsx` **新文件 5 例**：渲染真实卡片断言档位行——Pro 从档位单独判定、无档位时套餐行仍工作、Free 命名而非只报布尔、试用窗口优先于档位文案，及 `traePlanIsPaid` 判据表（只有精确 Free 算免费，未知档位按付费）。一例说明：无档位字符串时 badge 与 value 渲染同一裸标签，`getByText` 会命中多个元素，须用 `getAllByText`——这例测试在上一会话中断前正以多元素匹配失败，本次接续修复。
+  - `tests/solo-bridge.spec.ts` **+11**：`describeTraeFailure` 文案 5 例（1005 带 plan、4011 用 hint 而把误导原文降级为 detail、未知码回退、无 code 事件不虚构后缀、已解包的 extra 对象也能读 plan）；`bridgeTraeSoloStreamOrFail` 策略 5 例（1005→402 `hard_credit`、4011→400 `client`、无名事件经错误码带识别、健康流含排队事件直通且头部重放逐字节不丢、输出先行后拒绝的流中场景以可读 message 终止）；`TraeSoloBridge` 端到端 1 例（完整链路上订阅兼容性检查成为错误结果而非被截断的 200 流）。
+  其中「流中拒绝」用分块流构造：单块 body 会被窥探一起解码，无法测到该路径。
+  - `tests/card-subscription.spec.tsx` **新文件 5 例**：渲染真实卡片断言档位行——Pro 从档位单独判定、无档位时套餐行仍工作、Free 命名而非只报布尔、试用窗口优先于档位文案，及 `traePlanIsPaid` 判据表（只有精确 Free 算免费，未知档位按付费）。
+  一例说明：无档位字符串时 badge 与 value 渲染同一裸标签，`getByText` 会命中多个元素，须用 `getAllByText`——这例测试在上一会话中断前正以多元素匹配失败，本次接续修复。
   - `tests/usage.spec.ts` **+2**：档位字段与 `has_package` 分开保留；上游不带档位时省略而非伪造。
   - `tests/solo-remote.spec.ts` **+1**、`tests/solo.spec.ts` 改写既有断言：目录 union 行为、AI 区域 function 顺序（`solo_agent` 必须绝迹）。
-  - **变异验证**（确认测试有约束力，5 次全部被抓）：① 分类忽略 1005 → 2 例失败；② plan 提取禁用 → 4 例失败；③ 窥探失效（打回旧行为，即本次要修的 bug）→ 4 例失败；④ 档位恒判免费 → 2 例失败；⑤ union 退回单组 → 3 例失败。恢复后 45 文件 392 例全绿。
+  - **变异验证**（确认测试有约束力，5 次全部被抓）：① 分类忽略 1005 → 2 例失败；② plan 提取禁用 → 4 例失败；③ 窥探失效（打回旧行为，即本次要修的 bug）→ 4 例失败；④ 档位恒判免费 → 2 例失败；⑤ union 退回单组 → 3 例失败。恢复后 45 文件 392 例全部通过。
 
 ### Docs
 
@@ -3985,14 +3957,19 @@ Tr                        ← 我们的行只剩开头两个字母
 
 ### Bug Fixes
 
-- **`multimodal` 必须随 `lastCatalog` 一起持久化，否则"自动识图"会在保存/重启后失效**：运行时目录每次保存与启动都从 `lastCatalog` 重新推导（`derive()` → `applyImageSelection()`）。若 schema 不声明该字段，它被剥掉后自动开图会立刻退回手动。已在 `modelConfig`（`src/index.ts`）显式声明 `multimodal: z.boolean()`，并在卡片保存处显式带上——卡片原本会强制把 `input` 写回 `['text']`（这是对的，`input` 由宿主推导），但 `multimodal` 是上游事实，不能跟着一起丢。
-- **README「暂不支持」表格过期**：`deepseek-v4.1-flash` 已从该表移除。`docs/DS41_CALLABILITY.md`（2026-09-15）取证时 8 个 SOLO function 全部返回 `4001`，但**上游后来把它开放到了 SOLO 通道**——当前实时目录里它带 `wireFunction: solo_work_remote`，已实测刷新确认可调用。表内其余 3 个（`glm-5.3-flash`、`kimi-k2.8-preview`、`qwen3.8-flash`）实测仍不在目录里，保留在表中。
+- **`multimodal` 必须随 `lastCatalog` 一起持久化，否则"自动识图"会在保存/重启后失效**：运行时目录每次保存与启动都从 `lastCatalog` 重新推导（`derive()` → `applyImageSelection()`）。
+  若 schema 不声明该字段，它被剥掉后自动开图会立刻退回手动。
+  已在 `modelConfig`（`src/index.ts`）显式声明 `multimodal: z.boolean()`，并在卡片保存处显式带上——卡片原本会强制把 `input` 写回 `['text']`（这是对的，`input` 由宿主推导），但 `multimodal` 是上游事实，不能跟着一起丢。
+- **README「暂不支持」表格过期**：`deepseek-v4.1-flash` 已从该表移除。
+  `docs/DS41_CALLABILITY.md`（2026-09-15）取证时 8 个 SOLO function 全部返回 `4001`，但**上游后来把它开放到了 SOLO 通道**——当前实时目录里它带 `wireFunction: solo_work_remote`，已实测刷新确认可调用。
+
+  表内其余 3 个（`glm-5.3-flash`、`kimi-k2.8-preview`、`qwen3.8-flash`）实测仍不在目录里，保留在表中。
 
 ### Tests
 
 - **新增 6 例**（全仓 367 → 373），覆盖并集的四个方向：标注 true 自动开、标注 false 不开、缺失按不开、手动勾选永不撤销（含上游后来不再标注的情况），以及"别的模型的勾选不得串到本行"。
 - **新增 2 例端到端**（走真实插件 + `ctx.llm.listModels()`）：零勾选时标注为 true 的模型 `inputModalities === ['text','image']`；标注 false 的模型仍为 `['text']`。后者同时证明**手动勾选路径没被破坏**，且旧形状（不带 `multimodal` 的 `lastCatalog` 行）仍能通过 schema 校验。
-- **变异验证**（确认测试有约束力，3 次全部被抓）：① 把并集改回"仅手动勾选" → 3 例失败（含端到端那例）；② 让 schema 不声明 `multimodal` → 无法编译（弱信号，已改写为更真实的形式）；③ 在 `derive` 里于 `applyImageSelection` 之前剥掉该字段 → 端到端那例精确失败。恢复后 44 文件 373 例全绿。
+- **变异验证**（确认测试有约束力，3 次全部被抓）：① 把并集改回"仅手动勾选" → 3 例失败（含端到端那例）；② 让 schema 不声明 `multimodal` → 无法编译（弱信号，已改写为更真实的形式）；③ 在 `derive` 里于 `applyImageSelection` 之前剥掉该字段 → 端到端那例精确失败。恢复后 44 文件 373 例全部通过。
 
 ## 2.3.2 (2026-09-29)
 
@@ -4000,25 +3977,30 @@ Tr                        ← 我们的行只剩开头两个字母
 
 - **插件在 DSH 0.2.0-rc.1 上整个不加载——peer 上界 `<0.2.0-0` 把 0.2.0 的预发布线一起挡掉了**（用户升级宿主后发现，2.3.1 的实际故障）：
   - **现象**：升级到 0.2.0-rc.1 后插件「凭空消失」——模型选择器里没有 `trae` / `trae-global`，插件设置卡片不见，用量路由 `/plugins/dsh-connect-trae/usage` 返回 **404**。不是某个功能坏掉，是 bundle 从未挂载。
-  - **根因**：DSH 自 0.1.7-rc.1 起有一道 **bundle 级 peer 门禁**（`@deepseek-ai/dsh-app-boot` 的 `evaluatePluginCompatibility`）：`loadProfileDirectory()` 逐条比对 bundle 自己声明的 DSH peer，任一条不满足就**抛错并整体跳过该 bundle**，只往 stderr 写一行 `skipping profile bundle ...`。本插件 8 条范围写的是 `>=0.1.7-rc.1 <0.2.0-0`，而 **SemVer 里 `0.2.0-rc.1 < 0.2.0-0`**——`-0` 这个上界本意是「排除 0.2.0 正式版」，实际却把**整个 0.2.0 预发布线**也排除了。宿主的判定是 `semver.satisfies(runtime, range, {includePrerelease: true})`，在这条范围下对 `0.2.0-rc.1` 返回 `false`。
-  - **不是 0.2.0 破坏了契约**：逐符号核对确认本插件消费的 API 在 0.2.0-rc.1 上**全部未变**（`resolveRetryPolicy`、`PiAiAdapter`、`ResolvedPiAiProviderProfile`、`withFileLock`、`writeFileAtomic`、`resolveDshHome`、`AttachmentStore` 的声明逐字一致；插件触及的 `dsh-atomic-write` / `dsh-home-paths` / `dsh-attachment` / `dsh-settings` / `dsh-host-webserver` / `dsh-client-ui-slots` 源码**逐字节相同**）。同级 `dsh-connect-workbuddy` 2.1.1 写的是 `<0.2.0`——**放行 0.2.0 预发布、只挡正式版**，因此照常加载；本插件用的 `-0` 是同一意图下多写了一个 `-0`，恰好把预发布线也挡在门外。差别只在这一个字符。
-  - **也不是本插件独有的现象**：本机 profile 的 19 个 bundle 里有 **5 个**同时被这道门禁拒绝（本插件、`@changfenhuang/dsh-genui`、`dsh-better-reasoning-effort`、`dsh-free-search`、`dsh-rewind-plugin`）。用宿主自带的门禁逐条判定，这 5 个全部不在挂载行里、其余全部 `active`——判定与观测逐一吻合，排除了「判定模型与宿主不一致」。
-  - **修法**：8 条 peer 上界改为 `>=0.1.7-rc.1 <0.3.0-0`——放行 0.1.7 与 0.2 两条线（含各自的 alpha/rc），仍挡住未审查的 0.3 线。用宿主自己发行的门禁代码复验：0.1.7-rc.1 / 0.1.7-rc.2 / 0.2.0-alpha.1 / 0.2.0-rc.1 / 0.2.0 / 0.2.9 全部放行，0.3.0-rc.1 / 0.3.0 / 1.0.0 仍被拒绝。
+  - **根因**：DSH 自 0.1.7-rc.1 起有一道 **bundle 级 peer 兼容性检查**（`@deepseek-ai/dsh-app-boot` 的 `evaluatePluginCompatibility`）：`loadProfileDirectory()` 逐条比对 bundle 自己声明的 DSH peer，任一条不满足就**抛错并整体跳过该 bundle**，只往 stderr 写一行 `skipping profile bundle ...`。
+  本插件 8 条范围写的是 `>=0.1.7-rc.1 <0.2.0-0`，而 **SemVer 里 `0.2.0-rc.1 > 0.2.0-0`**——`-0` 这个上界本意是「排除 0.2.0 正式版」，实际却把**整个 0.2.0 预发布线**也排除了。
+  宿主的判定是 `semver.satisfies(runtime, range, {includePrerelease: true})`，在这条范围下对 `0.2.0-rc.1` 返回 `false`。
+  - **不是 0.2.0 破坏了契约**：逐符号核对确认本插件调用的 API 在 0.2.0-rc.1 上**全部未变**（`resolveRetryPolicy`、`PiAiAdapter`、`ResolvedPiAiProviderProfile`、`withFileLock`、`writeFileAtomic`、`resolveDshHome`、`AttachmentStore` 的声明逐字一致；插件触及的 `dsh-atomic-write` / `dsh-home-paths` / `dsh-attachment` / `dsh-settings` / `dsh-host-webserver` / `dsh-client-ui-slots` 源码**逐字节相同**）。
+  同级 `dsh-connect-workbuddy` 2.1.1 写的是 `<0.2.0`——**放行 0.2.0 预发布、只挡正式版**，因此照常加载；本插件用的 `-0` 是同一意图下多写了一个 `-0`，恰好把预发布线也挡在门外。
+  差别只在这一个字符。
+  - **也不是本插件独有的现象**：本机 profile 的 19 个 bundle 里有 **5 个**同时被这道兼容性检查拒绝（本插件、`@changfenhuang/dsh-genui`、`dsh-better-reasoning-effort`、`dsh-free-search`、`dsh-rewind-plugin`）。用宿主自带的兼容性检查逐条判定，这 5 个全部不在挂载行里、其余全部 `active`——判定与观测逐一吻合，排除了「判定模型与宿主不一致」。
+  - **修法**：8 条 peer 上界改为 `>=0.1.7-rc.1 <0.3.0-0`——接受 0.1.7 与 0.2 两条线（含各自的 alpha/rc），仍挡住未审查的 0.3 线。用宿主自己发行的兼容性检查代码复验：0.1.7-rc.1 / 0.1.7-rc.2 / 0.2.0-alpha.1 / 0.2.0-rc.1 / 0.2.0 / 0.2.9 全部接受，0.3.0-rc.1 / 0.3.0 / 1.0.0 仍被拒绝。
   - **`devDependencies` 一并升到 0.2.0-rc.1**：否则本地 typecheck / 测试验的是 0.1.7 的契约，而用户跑的是 0.2.0——「开发树与用户解析不一致」正是上一轮 `pnpm-workspace.yaml` 里为 schemastery 写过的那类隐患。
-  - **为什么 CI 全绿却漏掉了**：范围写错不会让任何断言变红——`tsc` 通过（范围只是字符串）、345 条单测通过（插件自身代码没动）、`pnpm install` 通过（devDependency 钉的版本满足那段写错的范围）、CI 通过。**只有真实宿主会拒绝加载**。这个缺口已由下面的回归测试补上。
+  - **为什么 CI 全部通过却漏掉了**：范围写错不会让任何断言变红——`tsc` 通过（范围只是字符串）、345 条单测通过（插件自身代码没动）、`pnpm install` 通过（devDependency 钉的版本满足那段写错的范围）、CI 通过。**只有真实宿主会拒绝加载**。这个缺口已由下面的回归测试补上。
 
 ### Tests
 
 - **新增 `tests/dsh-peer-range.spec.ts`（+22 例，全仓 345 → 367）**：把「peer 范围必须覆盖哪些运行时」变成可执行的断言，而不只是一句文档。
   - **逐条范围断言四个边界**：**必须放行** 0.1.7-rc.1 / 0.1.7-rc.2 / 0.1.9 / **0.2.0-alpha.1** / 0.2.0-rc.1 / 0.2.0 / 0.2.9；**必须拒绝** 0.3.0-rc.1 / 0.3.0 / 1.0.0。只断言「0.2.0-rc.1 能过」是不够的——那样把范围放宽成完全没有上界的 `>=0.1.7-rc.1` 也会通过。
   - **镜像宿主而不是自创判定**：宿主用 `semver.satisfies(runtime, range, {includePrerelease: true})`，本测试用同一选项，并**单独断言该选项确实是必需的**（同一条范围在默认选项下会拒绝 `0.2.0-rc.1`）——否则将来 semver 语义一变，断言会静默地不再测宿主真正做的事。
-  - **点名禁止 `<0.2.0-0` 回归**：把这次故障的写法单独钉死，因为它在「整理版本范围」时很容易被误改回去。
-  - **守护开发树一致性**：断言每个声明了 peer 范围的包都在 `devDependencies` 里有钉住的版本、且该版本落在自己声明的范围内；另断言 `dsh.client.inject` 里的每个客户端包都有 devDependency 钉版本。（客户端 roster 那 5 个包没有 peer 范围——宿主从自己的图解析它们，因此只断言「有钉版本」，不虚构范围。）
-  - **变异验证**（确认测试真的有约束力，不是空转）：把范围改回 `<0.2.0-0` → **10 例失败**；改成无上界的 `>=0.1.7-rc.1` → **8 例失败**；把 peer 下界抬到 `>=0.2.0-rc.1` 但留下 0.1.7 的 devDependency 钉 → **8 例失败**。三次变异全部被抓住，恢复后 22 例全绿。
+  - **列明禁止 `<0.2.0-0` 回归**：把这次故障的写法单独明确约束，因为它在「整理版本范围」时很容易被误改回去。
+  - **守护开发树一致性**：断言每个声明了 peer 范围的包都在 `devDependencies` 里有通过测试约束的版本、且该版本落在自己声明的范围内；另断言 `dsh.client.inject` 里的每个客户端包都有 devDependency 钉版本。（客户端 roster 那 5 个包没有 peer 范围——宿主从自己的图解析它们，因此只断言「有钉版本」，不虚构范围。）
+  - **变异验证**（确认测试真的有约束力，不是空转）：把范围改回 `<0.2.0-0` → **10 例失败**；改成无上界的 `>=0.1.7-rc.1` → **8 例失败**；把 peer 下界抬到 `>=0.2.0-rc.1` 但留下 0.1.7 的 devDependency 钉 → **8 例失败**。三次变异全部被抓住，恢复后 22 例全部通过。
 
 ### Docs
 
-- **新增 `docs/DSH_0.2.0_RC1_IMPACT_CHECK.md`**：0.1.7-rc.2 → 0.2.0-rc.1 的完整影响面核对（261 提交 / 1109 文件 / 0 处破坏性提交；插件触及的包逐字节比对；类型级与运行时值级符号核对各 0 处移除；端到端类型验证）。含方法论备注：宿主 `app.asar` 内的 payload 基准在本机实测为 `8 + headerSize`（不是常见的 `16 + headerSize`），需用条目 `integrity.hash` 做 SHA256 校验后定位，否则会读出错位数据。
+- **新增 `docs/DSH_0.2.0_RC1_IMPACT_CHECK.md`**：0.1.7-rc.2 → 0.2.0-rc.1 的完整影响面核对（261 提交 / 1109 文件 / 0 处破坏性提交；插件触及的包逐字节比对；类型级与运行时值级符号核对各 0 处移除；端到端类型验证）。
+  含方法论备注：宿主 `app.asar` 内的 payload 基准在本机实测为 `8 + headerSize`（不是常见的 `16 + headerSize`），需用条目 `integrity.hash` 做 SHA256 校验后定位，否则会读出错位数据。
 - **README（中英）新增「peer 上界为什么不写 `<0.2.0`」**：给出三种写法的对照表与故障成因，说明该类错误为什么没有 CI 能拦、只能靠专门的测试。
 
 ## 2.3.1 (2026-09-26)
@@ -4035,38 +4017,57 @@ Tr                        ← 我们的行只剩开头两个字母
 
 ### Bug Fixes
 
-- **验证脚本在 Windows 上启动即崩，一条检查都跑不到**（在 Windows 真机上实测发现）：`scripts/verify-windows.mjs` 的 `loadPlugin()` 写的是 `import(join(here, '..', 'lib', 'index.js'))`，把**路径**当成 **URL** 传给了 `import()`。Node 把 `C:\...` 解析成 scheme 为 `c:` 的 URL，抛 `ERR_UNSUPPORTED_ESM_URL_SCHEME`（"On Windows, absolute paths must be valid file:// URLs"）——**恰好在这个脚本唯一存在的目的平台上崩**。修法：改用 `pathToFileURL(local).href`。
+- **验证脚本在 Windows 上启动即崩，一条检查都跑不到**（在 Windows 真机上实测发现）：`scripts/verify-windows.mjs` 的 `loadPlugin()` 写的是 `import(join(here, '..', 'lib', 'index.js'))`，把**路径**当成 **URL** 传给了 `import()`。
+  Node 把 `C:\...` 解析成 scheme 为 `c:` 的 URL，抛 `ERR_UNSUPPORTED_ESM_URL_SCHEME`（"On Windows, absolute paths must be valid file:// URLs"）——**恰好在这个脚本唯一存在的目的平台上崩**。
+
+  修法：改用 `pathToFileURL(local).href`。
   - **为什么 CI 没拦住**：`.github/workflows/ci.yml` 只跑 typecheck / test / build，**从不执行这个脚本**；而 `tests/verify-windows.spec.ts` 测的是 `src/`，脚本是个独立的 `.mjs` 入口——「代码正确」与「入口能跑起来」是两件事，这条缝隙正好够一个致命启动错误通过。这不是笔误而是覆盖盲区：对**以单文件入口形式交付**的产物，测它所调用的库不等于测它本身。
-  - **回归测试**（+1 例，全仓 337 → 338）：把脚本**复制到临时目录**并配一个桩 `lib/index.js`（令 `existsSync(local)` 为真，从而精确命中崩掉的那个分支），再以**子进程**执行它，断言 ① 不出现 `ERR_UNSUPPORTED_ESM_URL_SCHEME`、② 输出走到了「结论：」而非死在加载器里。用桩而非本仓 `lib/` 是刻意的：`lib/` 不进版本库，且 CI 在**测试之后**才构建，测试不能依赖产物已存在。
+  - **回归测试**（+1 例，全仓 337 → 338）：把脚本**复制到临时目录**并配一个桩 `lib/index.js`（令 `existsSync(local)` 为真，从而精确命中崩掉的那个分支），再以**子进程**执行它，断言 ① 不出现 `ERR_UNSUPPORTED_ESM_URL_SCHEME`、② 输出走到了「结论：」而非死在加载器里。用桩而非本仓库 `lib/` 是刻意的：`lib/` 不进版本库，且 CI 在**测试之后**才构建，测试不能依赖产物已存在。
   - **变异验证**：把脚本退回 `import(local)` → 该用例失败（`stdout` 为空）；确认两条 stderr 断言也真的有约束力（同一变异下 `stderr` 确实含该错误码），不是空转。
-- **`[2]` 段把「已成功解出账号的那个文件」报成 `invalid`**（同一轮真机演练发现）：`TraeCredentialStore` 绑定单个 `storagePath` 时，会把该路径**同时当作桌面 `storage.json` 和 CLI token 文件各探一次**（覆盖路径的形态事先不可知，见 `candidates()`），因此直接打印 `diagnose()` 的 `failures` 会导致：① 每条路径重复出现两遍；② **刚刚成功解出账号的那个文件**被列为 `invalid`——一次按「不是存储文档」、一次按「不是 CLI token」。一台**唯一凭证已被成功找到**的机器，报告读起来却像有故障。修法：两段合并为**一次遍历**（`accounts()` 与 `diagnose()` 读同一批文件，探两遍纯属重复劳动），按路径**合并成一个结论**，命中账号的路径记为「已解出」；失败原因优先取更具体的一项（`missing` 是两种形态对不存在的文件的共同答案，非 `missing` 才说明读到了内容但被拒）。
+- **`[2]` 段把「已成功解出账号的那个文件」报成 `invalid`**（同一轮真机演练发现）：`TraeCredentialStore` 绑定单个 `storagePath` 时，会把该路径**同时当作桌面 `storage.json` 和 CLI token 文件各探一次**（覆盖路径的形态事先不可知，见 `candidates()`），因此直接打印 `diagnose()` 的 `failures` 会导致：① 每条路径重复出现两遍；② **刚刚成功解出账号的那个文件**被列为 `invalid`——一次按「不是存储文档」、一次按「不是 CLI token」。
+  一台**唯一凭证已被成功找到**的机器，报告读起来却像有故障。
+  修法：两段合并为**一次遍历**（`accounts()` 与 `diagnose()` 读同一批文件，探两遍纯属重复劳动），按路径**合并成一个结论**，命中账号的路径记为「已解出」；失败原因优先取更具体的一项（`missing` 是两种形态对不存在的文件的共同答案，非 `missing` 才说明读到了内容但被拒）。
   - 实测修正前后：`invalid [solo] ...TRAE SOLO CN\...` + 每行重复两遍 → `已解出 [solo] ...TRAE SOLO CN\...  (桌面)`，与「解出至少一个账号」的结论一致。
 
-- **Windows 上只探测单一目录名，且这条路径从未在真机验证过**（"项目要支持 Windows"）。Trae 是 VS Code 系 Electron 应用，其每用户数据目录由安装器注册的产品名决定；插件此前在 Windows 上只按 macOS 的名字（`Trae CN` / `TRAE SOLO CN`）各探一条路径，猜错就直接「未登录」，而 `docs/WINDOWS_TOKEN_PROBE.md` 自己就写着「目录名是从 macOS 抄过来的，Windows 上实际名称未经确认」——即这条主路径从未验证，且失败时用户只看到「未登录」。
-  - **依据（2026-09-26 实测 macOS 包）**：`product.json` 的 `win32DirName` 才是 Windows 侧目录名的权威字段——`Trae CN` 为 `Trae CN`（`applicationName: trae-cn`）、`TRAE SOLO CN` 为 `TRAE SOLO CN`（`applicationName: trae-solo-cn`）。因此 macOS 拼写大概率正确，但同一产品族在 Linux 用的是小写 `applicationName` 拼写，Windows 实际写哪个未验证。
-  - **修法**：新增 `traeWindowsAppNames()`，Windows 侧改为**多候选并列探测**（`Trae CN` + `trae-cn`、`TRAE SOLO CN` + `trae-solo-cn`），与 Linux 侧既有的 `LINUX_APP_NAMES` 处理方式对齐；`src/identity.ts` 读 `product.json` 也共用同一份拼写表，避免「一个文件认这个名字、另一个不认」的不对称。**不再列出仅大小写不同的重复项**——Windows 文件系统不区分大小写，`trae cn` 与 `Trae CN` 是同一个目录，列两遍只会让探测清单和卡片上的「已检查的路径」重复一倍。
+- **Windows 上只探测单一目录名，且这条路径从未在真机验证过**（"项目要支持 Windows"）。
+  Trae 是 VS Code 系 Electron 应用，其每用户数据目录由安装器注册的产品名决定；插件此前在 Windows 上只按 macOS 的名字（`Trae CN` / `TRAE SOLO CN`）各探一条路径，猜错就直接「未登录」，而 `docs/WINDOWS_TOKEN_PROBE.md` 自己就写着「目录名是从 macOS 抄过来的，Windows 上实际名称未经确认」——即这条主路径从未验证，且失败时用户只看到「未登录」。
+  - **依据（2026-09-26 实测 macOS 包）**：`product.json` 的 `win32DirName` 才是 Windows 侧目录名的权威字段——`Trae CN` 为 `Trae CN`（`applicationName: trae-cn`）、`TRAE SOLO CN` 为 `TRAE SOLO CN`（`applicationName: trae-solo-cn`）。
+  因此 macOS 拼写大概率正确，但同一产品族在 Linux 用的是小写 `applicationName` 拼写，Windows 实际写哪个未验证。
+  - **修法**：新增 `traeWindowsAppNames()`，Windows 侧改为**多候选并列探测**（`Trae CN` + `trae-cn`、`TRAE SOLO CN` + `trae-solo-cn`），与 Linux 侧既有的 `LINUX_APP_NAMES` 处理方式对齐；`src/identity.ts` 读 `product.json` 也共用同一份拼写表，避免「一个文件认这个名字、另一个不认」的不对称。
+  **不再列出仅大小写不同的重复项**——Windows 文件系统不区分大小写，`trae cn` 与 `Trae CN` 是同一个目录，列两遍只会让探测清单和卡片上的「已检查的路径」重复一倍。
   - **明确未解决的部分**：Windows 真机上的实际目录名**仍然没有验证**（本机为 macOS，无 Windows 环境）。多候选只是把「猜错即失败」降级为「多一次失败的 `readFile`」，并不是验证。`docs/WINDOWS_TOKEN_PROBE.md` 保留为待真机回报的清单，并把「第二步：确认数据目录名」标为仍需执行。
   - **回归测试**（+2 例，全仓 319 → 322）：`paths.spec.ts`「探测 Windows 两种拼写」「不列出仅大小写不同的重复项」；`identity.spec.ts`「备用拼写（`trae-solo-cn`）下也能读到 `product.json`」。变异验证：`paths.ts` 退回单一目录名 → 1 条失败；`identity.ts` 退回单一拼写 → 1 条失败。
 
 - **`src/model-cache.ts` 的缓存路径与凭据路径各自为政，在真机上指向一个不存在的目录**（Windows 真机适配检查时发现，属**潜伏缺陷**）：
   - **症状**：该模块把 `state.vscdb` 路径**硬编码为单一拼写 `Trae CN`**（macOS 与 Windows 两分支都写死这一个名字），而 `paths.ts` 早已是**多候选拼写**探测（`Trae CN` / `trae-cn`、`TRAE SOLO CN` / `trae-solo-cn`）。它**自己重算了一遍目录**，没有复用 `traeStorageCandidates`——即 2.3.1 修「多候选」时只修了登录路径，漏了这个兄弟模块。
-  - **真机证据**（Windows 10.0.22621 + TRAE SOLO CN）：真实数据目录是 `TRAE SOLO CN`，而旧代码拼出的是 `%APPDATA%\Trae CN\User\globalStorage\state.vscdb` —— **该文件根本不存在**（实测 `existsSync` 为 false，而 `TRAE SOLO CN\...\state.vscdb` 存在）。**即便装了 `sqlite3` 也读不到**，与「装了 `sqlite3` 且小写拼写才失效」的初步判断相比，实际失效面**更大**：只要装的不是目录名恰好为 `Trae CN` 的版本就一定失败。
+  - **真机证据**（Windows 10.0.22621 + TRAE SOLO CN）：真实数据目录是 `TRAE SOLO CN`，而旧代码拼出的是 `%APPDATA%\Trae CN\User\globalStorage\state.vscdb` —— **该文件根本不存在**（实测 `existsSync` 为 false，而 `TRAE SOLO CN\...\state.vscdb` 存在）。
+  **即便装了 `sqlite3` 也读不到**，与「装了 `sqlite3` 且小写拼写才失效」的初步判断相比，实际失效面**更大**：只要装的不是目录名恰好为 `Trae CN` 的版本就一定失败。
   - **为什么一直没被发现**：Windows 上 `sqlite3` 通常不存在，该调用**必然**先抛 `ENOENT`；调用方 `.catch(() => undefined)` 兜底后功能退化为「无缓存」，于是**一个错误的路径被另一个看似合理的错误（依赖缺失）掩盖**。这类「两个错误互相掩护」的情形，单看错误码永远排查不到——只有把期望的路径与磁盘实际路径对照才暴露。
-  - **修法**：不再拼写目录，改为**从凭据路径推导**——`state.vscdb` 与 `storage.json` 同在 `globalStorage`，故同一个候选目录既管登录也管缓存；`traeStateDatabaseCandidates()` 复用 `traeStorageCandidates()`（单一事实来源），`raw-resolver.ts` 把命中的候选传下去。**明确带 `candidate` 时只看该 edition**：多版本共存时读另一个安装的数据库会拿到**别的账号**的模型表。选择顺序是「先看存在的，都不存在才用最可能的那条」，这样 `sqlite3` 缺失时调用方仍能看到**真实**失败，而不是被换成一个猜出来的错误。
+  - **修法**：不再拼写目录，改为**从凭据路径推导**——`state.vscdb` 与 `storage.json` 同在 `globalStorage`，故同一个候选目录既管登录也管缓存；`traeStateDatabaseCandidates()` 复用 `traeStorageCandidates()`（单一事实来源），`raw-resolver.ts` 把命中的候选传下去。
+  **明确带 `candidate` 时只看该 edition**：多版本共存时读另一个安装的数据库会拿到**别的账号**的模型表。
+  选择顺序是「先看存在的，都不存在才用最可能的那条」，这样 `sqlite3` 缺失时调用方仍能看到**真实**失败，而不是被换成一个猜出来的错误。
   - **回归测试**（+7 例，全仓 338 → 345）：① 每个凭据候选的兄弟 `state.vscdb` 都必须可探测（**断言「与凭据表同源」而非硬编码期望字符串**——跟着写死拼写的测试会与 bug 一致地通过）；② Windows 上必须能找到 `TRAE SOLO CN`（旧的写死实现永远够不到）；③ 带 `candidate` 时它排第一且不越出自己的 edition；④ 大小写不同不重复列；⑤ macOS / Linux 也从各自凭据表推导；⑥ **选中的路径真的传给了执行器**（用注入的 `runSqlite` 断言 argv，否则「列表正确但查错条目」无法被发现）；⑦ 全都不存在时仍发起一次查询以暴露真实失败。
-  - **变异验证**：把实现退回「硬编码单一拼写」→ **9 条中 5 条失败**；恢复后全绿。（首版变异脚本因文件是 CRLF 而静默未生效，导致测试「通过」——已加断言令变异未落地时**直接报错**，否则这种假阴性会被误读成「测试抓不到这个 bug」。）
+  - **变异验证**：把实现退回「硬编码单一拼写」→ **9 条中 5 条失败**；恢复后全部通过。（首版变异脚本因文件是 CRLF 而静默未生效，导致测试「通过」——已加断言令变异未实施时**直接报错**，否则这种假阴性会被误读成「测试抓不到这个 bug」。）
   - **顺带修掉一个测试自身的问题**：⑥ 首版用 `path.includes('Library/Application Support')` 断言 macOS 路径，而 `join()` 在 Windows 上产出反斜杠——该测试在作者机器（macOS）通过而会在 CI 的 `windows-latest` 上失败。现先归一化分隔符再断言，这正是本项目「Windows 必须真机/win runner 验证」这条约定要防的错。
 
 - **切换账号后无法领取签到：把「本机已签到」误判成「该账号已领取」**（用户上报）。2.3.0 的卡片与路由把 `checked_in` 与 `did_checked_in` **一并**当作「今日已领取」，于是切换账号后新账号显示「今日已领取」、按钮置灰、点不动。
-  - **根因（2026-09-26 实测，两个 CN 账号 + 同一台机器 + 同一北京日）**：两个字段判定维度不同——`checked_in` 是**账号**口径（该账号今天的奖励包已存在），`did_checked_in` 是**设备**口径（这台机器的今日名额已用掉，由 `x-device-id` 决定，与是哪个账号用的无关）。切换账号后正是后者：设备名额已用，而当前账号**没有拿到任何奖励**——此时说「今日已领取」把「没领到」说成了「已领到」。（详见 `docs/USAGE_API_RESEARCH.md` 新增的「决定性修正」一节，含四组请求头对照表。）
-  - **实测要点**：账号 A（当天已领取）与账号 B（当天未领取，无 `checkin_20260926_*` 奖励包）带**同一真实设备号**读状态，两者都返回 `did_checked_in:true`；不带该头、带合成号、或带本机另一安装的设备号，两者都返回 `false`；同一合成号连读三次也不会变 `true`（所以它不是「读过就算」的标记）。账号 B 带真实设备号 `claim` → `{"code":9095,"message":"当前设备今日已经签到，请明日再来哦～"}`，**未发放**，且 `total/consumed` 前后逐字节相同（`1900 / 1522.85`）。官方 NLS 文案 `2345 -> 该设备今日已参与签到` 亦为设备口径。
+  - **根因（2026-09-26 实测，两个 CN 账号 + 同一台机器 + 同一北京日）**：两个字段判定维度不同——`checked_in` 是**账号**口径（该账号今天的奖励包已存在），`did_checked_in` 是**设备**口径（这台机器的今日名额已用掉，由 `x-device-id` 决定，与是哪个账号用的无关）。
+  切换账号后正是后者：设备名额已用，而当前账号**没有拿到任何奖励**——此时说「今日已领取」把「没领到」说成了「已领到」。
+  （详见 `docs/USAGE_API_RESEARCH.md` 新增的「决定性修正」一节，含四组请求头对照表。
+  ）
+  - **实测要点**：账号 A（当天已领取）与账号 B（当天未领取，无 `checkin_20260926_*` 奖励包）带**同一真实设备号**读状态，两者都返回 `did_checked_in:true`；不带该头、带合成号、或带本机另一安装的设备号，两者都返回 `false`；同一合成号连读三次也不会变 `true`（所以它不是「读过就算」的标记）。
+  账号 B 带真实设备号 `claim` → `{"code":9095,"message":"当前设备今日已经签到，请明日再来哦～"}`，**未发放**，且 `total/consumed` 前后逐字节相同（`1900 / 1522.85`）。
+  官方 NLS 文案 `2345 -> 该设备今日已参与签到` 亦为设备口径。
   - **修法**：`checked_in` 成为唯一的「今日已领取」（账号口径）判据——已领取才直接返回 `alreadyCheckedIn` 且不发请求；`did_checked_in` 且未领取时，路由返回新的 `deviceCheckedIn: true`（不再谎报 `alreadyCheckedIn`），卡片保持按钮禁用但改说「本机今日的签到已用掉」并说明可换设备 / 明天再来；上游以 `9095` 拒绝时（窗口竞争）同样按 `deviceCheckedIn` 处理，**不当成失败**——那是一条上游规则，不是插件故障。
-  - **回归测试**（+4 例，全仓 316 → 319）：路由侧「设备已签但账号未领 → 不发请求且返回 `deviceCheckedIn:true` / `alreadyCheckedIn:false` / `code:9095`」「上游 9095 → 按设备已满上报而非错误」，卡片侧「设备已签不显示『今日已领取』且显示设备说明」「路由回 9095 时显示设备说明而非『签到失败』」。做过**变异验证**：把路由的 `checkedIn || didCheckedIn` 复原 → 1 条失败；把卡片的两个字段合并 → 1 条失败；删掉路由的设备守卫（照发请求）→ 1 条失败。
+  - **回归测试**（+4 例，全仓 316 → 319）：路由侧「设备已签但账号未领 → 不发请求且返回 `deviceCheckedIn:true` / `alreadyCheckedIn:false` / `code:9095`」「上游 9095 → 按设备已满上报而非错误」，卡片侧「设备已签不显示『今日已领取』且显示设备说明」「路由回 9095 时显示设备说明而非『签到失败』」。
+  做过**变异验证**：把路由的 `checkedIn || didCheckedIn` 复原 → 1 条失败；把卡片的两个字段合并 → 1 条失败；删掉路由的设备守卫（照发请求）→ 1 条失败。
 
 ### Tests
 
 - **Windows 真机验证脚本的三处可用性缺陷**（在真正按「Windows 用户拉代码 → 跑脚本」的流程演练时发现，全部是脚本自身的问题）：
-  - **空机器误报「解出 1 个账号」**（最严重）：`TraeCredentialStore` 不传 `storagePath` 时会按 `process.platform` 扫描**宿主**目录，于是在一个刻意清空的 HOME 上，脚本从开发者本机解出了凭证——即「断言在一台没有任何 Trae 的机器上找到了 Trae」。这是本脚本可能产出的最误导性结果，因为它恰好会被读成「Windows 能用了」。修法：每个候选都**绑定到它自己的路径**，绝不回退到宿主扫描；并新增 4 条回归测试（`tests/verify-windows.spec.ts`）锁死该性质，变异验证：让 store 忽略固定路径 → 2 条失败。
+  - **空机器误报「解出 1 个账号」**（最严重）：`TraeCredentialStore` 不传 `storagePath` 时会按 `process.platform` 扫描**宿主**目录，于是在一个刻意清空的 HOME 上，脚本从开发者本机解出了凭证——即「断言在一台没有任何 Trae 的机器上找到了 Trae」。
+  这是本脚本可能产出的最误导性结果，因为它恰好会被读成「Windows 能用了」。
+  修法：每个候选都**绑定到它自己的路径**，绝不回退到宿主扫描；并新增 4 条回归测试（`tests/verify-windows.spec.ts`）锁死该性质，变异验证：让 store 忽略固定路径 → 2 条失败。
   - **`[1]` 与 `[2]` 可能描述不同机器**：`[1]` 列的是 win32 候选，`[2]` 却扫宿主平台目录。现在两段同源，且 `[2]` 逐候选诊断并给出**命中路径**归属。
   - **未构建时的报错不可用**：`lib/` 不进版本库，拉代码后直接跑脚本会撞 `ERR_MODULE_NOT_FOUND` 堆栈。现在明确提示「这是源码 checkout、需要先 `pnpm install && pnpm run build`」，并以退出码 1 结束（实测）。
 - **CLI-only 场景的两处误判**：① 身份解析误把 CLI token 当 `storage.json` 解析而抛 JSON 错——`resolveTraeIdentity` 的 CLI 兜底**只在文件不存在时**触发，故 CLI 候选改用 `readTraeCliIdentity` 直连；② `x-app-version` 缺失被计为失败，但那只是少一个请求头（登录/聊天/签到均不受影响），会让一台完全可用的机器报「未通过」，现改为 `[INFO]`，并对 CLI 候选改用不同措辞（CLI 从 `ide_version.json` 取版本，而非 `product.json`）。
@@ -4087,39 +4088,60 @@ Tr                        ← 我们的行只剩开头两个字母
 - **验证脚本的检查范围被明确划出，并补跑脚本之外的主流程实测**：`verify-windows.mjs` 的六项**只覆盖路径探测与设备指纹**，把它读成「整个插件在 Windows 上没问题」是过度外推。因此同一台真机上另外直接调用 `lib/` 导出跑了主流程：
   - `TraeCredentialStore.resolve()` ✅ 返回凭据（host `https://api.trae.cn`）；`identityHeaders()` ✅ 10 个请求头全部生成；只读用量查询 ✅ 9 个积分包（总额 2050 / 已用 1522.85）；只读模型目录 ✅ **42 个模型**；`writeFileAtomic` ✅ 写入回读一致；并发 `withFileLock` ✅ **8 并发串行化且无丢失更新**（此前 README 只写「宿主原生处理 Windows 独占创建语义」，现改为**实测成立**）；`SSE` 解码 ✅ 按 `\r?\n` 切分，CRLF 与分块均支持。
   - **实测确认了一处已知限制的真实行为**：`model-cache` 的 `sqlite3` 在本机不存在，抛 `ENOENT`（`spawn sqlite3 ENOENT`），调用方 `.catch(() => undefined)` 正确兜底，主流程不受影响——README 原写「会失败并安全回退」，现补上错误码作为依据。
-  - **顺带发现并修掉一处真实精度缺口**（详见下方 Bug Fixes）：`src/model-cache.ts` 在 Windows 上把 `state.vscdb` 路径**硬编码为单一拼写 `Trae CN`**（`paths.ts` 是多候选 `Trae CN` / `trae-cn`），且该模块自己重算了一遍目录而没复用 `traeStorageCandidates`。本机真实目录名是 `TRAE SOLO CN`，旧代码指向的 `...\Trae CN\...\state.vscdb` **根本不存在**；只因 `sqlite3` 缺失、该调用必然失败并兜底，才把一个**错误的路径**藏在「依赖缺失」这个看似合理的错误后面。
+  - **顺带发现并修掉一处真实精度缺口**（详见下方 Bug Fixes）：`src/model-cache.ts` 在 Windows 上把 `state.vscdb` 路径**硬编码为单一拼写 `Trae CN`**（`paths.ts` 是多候选 `Trae CN` / `trae-cn`），且该模块自己重算了一遍目录而没复用 `traeStorageCandidates`。
+  本机真实目录名是 `TRAE SOLO CN`，旧代码指向的 `...\Trae CN\...\state.vscdb` **根本不存在**；只因 `sqlite3` 缺失、该调用必然失败并兜底，才把一个**错误的路径**藏在「依赖缺失」这个看似合理的错误后面。
   - 以上「脚本之外」的实测结果同时写入 README（中英）与 `docs/WINDOWS_VERIFY_GUIDE.md`，与脚本自身那六项**分表列出**，不让读者混淆两者的证据强度。
-- **`docs/WINDOWS_TOKEN_PROBE.md` 的「已知的其他 Windows 问题」整节已过期**：其中两条（`product.json` 硬编码 macOS 路径、`osVersion` 拼成 `win32 <release>`）**在代码里早已修复**，文档却仍写成未解决的缺陷——按它排查会把 Windows 用户引向错误方向。已复核并改写为「已处理 + 当前实现」，同时补上「Windows 安装/数据目录名仍未验证」这一条真实缺口，以及 `mode: 0o600` 在 Windows 被忽略属已知无害。
+- **`docs/WINDOWS_TOKEN_PROBE.md` 的「已知的其他 Windows 问题」整节已过期**：其中两条（`product.json` 硬编码 macOS 路径、`osVersion` 拼成 `win32 <release>`）**在代码里早已修复**，文档却仍写成未解决的缺陷——按它排查会把 Windows 用户引向错误方向。
+  已复核并改写为「已处理 + 当前实现」，同时补上「Windows 安装/数据目录名仍未验证」这一条真实缺口，以及 `mode: 0o600` 在 Windows 被忽略属已知无害。
   - 该文档**改为「先跑脚本」**：手工五步降级为「脚本跑不起来时的备选路径」，并把第二步（数据目录名）更新为当前的**多候选拼写**清单与依据，明确「这一条是本次要查的核心」。
 - **README 明确 Windows 支持，并把「以后都要考虑 Windows」固化为开发约定**（"我们的项目要支持 Windows 的" / "之后都要考虑对 Windows 的影响"）。
   - README（中英双语）新增**平台支持表**（macOS ✅ 完全支持 / Windows ✅ 支持 / Linux ✅ 支持），并在开头段落明示「支持 macOS、Windows 与 Linux」+ CI 双平台矩阵，让 Windows 支持成为对外可见的承诺而非隐含行为。
   - 「Windows 说明」节**改写为与代码逐条对应**：账号目录（多候选拼写探测 + 与安装目录无关）、应用版本头（含 `LOCALAPPDATA` 回退）、设备指纹（`x-device-type: windows`、`Windows <release>`）、文件锁（宿主原生处理）、Raw Chat 的 `sqlite3` 限制、权限位被忽略。**每条都核对了代码位置后写入**。
   - **删掉一句未经验证的断言**：原文写「目录名与 macOS 一致，**无需额外配置**」——而 `docs/WINDOWS_TOKEN_PROBE.md` 自己就说该目录名从未在真机确认。这正是本项目反复强调的「不得把未验证项写成既成事实」，故改为「未验证项（欢迎回报）」小节，说明依据是 `product.json` 的 `win32DirName`、兜底是 `applicationName` 拼写，并给出回报路径与 `authFile` 临时绕法。
   - `DEVELOPMENT.md` 新增「**多平台要求（Windows 为长期支持目标）**」一节：给出平台相关面/无关面的分区表（路径解析与设备指纹为相关面，其余共用），以及 6 条改动强制检查项——新增路径必须带平台分支且多候选、不得用仅大小写不同的重复候选、新增外部命令依赖须确认 Windows 行为并登记限制、CI 必须在 `windows-latest` 通过、平台结论必须区分已验证/未验证、文档同步。这条约定使「考虑 Windows 影响」成为可执行的检查项而非口头要求。
-  - **顺带修掉一处链接会在 npm 页 404 的问题**：本次新增的「未验证项」指引用户去看 `docs/WINDOWS_TOKEN_PROBE.md`，但 `package.json` 的 `files` 白名单（`RELEASING.md` 有明确记载，属有意的包体控制）只放行 `docs/assets/` 下那张截图，**所有 `docs/*.md` 都不进 npm 包**——写成相对 Markdown 链接会在 npm 页面上 404。既有引用（`docs/IMPLEMENTATION_PLAN.md` 等）用的是反引号纯文本故不受影响，本次改为指向 GitHub 的绝对链接（实测 HTTP 200）。
+  - **顺带修掉一处链接会在 npm 页 404 的问题**：本次新增的「未验证项」指引用户去看 `docs/WINDOWS_TOKEN_PROBE.md`，但 `package.json` 的 `files` 白名单（`RELEASING.md` 有明确记载，属有意的包体控制）只放行 `docs/assets/` 下那张截图，**所有 `docs/*.md` 都不进 npm 包**——写成相对 Markdown 链接会在 npm 页面上 404。
+  既有引用（`docs/IMPLEMENTATION_PLAN.md` 等）用的是反引号纯文本故不受影响，本次改为指向 GitHub 的绝对链接（实测 HTTP 200）。
   - `RELEASING.md` 的打包内容清单同步更新（新增 `scripts/verify-windows.mjs`），并记下两条纪律：该脚本必须随包（否则用户无法执行验证步骤）、`docs/*.md` 不进包故 README 引用必须用绝对链接。
 
 ## 2.3.0 (2026-09-25)
 
 ### Breaking Changes
 
-- **只支持 DSH 0.1.7-rc.1 及以上，不再支持 0.1.7 之前的宿主**。2.2.0 用「双线 + 运行期能力探测」同时服务 0.1.5 与 0.1.7；0.1.5 线的设置面（`installSection` / `settingsScope` / `settings.plugin.item` / 非 volatile 写入）与 0.1.7 的新模型**互不相交**，保留它意味着每条路径都要背两套契约。从本版起删除全部 0.1.5 分支，`peerDependencies` 与 `devDependencies` 一并收窄到 `>=0.1.7-rc.1` / `0.1.7-rc.1`（`cordis >=4.0.4`、`schemastery >=3.18.4`）。做法对齐同级 `dsh-connect-workbuddy`（其 2.1.0 起的 0.1.7-only 改造）。
+- **只支持 DSH 0.1.7-rc.1 及以上，不再支持 0.1.7 之前的宿主**。
+  2.2.0 用「双线 + 运行期能力探测」同时服务 0.1.5 与 0.1.7；0.1.5 线的设置面（`installSection` / `settingsScope` / `settings.plugin.item` / 非 volatile 写入）与 0.1.7 的新模型**互不相交**，保留它意味着每条路径都要背两套契约。
+
+  从本版起删除全部 0.1.5 分支，`peerDependencies` 与 `devDependencies` 一并收窄到 `>=0.1.7-rc.1` / `0.1.7-rc.1`（`cordis >=4.0.4`、`schemastery >=3.18.4`）。
+
+  做法对齐同级 `dsh-connect-workbuddy`（其 2.1.0 起的 0.1.7-only 改造）。
 
 ### Bug Fixes
 
-- **0.1.7 上 provider 被判「未配置」——命名空间必须用宿主服务的那个**（对齐 workbuddy 2.0.16 的实测）。0.1.7 的 `SettingsForms.describe()` 以 **Loader 条目 id** 为键，harness 对 provider 的命名空间做**精确匹配**查表（`namespaces.get(entry.settingsNs)`）。此前硬编码 `settingsNs: 'trae'`，而桌面宿主实际以 `dsh-connect-trae`（或 `include:dsh-connect-trae`）挂载条目，于是查表落空、provider 读作「未配置」，**配置入口与模型发现静默失效**、不报错。
+- **0.1.7 上 provider 被判「未配置」——命名空间必须用宿主服务的那个**（对齐 workbuddy 2.0.16 的实测）。
+  0.1.7 的 `SettingsForms.describe()` 以 **Loader 条目 id** 为键，harness 对 provider 的命名空间做**精确匹配**查表（`namespaces.get(entry.settingsNs)`）。
+
+  此前硬编码 `settingsNs: 'trae'`，而桌面宿主实际以 `dsh-connect-trae`（或 `include:dsh-connect-trae`）挂载条目，于是查表落空、provider 读作「未配置」，**配置入口与模型发现静默失效**、不报错。
   - **修法**：新增 `settingsNamespaceOf(ctx)`，采用一线插件（`dsh-llm-pi-ai`）的权威范式 `const settingsNs = ctx.fiber.entry?.options.id ?? TRAE_SETTINGS_NS`，`registerConfigurableProviders` 与 `registerModelDiscovery` 全部改用解析值；`ctx.fiber.entry` 由 Loader 注入（非 Cordis 公共类型），保留探测 + 回落到 `'trae'`。
   - **回归测试**（`tests/settings-integration.spec.ts`，+4 例）：采纳 Loader 条目 id、无条目/空 id/非字符串时回落、以及**目录实际宣告的就是解析值**（断言目录条目而非常量，否则恒过）。
-- **移除宿主端 `installSection` 双路径，`configure({auto}, owner)` 成为唯一路径**（对齐 workbuddy 的 0.1.7-only 写法）。0.1.7 的 `SettingsForms` 删除了 `installSection`；2.2.0 按能力探测两条路径，本版起无条件调用 `configure`，且把返回的 disposer 挂进 `ctx.effect()`——否则展示策略泄漏到插件销毁之后（一线插件同款：`child.effect(() => child.settings.configure({ auto: false }, …))`）。随 `installSection` 一起删除 `legacyInstallSettingsSection` / `sectionHooks` 及其对 `@deepseek-ai/dsh-settings` 命名空间的依赖。
+- **移除宿主端 `installSection` 双路径，`configure({auto}, owner)` 成为唯一路径**（对齐 workbuddy 的 0.1.7-only 写法）。
+  0.1.7 的 `SettingsForms` 删除了 `installSection`；2.2.0 按能力探测两条路径，本版起无条件调用 `configure`，且把返回的 disposer 挂进 `ctx.effect()`——否则展示策略泄漏到插件销毁之后（一线插件同款：`child.effect(() => child.settings.configure({ auto: false }, …))`）。
+
+  随 `installSection` 一起删除 `legacyInstallSettingsSection` / `sectionHooks` 及其对 `@deepseek-ai/dsh-settings` 命名空间的依赖。
 - **客户端设置面只走 `configForms`**（对齐 workbuddy 的 0.1.7-only 写法）：删除 `settingsScope.bind` 回退分支与 `settings.plugin.item` 槽位注册，只保留 `configForms.get(entryId)` + `plugins.bundle.config` / `plugins.row.config` 两个槽位。`inject` 维持 `['slots', 'locale']`，设置面仍经 `ctx.get()` 软探测。
 - **卡片的 `view` 行为不再按双线区分**：`page` 视图默认展开、无 `view` 默认折叠；`set()` 契约收窄为 `Promise<boolean>`（0.1.7 表单返回显式布尔，`false` 即拒绝）。
-- **区域开关等设置保存被宿主拒绝（`No configurable plugin entry "trae"`）——客户端命名空间绑定必须跟随 describe 镜像**。卡片此前在 `apply()` 时**一次性**解析命名空间：describe 镜像异步加载，且在运行中的 profile 里新增插件条目（本插件正是这种场景）时，镜像首次 describe 可能早于条目出现；`/trae/i` 匹配落空就**永久**回落到声明的 `'trae'`。`configForms.get('trae')` 把表单控制器永久绑到该 ns——宿主 `configEditor.entries()` 里没有 `options.id === 'trae'` 的条目，每次写入都抛 `No configurable plugin entry "trae"` 被拒；而控件仍可点（controller 对「ns 不在镜像」的派生沿用全局 `writable=true`），表现为「开关翻过去又弹回」。
-  - **修法**：设置面改为**可重绑代理**——`getSnapshot` / `set` 转发到「当前」控制器；别名解析（`served.ns`，`/trae/i` 匹配）在 apply 时尝试一次，并订阅镜像（`describe().subscribe`）在每次变化后重绑；镜像已就绪但缺条目时**一次性**触发 `describe().load()` 补拉（此后宿主 `settings/document-updated` 事件保持新鲜）。绑定前代理返回 `writable: false`，卡片只读而非提供必定失败的控件。
+- **区域开关等设置保存被宿主拒绝（`No configurable plugin entry "trae"`）——客户端命名空间绑定必须跟随 describe 镜像**。
+  卡片此前在 `apply()` 时**一次性**解析命名空间：describe 镜像异步加载，且在运行中的 profile 里新增插件条目（本插件正是这种场景）时，镜像首次 describe 可能早于条目出现；`/trae/i` 匹配落空就**永久**回落到声明的 `'trae'`。
+
+  `configForms.get('trae')` 把表单控制器永久绑到该 ns——宿主 `configEditor.entries()` 里没有 `options.id === 'trae'` 的条目，每次写入都抛 `No configurable plugin entry "trae"` 被拒；而控件仍可点（controller 对「ns 不在镜像」的派生沿用全局 `writable=true`），表现为「开关翻过去又弹回」。
+  - **修法**：设置面改为**可重绑代理**——`getSnapshot` / `set` 转发到「当前」控制器；别名解析（`served.ns`，`/trae/i` 匹配）在 apply 时尝试一次，并订阅镜像（`describe().subscribe`）在每次变化后重绑；镜像已就绪但缺条目时**一次性**触发 `describe().load()` 补拉（此后宿主 `settings/document-updated` 事件保持新鲜）。
+  绑定前代理返回 `writable: false`，卡片只读而非提供必定失败的控件。
   - **回归测试**（+3 例）：激活测试的镜像桩改为真实形状（`ns: 'dsh-connect-trae'`，即 patch id，非声明的 fallback），断言绑定到 `dsh-connect-trae`；新增「镜像在 apply 后才出现条目 → 重绑到正确 ns」与「一次性 nudge 补拉镜像」两例。测试桩此前的 `ns: 'trae'` 恰好把 fallback 当成了正解，是这条缺陷没被 CI 拦住的原因之一。
 - **插件管理页 / 市场页的 logo 显示不对**（默认占位/空白，对齐 workbuddy 2.0.17 的实测）。0.1.7 的插件管理页从插件包 `package.json` 的 `icon` 字段读图标（`dsh-client-ui-plugin-manager` 渲染 `row.meta?.icon`），此前没有声明该字段 → 宿主无图可用。
   - **修法**（照同级 `dsh-connect-workbuddy` 的做法）：新增 `icons/` 目录（64px + 128px 真实 PNG，其中 64px 与既有卡片内嵌 base64 逐字节一致——同族 LD logo），`package.json` 声明 `"icon": "icons/dsh-connect-trae-128.png"`，并把 `icons` 加入 `files` 白名单随包分发。
   - **验证**：`npm pack --dry-run` 确认两个 PNG 进包（12 → 14 文件）。
-- **模型倍率改回「wire 权威、Remote 兜底」，恢复折后价显示**（回归：b8f09bc 重构时误删 1.4.2 的 `display_contact_config` 解析）。`get_detail_param` 每行的 `display_contact_config`（第二层 JSON）里的 `consumption_rate.data.rate` 才是 Trae IDE 渲染的**折后价**；Remote 目录的 `consumption_rate` 在限时折扣下会报**未折价**（Seed-2.1-Pro：IDE `x0.08` vs Remote `0.80`，差 10 倍）。b8f09bc 改成多 function 并集时把这个解析连带删掉，倍率从此退化成 Remote 值。
+- **模型倍率改回「wire 权威、Remote 兜底」，恢复折后价显示**（回归：b8f09bc 重构时误删 1.4.2 的 `display_contact_config` 解析）。
+  `get_detail_param` 每行的 `display_contact_config`（第二层 JSON）里的 `consumption_rate.data.rate` 才是 Trae IDE 渲染的**折后价**；Remote 目录的 `consumption_rate` 在限时折扣下会报**未折价**（Seed-2.1-Pro：IDE `x0.08` vs Remote `0.80`，差 10 倍）。
+
+  b8f09bc 改成多 function 并集时把这个解析连带删掉，倍率从此退化成 Remote 值。
   - **修法**：`solo.ts` 恢复 `wireCreditMultiplier()`（读 `display_contact_config.consumption_rate.data.rate`，`enable` 为真且为正有限数时取值，缺失/损坏留空不虚构），`TraeSoloModel` / `TraeWireModel` 增列 `creditMultiplier`；`mergeTraeModelSources` 合并时 **wire 优先、Remote 兜底**（wire 未提供才用 Remote）。
   - **国际版（ai）区域**：实测（2026-09-25 只读探测）国际版上游任何目录都不含 `consumption_rate`（订阅制，只有 `cost` 标签与 `manual_usage: 0|1`，官方 App 也只渲染「Lite-friendly」这类标签而非数值倍率），因此 ai 模型行按「解析不出则留空」保持不显示倍率——不虚构数值。
   - **回归测试**（+2 例）：`solo.spec.ts` 断言 wire 解析出折后价、缺失时不虚构；`catalog.spec.ts` 断言合并时 wire 优先、Remote 兜底、双缺留空。变异验证：把合并改回只读 Remote → 新用例立即失败。
@@ -4132,7 +4154,7 @@ Tr                        ← 我们的行只剩开头两个字母
 
 ### Tests
 
-- 310 → 316。移除 0.1.5 形态用例（client-activation 的 `settingsScope` 宿主、client-fallback 的 `settingsScope.bind` 回退、card-region-switch 的 void 返回契约），新增 4 例 `settingsNamespaceOf`、3 例命名空间重绑/补拉、2 例 wire 倍率解析与合并优先级。`pnpm run check`（typecheck + test + build）全绿。
+- 310 → 316。移除 0.1.5 形态用例（client-activation 的 `settingsScope` 宿主、client-fallback 的 `settingsScope.bind` 回退、card-region-switch 的 void 返回契约），新增 4 例 `settingsNamespaceOf`、3 例命名空间重绑/补拉、2 例 wire 倍率解析与合并优先级。`pnpm run check`（typecheck + test + build）全部通过。
 
 ## 2.2.0 (2026-09-24)
 
@@ -4145,7 +4167,10 @@ Tr                        ← 我们的行只剩开头两个字母
   dsh-connect-trae: pending (waiting for service: settingsScope)
   ```
 
-  - **根因：`settingsScope` 被整个移除，而 Cordis 的依赖闸门是硬闸。** DSH **0.1.7-alpha.1** 起客户端设置服务换成 `configForms`，`settingsScope` **不再存在**（不是弃用、没有兼容层；0.1.6-alpha.2 还有，0.1.7-alpha.1 起包内已无此符号）。插件 `inject` 里仍声明它，于是 fiber 永远停在 `PENDING`——**不是某个功能坏掉，是整个客户端插件不激活**，因此「重新登录」「重装插件」一概无效。修法与 workbuddy 一致：`inject` 收窄为两条线都有的 `['slots', 'locale']`，设置面改由 `ctx.get()` **按能力软探测**（属性访问会抛 `cannot get property X without inject`，`?.` 挡不住；`ctx.get` 对缺失服务返回 `undefined`）。
+  - **根因：`settingsScope` 被整个移除，而 Cordis 的依赖依赖检查是硬闸。** DSH **0.1.7-alpha.1** 起客户端设置服务换成 `configForms`，`settingsScope` **不再存在**（不是弃用、没有兼容层；0.1.6-alpha.2 还有，0.1.7-alpha.1 起包内已无此符号）。
+  插件 `inject` 里仍声明它，于是 fiber 永远停在 `PENDING`——**不是某个功能坏掉，是整个客户端插件不激活**，因此「重新登录」「重装插件」一概无效。
+
+  修法与 workbuddy 一致：`inject` 收窄为两条线都有的 `['slots', 'locale']`，设置面改由 `ctx.get()` **按能力软探测**（属性访问会抛 `cannot get property X without inject`，`?.` 挡不住；`ctx.get` 对缺失服务返回 `undefined`）。
   - **0.1.7 上另有三处断裂，issue 只报了第一处。** 逐项对照 workbuddy 的实测（该仓库已用同一套适配跑通 0.1.7）：
 
     | # | 位置 | 0.1.5 | 0.1.7 |
@@ -4157,9 +4182,17 @@ Tr                        ← 我们的行只剩开头两个字母
     | 5 | primitives 图标名 | `…Outline14` | `…OutlineRegular` |
 
   - **第 2 条（槽位名）最容易被漏掉**：两条线声明的槽位集合**互不相交**（0.1.5 只有 `settings.plugin.item`；0.1.7 只有 `plugins.*`）。就算设置服务改对了，槽位名不改卡片依然渲染不出来。现在三个槽位**各自独立 try/catch** 逐个注册——一条线上不存在的槽位不能把另一条线的注册一起带走。
-  - **第 3 条（宿主端）在 0.1.7 上是静默失败**：`installSection` 被 `SettingsForms.configure()` 取代。由于该调用位于嵌套的 `ctx.inject` 回调内，抛出的 `installSection is not a function` 落在**那个子 fiber** 上——外层插件照常加载、两个 provider 照常注册，**但 `trae` 设置命名空间从未注册**，表现为卡片设置区无声消失。现在按能力探测：有 `configure` 走 `configure`，否则回落 `installSection`。
-  - **第 4 条（易失声明）**：0.1.7 的 settings 写入门要求插件 schema 把可写字段标为 volatile，否则**写入被直接拒绝**（`Plugin entry "trae" has no volatile fields`），而 `scope.set()` 却正常 resolve——用户会看到开关翻过去又静默复原。新增 `asVolatile()`：运行时探测 `schema.volatile()`，**有则调用、无则退化为 identity no-op**（`volatile()` 自 schemastery 3.18.3 起才有，0.1.5 线锁在 3.18.2）。**故意不手写 `meta.volatile = true`**——那会绕过 schemastery 自身的 `validateVolatileSchema` 校验，产出一个它自己都不认的 schema。
-  - **0.1.7 以「活引用」交付配置值。** 该线把 volatile 字段以 `{get(): T}` 形式交给消费方；不解包则 `config.regions`、`value.accounts[region]`、`config.authFile` 静默变成对象或 `undefined`，表现为「设置明明写了却读不到」。更隐蔽的是**展开一个活引用得到的是 `{get: <function>}` 而不是值**——卡片「写一个区域、保留另一个」的合并会因此**丢掉兄弟区域并把函数泄进设置文档**。新增 `unwrapVolatile()` / `unwrapVolatileDeep()` 并在所有读取与合并路径上解包，同时监听 `loader/volatile-update` 在每次写入后重读选择。
+  - **第 3 条（宿主端）在 0.1.7 上是静默失败**：`installSection` 被 `SettingsForms.configure()` 取代。
+  由于该调用位于嵌套的 `ctx.inject` 回调内，抛出的 `installSection is not a function` 落在**那个子 fiber** 上——外层插件照常加载、两个 provider 照常注册，**但 `trae` 设置命名空间从未注册**，表现为卡片设置区无声消失。
+
+  现在按能力探测：有 `configure` 走 `configure`，否则回落 `installSection`。
+  - **第 4 条（易失声明）**：0.1.7 的 settings 写入门要求插件 schema 把可写字段标为 volatile，否则**写入被直接拒绝**（`Plugin entry "trae" has no volatile fields`），而 `scope.set()` 却正常 resolve——用户会看到开关翻过去又静默复原。
+  新增 `asVolatile()`：运行时探测 `schema.volatile()`，**有则调用、无则退化为 identity no-op**（`volatile()` 自 schemastery 3.18.3 起才有，0.1.5 线锁在 3.18.2）。
+
+  **故意不手写 `meta.volatile = true`**——那会绕过 schemastery 自身的 `validateVolatileSchema` 校验，产出一个它自己都不认的 schema。
+  - **0.1.7 以「活引用」交付配置值。** 该线把 volatile 字段以 `{get(): T}` 形式交给消费方；不解包则 `config.regions`、`value.accounts[region]`、`config.authFile` 静默变成对象或 `undefined`，表现为「设置明明写了却读不到」。
+  更隐蔽的是**展开一个活引用得到的是 `{get: <function>}` 而不是值**——卡片「写一个区域、保留另一个」的合并会因此**丢掉兄弟区域并把函数泄进设置文档**。
+  新增 `unwrapVolatile()` / `unwrapVolatileDeep()` 并在所有读取与合并路径上解包，同时监听 `loader/volatile-update` 在每次写入后重读选择。
   - **第 5 条（图标）会让整个客户端包挂掉**：两条线 primitives 的图标名不重叠（`IconChevronDownOutline14` vs `IconChevronDownOutlineRegular`），**没有任何一个静态 import 能同时服务两边**——静态导入 0.1.5 的名字会让 0.1.7 上的客户端包解析失败，整个卡片随之消失。折叠箭头改为**纯 CSS caret**（`border` + `rotate`），与版本无关。
   - **设置写入改为「写入后回读校验」**：`set()` 的 promise resolve **不代表值已落盘**（0.1.7 上被拒绝的写入会重新加载 Host 状态然后正常返回，0.1.5 上则可能被文件占用丢弃）。四处写入（账号选择、账号重扫、区域开关、模型目录）统一走 `writeSettingsField()`：写入后回读，未落盘即抛错并在卡片上明确显示，而不是「点了没反应」。0.1.7 的 `set()` 还会返回显式布尔值，`false` 同样按拒绝处理。
   - **卡片的 `view` 属性**：0.1.7 的插件管理器通过 owner props 向每个配置条目索取两种视图（`summary` 一句话简介 / `page` 带保存控件的完整表单）。卡片接受该属性并在 `page` 下默认展开——否则在 0.1.7 的插件页里卡片会是折叠的一行。
@@ -4169,12 +4202,13 @@ Tr                        ← 我们的行只剩开头两个字母
 
 测试总数 282 → 310。
 
-- **新增 `tests/client-activation.spec.tsx`（3 例，本次最关键的一组）**：用真实的 cordis `Context` **启动真实的客户端入口模块**，分别对 0.1.7 形态（有 `configForms`、**无** `settingsScope`）、0.1.5 形态（有 `settingsScope`、无 `configForms`）、以及**两者都没有**的形态断言 fiber 到达 `ACTIVE`、槽位注册齐全、scope 取自正确的服务。之所以能直接导入真实入口，是因为它运行期只依赖 React 与本地文件，所有 DSH 包都是**类型导入**、构建时即被擦除。
+- **新增 `tests/client-activation.spec.tsx`（3 例，本次最关键的一组）**：用真实的 cordis `Context` **启动真实的客户端入口模块**，分别对 0.1.7 形态（有 `configForms`、**无** `settingsScope`）、0.1.5 形态（有 `settingsScope`、无 `configForms`）、以及**两者都没有**的形态断言 fiber 到达 `ACTIVE`、槽位注册齐全、scope 取自正确的服务。
+  之所以能直接导入真实入口，是因为它运行期只依赖 React 与本地文件，所有 DSH 包都是**类型导入**、构建时即被擦除。
   - 此前 `client-fallback.spec.ts` 抓不到这个缺陷：它**手工镜像**入口函数体，因此验证的是「思路」而**从不执行真实的 `inject` 数组**——而恰恰是那个数组让 fiber 卡在 PENDING。
   - **变异验证**：把 `inject` 改回 `['slots','locale','settingsScope']`，0.1.7 与「无设置面」两例立即变红（fiber 停在 0/1，永远到不了 `ACTIVE`），0.1.5 那例仍绿——精确复现了 issue 报的现象。
 - **新增 `tests/dsh-017-compat.spec.ts`（13 例）**：活引用的单层/深层解包、数组与嵌套、**不就地改写调用方对象**；`regionEnabledOf` / `regionStateOf` / `regionEnabled` 穿透活引用读值；合并时**保留兄弟区域且不泄露函数**；`asVolatile()` 的两条分支按运行时能力确定性断言；以及**宿主端 `configure()` 优先于 `installSection()`**（用一个只有 `configure` 的真 Service 装配，断言走的是 `configure({auto:true})` 且没有 `installSection` 报错）。
   - **变异验证**：把 `configure` 探测改回无保护裸调 `installSection` → 1 条立即变红；把 `nextRegionSlots` 的深解包去掉 → 1 条立即变红。
-- `client-fallback.spec.ts` 的镜像同步更新，并补 2 例：**两条线都提供时 `configForms` 优先**（0.1.7 的写入闸门只认它），以及 **`configForms` 缺席时回落 `settingsScope.bind()`**。
+- `client-fallback.spec.ts` 的镜像同步更新，并补 2 例：**两条线都提供时 `configForms` 优先**（0.1.7 的写入依赖检查只认它），以及 **`configForms` 缺席时回落 `settingsScope.bind()`**。
 - **`card-region-switch.spec.tsx` 新增 8 例**（渲染真组件、点真按钮）：穿透活引用读区域开关；合并时**保留兄弟区域且不泄露函数**；Host 明确拒绝（`set()` 返回 `false`）与**「接受了但没落盘」**（`set()` 返回 `true` 而文档未变）两种失败都必须显式报错；0.1.5 的 `void` 返回视为成功；`view: 'page'` 时默认展开、无 `view` 时默认折叠；无设置面时渲染为只读。
   - **变异验证**：去掉 `regionsMapOf` 的解包 → 1 条失败；去掉 `view` 判断 → 1 条失败；去掉 `false` 判断 → 0 条失败（回读校验兜住了，说明两层防护确实互补）；去掉回读校验 → 1 条失败；**两层都去掉 → 1 条失败**。
   - 顺带移除了该文件对 `dsh-client-ui-primitives` 的整包 `vi.mock`：图标已改纯 CSS，不再需要这个桩。
@@ -4188,12 +4222,21 @@ Tr                        ← 我们的行只剩开头两个字母
 - **新增「每日签到领取」**（对齐 `dsh-connect-workbuddy` 的签到能力）：
   - **交互**：国内版卡片在积分面板下方多一行签到：显示每日奖励（基础 + 额外，本机实测 `150 + 50`）与一个「立即领取」按钮；领取中显示「领取中…」，当日已领取显示「今日已领取」并禁用。国际版没有签到活动，因此**不显示该行**。
   - **这是插件里唯一的写操作**，也是唯一会改变账号状态的调用（`POST /trae/api/v2/ug/checkin_credits/claim`）；其余查询全部只读。README 顶部与特性列表都按此措辞改写，不再把整个用量面板称为「只读」。
-  - **根因级发现：缺 `x-device-id` 会被静默拒绝**。同一份 Authorization，只加这一个头，结果从「HTTP 200 + 业务码 `9004`（The submitted order parameters are incorrect）」变成「`code: 0`，奖励到账」——**HTTP 状态始终是 200**，只看状态码会把它误判为成功。设备号取自本机 `iCubeAuthInfo://icube-dc:<id>`，即 `identity.ts` 里聊天通道同源的那个 `deviceId`（官方客户端在 `main.js` 的 `fb(headers)` 里给每个 ug 请求都补上它）。`deviceId` 由 `index.ts` 惰性注入；读不到时降级为不发该头——**只影响领取，不影响状态查询**（状态接口两种情况下都正常返回）。
+  - **根因级发现：缺 `x-device-id` 会被静默拒绝**。
+  同一份 Authorization，只加这一个头，结果从「HTTP 200 + 业务码 `9004`（The submitted order parameters are incorrect）」变成「`code: 0`，奖励到账」——**HTTP 状态始终是 200**，只看状态码会把它误判为成功。
+  设备号取自本机 `iCubeAuthInfo://icube-dc:<id>`，即 `identity.ts` 里聊天通道同源的那个 `deviceId`（官方客户端在 `main.js` 的 `fb(headers)` 里给每个 ug 请求都补上它）。
+  `deviceId` 由 `index.ts` 惰性注入；读不到时降级为不发该头——**只影响领取，不影响状态查询**（状态接口两种情况下都正常返回）。
   - **领取前的守卫比上游更强**：路由 `POST /plugins/dsh-connect-trae/checkin` 仅接受 POST、仅接受回环来源、仅服务 `cn` 区域，并且**先读状态**——已领取（`checked_in` 或 `did_checked_in` 任一为真）就直接返回 `alreadyCheckedIn` 且**根本不发领取请求**；活动关闭答 409。国际版直接答 404 并说明原因，而不是把上游的 HTML 404 当成网络故障抛给用户。
   - **已实测上游按北京自然日幂等**：重复领取仍回 `code: 0`，而权益总额（`total=1600, consumed=390.8`）逐字节不变，**不会重复发放**。插件仍然自行守卫——「不会重复发放」是上游的行为，不是插件可以依赖的保证。
   - **业务拒绝不当成故障**：`claimed: false` + 原始业务码与 message 原样回给卡片并显示出来，而不是包成 500。否则用户只会看到「领取失败」，而丢掉唯一能解释原因的 `9004`。
-  - **对齐官方客户端的状态判定**：`checked_in` 与 `did_checked_in` 是两个独立字段，官方在「今日已领取」判定上也参考后者，插件据此保持按钮禁用。~~插件在卡片与路由两侧都按同一规则判定~~ —— **注：这里的口径在 2.3.1 被修正**。当时把两者一并当作「今日已领取」是**错的**：`did_checked_in` 实际是**设备**口径（`x-device-id`），不是账号口径，切换账号后会谎报「已领取」。以 2.3.1 为准；`extra_credits` 的展示（避免把当天实际到账的 200 说成 150）保持不变。
-  - 卡片新增 8 条真实点击测试（`tests/card-checkin.spec.tsx`，渲染**真组件**、`fireEvent.click` 真按钮、断言真发出去的请求），`usage.spec.ts` 补 6 条、`web-status.spec.ts` 补 7 条，共 21 条新测试（全仓 261 → 282）。做过**变异验证**：去掉路由的 `did_checked_in` 守卫 → 2 条失败；去掉卡片的同款判定 → 1 条失败；把卡片的 `POST` 改成 `GET` → 1 条失败；删掉「已领取则不发请求」的守卫 → 2 条失败。（其中针对 `did_checked_in` 的两条断言在 2.3.1 按其真实语义重写。）
+  - **对齐官方客户端的状态判定**：`checked_in` 与 `did_checked_in` 是两个独立字段，官方在「今日已领取」判定上也参考后者，插件据此保持按钮禁用。
+  ~~插件在卡片与路由两侧都按同一规则判定~~ —— **注：这里的口径在 2.3.1 被修正**。 当时把两者一并当作「今日已领取」是**错的**：`did_checked_in` 实际是**设备**口径（`x-device-id`），不是账号口径，切换账号后会谎报「已领取」。
+
+  以 2.3.1 为准；`extra_credits` 的展示（避免把当天实际到账的 200 说成 150）保持不变。
+  - 卡片新增 8 条真实点击测试（`tests/card-checkin.spec.tsx`，渲染**真组件**、`fireEvent.click` 真按钮、断言真发出去的请求），`usage.spec.ts` 补 6 条、`web-status.spec.ts` 补 7 条，共 21 条新测试（全仓 261 → 282）。
+  做过**变异验证**：去掉路由的 `did_checked_in` 守卫 → 2 条失败；去掉卡片的同款判定 → 1 条失败；把卡片的 `POST` 改成 `GET` → 1 条失败；删掉「已领取则不发请求」的守卫 → 2 条失败。
+  （其中针对 `did_checked_in` 的两条断言在 2.3.1 按其真实语义重写。
+  ）
   - 取证与接口契约：`docs/USAGE_API_RESEARCH.md` 新增「每日签到领取」一节（含决定性请求头对照表、幂等性实测表、区域限制与官方字段语义）。
 
 ## 2.0.6 (2026-09-22)
@@ -4201,16 +4244,24 @@ Tr                        ← 我们的行只剩开头两个字母
 ### Features
 
 - **新增「可单独关闭任一版本的供应商」**（issue #11：用户问「能禁用国际版或国内版吗，有没有配置的地方」——「比如说我根本用不到国际版」）：
-  - **此前确实无解，而且最容易被误用的那条路走不通**：`edition` 配置只收窄**凭据扫描范围**（找账号用），不参与 provider 注册；`src/index.ts` 的注册循环对 `REGION_KEYS = ['cn','ai']` 是无条件注册的，所以设 `edition: "cn"` 之后 `trae-global` 依旧出现在模型选择器里。卸载国际版 App 同理——无账号时该区域回落到**插件内置的兜底目录**（Gemini / GPT / MiniMax / Kimi 共 7 条），这些模型一个都调不通，却和可用模型并排显示（这正是 issue #8 的成因）。DSH 侧也没有「停用某供应商」的入口。
+  - **此前确实无解，而且最容易被误用的那条路走不通**：`edition` 配置只收窄**凭据扫描范围**（找账号用），不参与 provider 注册；`src/index.ts` 的注册循环对 `REGION_KEYS = ['cn','ai']` 是无条件注册的，所以设 `edition: "cn"` 之后 `trae-global` 依旧出现在模型选择器里。
+  卸载国际版 App 同理——无账号时该区域回落到**插件内置的兜底目录**（Gemini / GPT / MiniMax / Kimi 共 7 条），这些模型一个都调不通，却和可用模型并排显示（这正是 issue #8 的成因）。
+  DSH 侧也没有「停用某供应商」的入口。
   - **交互**：设置卡片两个 tab 各带一个勾选，**默认都勾选**（老用户零感知）；取消勾选即关闭该供应商，重新勾选即恢复。
-  - **关闭是「真撤掉」，不是「藏 tab」**：抽掉 adapter 路由（`AdapterRegistrationHandle.replace([])`）——这是让模型**从 DSH 模型选择器消失**的那一步；同时抽掉供应商目录条目（`DirectoryRegistrationHandle.replace([])`），否则「设置 → 模型」仍会列出它。DSH 的类型契约明确允许持零路由而保持注册（"An empty array is legal here ... unlike an empty initial registration"），因此实现是**先正常注册、再 `replace([])`**，两步在同一同步段内完成，无可观测的路由空窗，且开关**立即生效、无需重启**。
+  - **关闭是「真撤掉」，不是「藏 tab」**：抽掉 adapter 路由（`AdapterRegistrationHandle.replace([])`）——这是让模型**从 DSH 模型选择器消失**的那一步；同时抽掉供应商目录条目（`DirectoryRegistrationHandle.replace([])`），否则「设置 → 模型」仍会列出它。
+  DSH 的类型契约明确允许持零路由而保持注册（"An empty array is legal here ... unlike an empty initial registration"），因此实现是**先正常注册、再 `replace([])`**，两步在同一同步段内完成，无可观测的路由空窗，且开关**立即生效、无需重启**。
   - **顺带消掉一个失败面**：关闭的区域连启动时的模型目录拉取都跳过，不再发任何 Remote/SOLO 请求——「没装国际版每次启动报一次错」那类噪音一并消失。
-  - **状态不丢**：开关写入只改目标槽位的 `enabled` 一个字段，该区域的目录 / 勾选 / 图片开关 / 上下文预算与另一区域的整个槽位原样带过，所以「关掉 → 再打开」能完整恢复。配套地在卡片保存模型目录时**回写 `enabled`**——那次写入会替换整个槽位，漏掉它就会「保存一次模型列表 = 悄悄重新打开已关闭的供应商」。
+  - **状态不丢**：开关写入只改目标槽位的 `enabled` 一个字段，该区域的目录 / 勾选 / 图片开关 / 上下文预算与另一区域的整个槽位原样带过，所以「关掉 → 再打开」能完整恢复。配套地在卡片保存模型目录时**保留并写入 `enabled`**——那次写入会替换整个槽位，漏掉它就会「保存一次模型列表 = 悄悄重新打开已关闭的供应商」。
   - **已知代价（明确提示而非静默失败）**：若某会话此前选中了被关闭供应商的模型，路由撤掉后再调用会报 `NO_ADAPTER`；这是「彻底移除」的必然结果，卡片在该 tab 上给出明确文案说明设置均已保留、勾选即可恢复。
   - **两侧读同一条规则**：Host 的 `regionEnabled()` 与卡片的 `regionEnabledOf()` 共用「仅显式 `false` 关闭」的判定，回归测试用 8 种正常/畸形形状交叉比对二者，锁定永不分歧；卡片另读 Host 随文档下发的 `enabled`（signed-in / signed-out 两个分支都带），因为**未登录的区域恰恰是用户最想关掉的那一个**。
-  - **修复开发期发现的「勾选点了没反应」**：卡片把**整个 settings 段**传给了只接受 **`regions` 子对象**的判定函数，于是它去查 `section['cn']`（不存在）并**永远返回 `true`**——复选框恒定显示为勾选、点击看起来毫无变化；而**写入其实已经成功**（设置里确实落下了 `enabled: false`），Host 侧路由也确实撤掉了，问题只在卡片的读取。修复方式不是「把参数改对」了事，而是让 `regionsMapOf()` 统一收口、**同时接受整段与子对象两种入参**，使传错一半在结构上不再可能静默返回 `true`；并补 2 条回归测试覆盖「整段入参」与「返回值必须是 `regions` 子对象」（把拆包逻辑改回原样，这 2 条立刻失败，已实测）。
-  - **补齐「真实点击」测试，堵住让该 bug 溜过的结构性缺口**：此前 `vitest.config.ts` 只收 `tests/**/*.spec.ts` 且 `environment: 'node'`，**根本无法渲染 React 组件**——仓库里唯一的客户端测试还是自己标注了 DRIFT WARNING 的「手工镜像副本」，不是产品代码，所以「点一下复选框」从来没有被自动化验证过（这正是 bug 能发布出去的原因）。现在 `tests/card-region-switch.spec.tsx` 在 jsdom 里渲染**真组件**、`fireEvent.click` 真实 `<input type="checkbox">`，断言 settings 落值与勾选态翻转，8 条用例覆盖空配置/已关闭/点击写入/重新启用保留选择/点第二个框/不切 tab/关闭态文案/不可写禁用。**变异验证**：把拆包逻辑改回出 bug 的样子，4 条立刻失败（含「存了 false 却显示已勾选」这一条，与用户症状一致）。配套：放开 `.spec.tsx`、`tsconfig` 分派、新增 `jsdom` / `@testing-library/react` / `@testing-library/dom` / `react-dom@18` 四个 devDependencies；`dsh-client-ui-primitives` 因带浏览器专用 CSS modules 在测试中整体 mock（产品依赖契约不变）。
-  - 新增 10 条回归测试（区域开关判定与两侧一致性、整段/子对象双入参、开关往返不丢状态、关闭后 `listProviders()` 与目录条目同步消失且不影响另一侧、**模型选择器分组也消失**、重启后仍生效、两个都关仍可恢复、旧配置两边都开、`enabled` 在两种文档分支都下发）。开发中做过**变异验证**：把「抽掉路由」改成「照常注册」（即只隐藏 tab 的假实现），集成测试立刻失败；把目录 `replace` 改回按区域调用，4 条测试失败；把整段入参的拆包逻辑去掉，2 条测试失败——测试确实咬得住。
+  - **修复开发期发现的「勾选点了没反应」**：卡片把**整个 settings 段**传给了只接受 **`regions` 子对象**的判定函数，于是它去查 `section['cn']`（不存在）并**永远返回 `true`**——复选框恒定显示为勾选、点击看起来毫无变化；而**写入其实已经成功**（设置里确实落下了 `enabled: false`），Host 侧路由也确实撤掉了，问题只在卡片的读取。
+  修复方式不是「把参数改对」了事，而是让 `regionsMapOf()` 统一收口、**同时接受整段与子对象两种入参**，使传错一半在结构上不再可能静默返回 `true`；并补 2 条回归测试覆盖「整段入参」与「返回值必须是 `regions` 子对象」（把拆包逻辑改回原样，这 2 条立刻失败，已实测）。
+  - **补齐「真实点击」测试，堵住让该 bug 溜过的结构性缺口**：此前 `vitest.config.ts` 只匹配 `tests/**/*.spec.ts` 且 `environment: 'node'`，**根本无法渲染 React 组件**——仓库里唯一的客户端测试还是自己标注了 DRIFT WARNING 的「手工镜像副本」，不是产品代码，所以「点一下复选框」从来没有被自动化验证过（这正是 bug 能发布出去的原因）。
+  现在 `tests/card-region-switch.spec.tsx` 在 jsdom 里渲染**真组件**、`fireEvent.click` 真实 `<input type="checkbox">`，断言 settings 落值与勾选态翻转，8 条用例覆盖空配置/已关闭/点击写入/重新启用保留选择/点第二个框/不切 tab/关闭态文案/不可写禁用。
+  **变异验证**：把拆包逻辑改回出 bug 的样子，4 条立刻失败（含「存了 false 却显示已勾选」这一条，与用户症状一致）。
+  配套：放开 `.spec.tsx`、`tsconfig` 分派、新增 `jsdom` / `@testing-library/react` / `@testing-library/dom` / `react-dom@18` 四个 devDependencies；`dsh-client-ui-primitives` 因带浏览器专用 CSS modules 在测试中整体 mock（产品依赖契约不变）。
+  - 新增 10 条回归测试（区域开关判定与两侧一致性、整段/子对象双入参、开关往返不丢状态、关闭后 `listProviders()` 与目录条目同步消失且不影响另一侧、**模型选择器分组也消失**、重启后仍生效、两个都关仍可恢复、旧配置两边都开、`enabled` 在两种文档分支都下发）。
+  开发中做过**变异验证**：把「抽掉路由」改成「照常注册」（即只隐藏 tab 的假实现），集成测试立刻失败；把目录 `replace` 改回按区域调用，4 条测试失败；把整段入参的拆包逻辑去掉，2 条测试失败——测试确实咬得住。
   - 取证与回复草稿：`docs/ISSUE11_DIAGNOSIS.md`、`docs/ISSUE11_REPLY_DRAFT.md`。
 
 ## 2.0.5 (2026-09-22)
@@ -4219,12 +4270,16 @@ Tr                        ← 我们的行只剩开头两个字母
 
 - **修复「缓存统计一直是 0」**（issue #10：用户反馈「我测试了一下一直0缓存」，并猜测是接口原因或 Trae 本身不缓存）：
   - **根因在插件自己这一层**：Trae 上游**确实有前缀缓存、也确实在报**（实测逐字节相同的长 prompt 连发，第二次起 `cache_read_input_tokens` 从 0 升到 5248、9216），但插件解码 `token_usage` 事件时**只搬了 4 个计数器**（`prompt_tokens` / `completion_tokens` / `total_tokens` / `reasoning_tokens`），`cache_read_input_tokens` 与 `cache_creation_input_tokens` 被直接丢弃；`TraeStreamEvent.usage` 在**类型层就无法表达**这两个值，转发层自然也无从搬运。
-  - **不是「放行」就够，必须做字段名映射**：`dsh-llm-pi-ai` 只在 `usage.cacheRead > 0` 时写入 `cacheReadTokens`，而 pi-ai 的 `parseChunkUsage` 只识别 `prompt_tokens_details.cached_tokens` / `prompt_cache_hit_tokens` / `cached_tokens` 三种拼写——Trae 的原生字段名不在其中，原样透传依然读不到。现在映射为规范的 `prompt_tokens_details.cached_tokens` / `.cache_write_tokens`。
-  - **先确认了语义再动手**：pi-ai 会做 `input = prompt_tokens - cacheRead - cacheWrite`，该减法仅在「`prompt_tokens` 包含缓存量」（OpenAI 口径）时成立。实测同一份 prompt 的 `prompt_tokens` 恒为 9224 而 `cache_read` 从 5248 涨到 9216，若为 Anthropic 的排除口径则同一输入的实际规模会在 14472 → 18440 之间跳变，不可能——据此确认 Trae 用包含口径。端到端复核账目守恒：`8 + 9216 + 0 = 9224`，与 `prompt_tokens` 完全相等，无重复扣减。
+  - **需要在原样转发后增加字段映射，必须做字段名映射**：`dsh-llm-pi-ai` 只在 `usage.cacheRead > 0` 时写入 `cacheReadTokens`，而 pi-ai 的 `parseChunkUsage` 只识别 `prompt_tokens_details.cached_tokens` / `prompt_cache_hit_tokens` / `cached_tokens` 三种拼写——Trae 的原生字段名不在其中，原样透传依然读不到。
+  现在映射为规范的 `prompt_tokens_details.cached_tokens` / `.cache_write_tokens`。
+  - **先确认了语义再动手**：pi-ai 会做 `input = prompt_tokens - cacheRead - cacheWrite`，该减法仅在「`prompt_tokens` 包含缓存量」（OpenAI 口径）时成立。
+  实测同一份 prompt 的 `prompt_tokens` 恒为 9224 而 `cache_read` 从 5248 涨到 9216，若为 Anthropic 的排除口径则同一输入的实际规模会在 14472 → 18440 之间跳变，不可能——据此确认 Trae 用包含口径。
+
+  端到端复核账目守恒：`8 + 9216 + 0 = 9224`，与 `prompt_tokens` 完全相等，无重复扣减。
   - **`src/raw-chat.ts` 存在同一类缺口**（Raw Chat 通道将来启用时会踩同一个坑）：`RawChatDelta.usage` 补上缓存字段，并同时接受 OpenAI 嵌套拼写与 DeepSeek/Kimi 的顶层拼写。两个通道均保证「上游没报缓存时 wire 形状不变」，不产生空 `prompt_tokens_details`。
   - 新增 4 个回归测试，其中 bridge 用例直接以真机捕获的 `token_usage` 事件原文作为输入。
   - 取证与复现脚本：`docs/ISSUE10_DIAGNOSIS.md`、`scripts/probe-cache-convention.mjs`。
-  - **说明**：修复只保证「上游报了缓存就如实上报」。新会话/新前缀的第一轮必然 `cache_read=0`（冷启动），第二轮起才有值；实测 Trae 当前只报读不报写（`cache_creation_input_tokens` 恒为 0）。
+  - **说明**：修复只保证「上游报了缓存就如实上报」。新会话/新前缀的第一轮可能 `cache_read=0`（冷启动），第二轮起才有值；实测 Trae 当前只报读不报写（`cache_creation_input_tokens` 恒为 0）。
 
 ## 2.0.4 (2026-09-16)
 
@@ -4240,7 +4295,7 @@ Tr                        ← 我们的行只剩开头两个字母
 
 ### Fixes
 
-- **修复内置兜底目录里存在「不可调用模型」的问题**——插件在首次实时刷新落地前会先提供一份内置兜底模型列表，且这份列表**故意不经过「死 config_name」过滤**（过滤依赖实时目录，会把兜底本身误删）。因此它的 id 必须在源头就是正确的 `llm_utils_chat` config_name，而它此前不是：
+- **修复内置兜底目录里存在「不可调用模型」的问题**——插件在首次实时刷新实施前会先提供一份内置兜底模型列表，且这份列表**故意不经过「死 config_name」过滤**（过滤依赖实时目录，会把兜底本身误删）。因此它的 id 必须在源头就是正确的 `llm_utils_chat` config_name，而它此前不是：
   - `auto` 不是任何 Trae 的 config_name，选中后会以 `4001` 失败——已移除。该条目会在「尚未刷新目录」时（未登录 / 网络抖动 / 卡片未刷新）被真正提供给用户，因此并非理论问题。
   - `DeepSeek-V4-Flash` / `DeepSeek-V4-Pro` 缺少 `-Official` 后缀，不是真实 wire id——已更正为 `DeepSeek-V4-Flash-Official` / `DeepSeek-V4-Pro-Official`（依据 2026-09-15 实测目录，`docs/DS41_CALLABILITY.md`）。
   - 新增回归测试锁定三条不变量：兜底 id 必须是真实 config_name（显式禁 `auto` 与裸名）、两个区域的兜底都不得出现 TraeCode 独占模型、`mergeTraeModelSources` 确实丢弃无 wire 匹配的目录行。
@@ -4259,14 +4314,15 @@ Tr                        ← 我们的行只剩开头两个字母
   - **目录发现改为多 function 并集**：CN 依序请求 `solo_work_remote` → `solo_work_lite`，国际请求 `solo_agent` → `solo_work_remote` → `solo_work_lite`；同一个 config 由**先列出的 function 拥有**（顺序即优先级）。某个 function 失败不再影响其它 function 的目录。
   - **聊天请求按模型回放其来源 function**：每个模型随目录记下 `wireFunction`（并纳入设置 schema 持久化，重启后仍生效），调用时写回请求体——`glm-5.3` 因而会走 `solo_work_remote`。
   - 顺带确认：CN 的两个登录（Trae CN IDE 与 TRAE SOLO CN）在同一 function 下拿到**完全相同**的列表，因此该修复对两者一致生效；国际版覆盖最全的仍是 `solo_agent`。
-  - 新增 4 个回归测试（多 function 并集、来源 function 标记、优先级归属、显式 function 覆盖默认值），230/230 全绿。
+  - 新增 4 个回归测试（多 function 并集、来源 function 标记、优先级归属、显式 function 覆盖默认值），230/230 全部通过。
 - **目录拉取失败时重试一次**——Trae 的目录端点存在间歇性 401/限流（实测同一凭证数秒前 200、随后 401）。启动时若恰好撞上，live 目录会拉取失败并**静默回退到上次保存的快照**，从而丢掉自那次保存以来的所有新模型（本版要放出的 glm-5.3 就在其中，实测复现）。现在合并骨架（remote 目录）失败会先重试一次（800ms 间隔）再降级。
 
 ## 2.0.1 (2026-09-15)
 
 ### Fixes
 
-- **修复纯 CLI 环境（WSL2 等）下「账号已识别但模型目录拉不出来、聊天也全部失败」**（issue #5 后续反馈）——1.4.2 让凭据层认得了 `traecli` 的裸 JWT，但**身份层只认桌面版 `storage.json`**：只装 CLI 的机器上没有任何桌面安装，`x-machine-id` / `x-device-id` 的来源解析直接抛「Trae storage was not found」，而目录查询与聊天请求的构造都需要它，于是模型目录永远停在兜底列表、选中模型也无法对话。现在身份解析在「桌面安装全部不存在」时降级到 **CLI 家目录自身的持久化标识**：
+- **修复纯 CLI 环境（WSL2 等）下「账号已识别但模型目录拉不出来、聊天也全部失败」**（issue #5 后续反馈）——1.4.2 让凭据层认得了 `traecli` 的裸 JWT，但**身份层只认桌面版 `storage.json`**：只装 CLI 的机器上没有任何桌面安装，`x-machine-id` / `x-device-id` 的来源解析直接抛「Trae storage was not found」，而目录查询与聊天请求的构造都需要它，于是模型目录永远停在兜底列表、选中模型也无法对话。
+  现在身份解析在「桌面安装全部不存在」时降级到 **CLI 家目录自身的持久化标识**：
   - `~/.trae-cn/argv.json` 的 `crash-reporter-id`（CLI 首次运行时写入的稳定 UUID）作为设备 ID；
   - `~/.trae-cn/builtin/ide_version.json` 的 `version` 作为 `x-app-version`；
   - 由设备 ID + 主机名 + 用户名做 SHA-256 得到 64 字符 `x-machine-id`（与官方客户端形态一致）。
@@ -4307,8 +4363,10 @@ Tr                        ← 我们的行只剩开头两个字母
 - **目录与勾选按区域隔离（国内 / 国际各一套）**：`regions.cn` / `regions.ai` 两套独立槽位（目录、勾选、图片开关、上下文预算各一份），切换账号互不干扰；旧的扁平字段保留为**国内区域的迁移来源**（区域拆分前的配置一律来自国内端点），国际区域绝不继承。
 - **凭证层**：四个桌面版安装（Trae CN / Trae / TRAE SOLO CN / TRAE SOLO）全部纳入账号扫描；国际 CLI（`~/.trae`）因默认 host 未验证暂不支持（给出可诊断错误而非静默误路由）。
 - **refresh 契约按 edition 分叉**：TRAE SOLO 国际版走 `/trae/api/v3/oauth/ExchangeToken` + ClientID `en1oxy7wnw8j9n` + DeviceInfo（官方 App 日志直证）；其余三版维持 `/cloudide/api/v3/trae/oauth/ExchangeToken` + `ono9krqynydwx5`。
-- **端到端实测（2026-09-15）**：SOLO 国际版有效凭证经本项目正式代码路径（`prepareSoloBody` + `buildTraeHeaders` + `REGION_GATEWAYS.ai.chat`）发最小 `solo_work_lite` 请求：`gpt-5.4` 走 `coresg-normal.trae.ai` 返回 HTTP 200 + 完整 SSE（`output("OK")` / `usage` / `done`），`SseDecoder` 原样可用。账号扫描实测：`edition: auto` 下四版安装共发现 5 个账号（含 2 个国际版，region 正确标 `ai`）。
-- 测试：region 判定（userRegion 大小写不敏感/host 后缀/edition 三级兜底）、regionStateOf 迁移语义（扁平读作 cn、ai 绝不继承、显式槽优先）、fallback 目录区域隔离与实测快照、solo/remote/usage 的 ai 网关路由断言、refresh 四版契约断言、web-status 的 ai 分派与降级、nextRegionSlots 保存合并语义。220/220 全绿（含双 provider 注册、跨区域隔离、区域路由分派、区域化 store 与旧副本迁移）。
+- **端到端实测（2026-09-15）**：SOLO 国际版有效凭证经本项目正式代码路径（`prepareSoloBody` + `buildTraeHeaders` + `REGION_GATEWAYS.ai.chat`）发最小 `solo_work_lite` 请求：`gpt-5.4` 走 `coresg-normal.trae.ai` 返回 HTTP 200 + 完整 SSE（`output("OK")` / `usage` / `done`），`SseDecoder` 原样可用。
+  账号扫描实测：`edition: auto` 下四版安装共发现 5 个账号（含 2 个国际版，region 正确标 `ai`）。
+- 测试：region 判定（userRegion 大小写不敏感/host 后缀/edition 三级兜底）、regionStateOf 迁移语义（扁平读作 cn、ai 绝不继承、显式槽优先）、fallback 目录区域隔离与实测快照、solo/remote/usage 的 ai 网关路由断言、refresh 四版契约断言、web-status 的 ai 分派与降级、nextRegionSlots 保存合并语义。
+  220/220 全部通过（含双 provider 注册、跨区域隔离、区域路由分派、区域化 store 与旧副本迁移）。
 
 ## 1.4.2 (2026-09-14)
 
@@ -4322,38 +4380,54 @@ Tr                        ← 我们的行只剩开头两个字母
 
 ### Fixes
 
-- 修复 CLI 登录（`traecli`）不被识别、插件恒显「未登录」的问题（issue #5，WSL2 用户报告）。插件此前只认桌面版 Electron 的 `globalStorage/storage.json`（加密值 `iCubeAuthInfo://icube.cloudide`），而 `traecli` 把登录信息写在自己的家目录里、内容是**未加密的裸 JWT**（实测 macOS 上是 `~/.trae-cn/trae-jwt-token`）；纯 CLI 环境（WSL2 常见）根本没有 `storage.json`，因此永远解析不出账号。现在：
+- 修复 CLI 登录（`traecli`）不被识别、插件恒显「未登录」的问题（issue #5，WSL2 用户报告）。
+  插件此前只认桌面版 Electron 的 `globalStorage/storage.json`（加密值 `iCubeAuthInfo://icube.cloudide`），而 `traecli` 把登录信息写在自己的家目录里、内容是**未加密的裸 JWT**（实测 macOS 上是 `~/.trae-cn/trae-jwt-token`）；纯 CLI 环境（WSL2 常见）根本没有 `storage.json`，因此永远解析不出账号。
+
+  现在：
   - 凭据来源扩展为 `desktop` / `cli` 两类，`TraeStorageCandidate` 新增 `source` 字段；新增 `parseTraeCliToken()` 直接解析裸 JWT（取 `data.user_id` 与 `exp`），不走 AES 解密链路。CLI token 不含 host 声明，统一补 CN 主机 `https://api.trae.cn`，避免空字符串变成不可用的 base URL。
   - CLI 候选路径在 macOS / Windows / Linux 三平台都会探测（`~/.trae-cn/`、`~/.trae/`）。
   - Linux 桌面版目录名改为**多候选并列探测**（`trae-cn` 与 macOS 拼写 `Trae CN` 都试）。此前只认从 macOS 抄来的 `Trae CN`，而 Linux 上 Electron 应用通常用小写无空格目录名；该拼写从未在 Linux 真机验证过。多探测保证猜错也不会漏掉真实安装。
-- 把 `readDesktopAll()` 里的静默 `catch { continue }` 改为记录失败原因，新增 `TraeCredentialStore.diagnose()`：返回探测过的每个路径及其失败类型（`missing` / `unreadable` / `invalid`）。未登录时卡片新增可折叠的「已检查的路径」列表。此前无论路径不存在、key 缺失还是加密头不支持，用户都只看到「未登录」三个字，无从自助定位——`docs/WINDOWS_TOKEN_PROBE.md` 整篇文档的存在本身就是这个可观测性缺口的补丁。诊断内容只含路径与固定原因文案（错误消息不回显输入），不携带任何 token 材料，并有专门测试守住这一点。
+- 把 `readDesktopAll()` 里的静默 `catch { continue }` 改为记录失败原因，新增 `TraeCredentialStore.diagnose()`：返回探测过的每个路径及其失败类型（`missing` / `unreadable` / `invalid`）。
+  未登录时卡片新增可折叠的「已检查的路径」列表。
+  此前无论路径不存在、key 缺失还是加密头不支持，用户都只看到「未登录」三个字，无从自助定位——`docs/WINDOWS_TOKEN_PROBE.md` 整篇文档的存在本身就是这个可观测性缺口的补丁。
+  诊断内容只含路径与固定原因文案（错误消息不回显输入），不携带任何 token 材料，并有专门测试守住这一点。
 
 ## 1.4.0 (2026-09-10)
 
 ### Changes
 
 - 对齐 DSH 内核 `0.1.2-rc.1` → `0.1.5-rc.2`（桌面 `dsh-plugin-desktop` 2.0.9 所捆绑通道；`0.1.5-rc.1` 为 npm `latest`，`rc.2` 在 `next`）：
-  - `ResolvedPiAiProviderProfile` 在 0.1.5 新增**必填**字段 `modelErrors`：`PiAiAdapter` 现在按模型查此表，命中即以 `INVALID_CONFIG` 拒绝请求；`piProvider` 同时由必填改为可选。本插件是手工构造 profile（不走内核目录解析，故该表不会被子系统填充），补 `modelErrors: new Map()` 表达「所服务的模型全部可用」这一事实。不补则本插件在 0.1.5 宿主上**无法通过类型检查**（`TS2741`）。
+  - `ResolvedPiAiProviderProfile` 在 0.1.5 新增**必填**字段 `modelErrors`：`PiAiAdapter` 现在按模型查此表，命中即以 `INVALID_CONFIG` 拒绝请求；`piProvider` 同时由必填改为可选。
+  本插件是手工构造 profile（不走内核目录解析，故该表不会被子系统填充），补 `modelErrors: new Map()` 表达「所服务的模型全部可用」这一事实。
+  不补则本插件在 0.1.5 宿主上**无法通过类型检查**（`TS2741`）。
   - devDependencies 升级至 `@deepseek-ai/dsh-*@0.1.5-rc.2`，`@earendil-works/pi-ai` 由 `0.84.2` 升至 `^0.85.1`：`dsh-llm-pi-ai@0.1.5-rc.2` 要求 `pi-ai@^0.85.1`，版本不一致会在 `node_modules` 里留下两份互不兼容的 `pi-ai`，导致 `Provider<Api>` 结构不匹配的编译错误。
   - `peerDependencies` 的 `@deepseek-ai/dsh-*` 由 `>=0.1.2-0` 抬到 `>=0.1.5-0`（`modelErrors` 为编译期硬依赖，0.1.2 宿主无法满足），`@earendil-works/pi-ai` 抬到 `>=0.85.1`。仍按范围声明、不锁死补丁版本，与内核 `next` 通道继续前进保持一致。
-  - 经核实本次不受文档列出的其余破坏项影响：未使用 `dsh-session` / `dsh-session-persistence` / `dsh-persona` / `dsh-system-prompt` / `dsh-message-feedback` / `dsh-subagent`；未读取 `DSH_SESSION_JSONL`、未调用已移除的 `locate()` / `readRaw()`；`AttachmentStore` 仅作类型引用，`IconChevronDownOutline14` 与客户端 `dsh.client.inject` 六个包在 0.1.5 均仍存在。会话格式 v3 与 persona 段改名对本插件不适用。
+  - 经核实本次不受文档列出的其余破坏项影响：未使用 `dsh-session` / `dsh-session-persistence` / `dsh-persona` / `dsh-system-prompt` / `dsh-message-feedback` / `dsh-subagent`；未读取 `DSH_SESSION_JSONL`、未调用已移除的 `locate()` / `readRaw()`；`AttachmentStore` 仅作类型引用，`IconChevronDownOutline14` 与客户端 `dsh.client.inject` 六个包在 0.1.5 均仍存在。
+  会话格式 v3 与 persona 段改名对本插件不适用。
 
 ### Fixes
 
-- 修复内置回退模型表被实时线路映射过滤、导致真实安装上模型几乎全部消失的问题：`FALLBACK_TRAE_MODELS` 是本插件自带的静态兜底表，其中每个 id 都**从未**由 Trae Remote 目录公布，因此永远不会出现在 `callableKeys` 里。此前 `configuredModels` / `derive` 把这张表也交给 `dropDeadModels` 过滤，只要实时目录只返回一部分模型（账号权限、版本或网络给出的子集），过滤就会把「这次没被提到的」回退模型一并删掉——本机实测在无凭据环境下只剩 `glm-5.2` / `kimi-k2.6` 两个模型可用。现在回退表不再参与线路过滤，并以 `wireResolved` 标志取代「`callableKeys` 非空」作为「线路目录已解析」的判据，避免空目录被误读为「没有模型可用」。新增回归测试覆盖该路径；该缺陷在本仓库 1.3.0 上本来就会失败（与内核升级无关），修复后 `pnpm run test` 首次达到 157/157 全绿（此前 154/156）。
+- 修复内置回退模型表被实时线路映射过滤、导致真实安装上模型几乎全部消失的问题：`FALLBACK_TRAE_MODELS` 是本插件自带的静态兜底表，其中每个 id 都**从未**由 Trae Remote 目录公布，因此永远不会出现在 `callableKeys` 里。
+  此前 `configuredModels` / `derive` 把这张表也交给 `dropDeadModels` 过滤，只要实时目录只返回一部分模型（账号权限、版本或网络给出的子集），过滤就会把「这次没被提到的」回退模型一并删掉——本机实测在无凭据环境下只剩 `glm-5.2` / `kimi-k2.6` 两个模型可用。
+
+  现在回退表不再参与线路过滤，并以 `wireResolved` 标志取代「`callableKeys` 非空」作为「线路目录已解析」的判据，避免空目录被误读为「没有模型可用」。
+
+  新增回归测试覆盖该路径；该缺陷在本仓库 1.3.0 上本来就会失败（与内核升级无关），修复后 `pnpm run test` 首次达到 157/157 全部通过（此前 154/156）。
 
 ## 1.3.0 (2026-09-08)
 
 ### Changes
 
-- 模型名称内嵌积分倍率，与 Trae 自身模型菜单的显示格式一致（如 `GLM-5.2 · x0.79`）：DSH 模型选择器中由本插件注册的模型名在 Trae 公布 `consumption_rate` 时带上 `· x倍率` 后缀，倍率随目录刷新更新，未公布倍率的模型保持原名；模型 id 与内部目录仍用原始名称（不影响 wire 解析与已保存的选择）。插件设置卡片模型行的倍率同步改为 `· x0.79` 内联显示；`lastCatalog` 设置模式新增 `creditMultiplier` 字段声明，保证倍率跨重启持久化。
+- 模型名称内嵌积分倍率，与 Trae 自身模型菜单的显示格式一致（如 `GLM-5.2 · x0.79`）：DSH 模型选择器中由本插件注册的模型名在 Trae 公布 `consumption_rate` 时带上 `· x倍率` 后缀，倍率随目录刷新更新，未公布倍率的模型保持原名；模型 id 与内部目录仍用原始名称（不影响 wire 解析与已保存的选择）。
+  插件设置卡片模型行的倍率同步改为 `· x0.79` 内联显示；`lastCatalog` 设置模式新增 `creditMultiplier` 字段声明，保证倍率跨重启持久化。
 
 ## 1.2.0 (2026-09-04)
 
 ### Changes
 
 - 适配 DSH v0.1.2-rc.1 上游重构（`dsh-plugin-desktop` 2.0.5），同一份构建继续兼容 0.1.1 宿主：
-  - `@deepseek-ai/dsh-settings` 在 0.1.2 的 npm 包中移除了 `settingsNamespace` / `installSettingsSection` 自由函数（桌面宿主内置兼容垫片，npm 安装没有；缺失导出会在 ESM 链接期直接报错）。设置接线改为双轨：从模块命名空间读取旧自由函数，存在则使用（0.1.1 宿主与带垫片的 0.1.2 桌面宿主），否则回退 `settings` 服务的 `installSection` 方法（无垫片的 0.1.2 npm 环境）；`TRAE_SETTINGS_NS` 改为字面量 `'trae'`。
+  - `@deepseek-ai/dsh-settings` 在 0.1.2 的 npm 包中移除了 `settingsNamespace` / `installSettingsSection` 自由函数（桌面宿主内置兼容垫片，npm 安装没有；缺失导出会在 ESM 链接期直接报错）。
+  设置接线改为双轨：从模块命名空间读取旧自由函数，存在则使用（0.1.1 宿主与带垫片的 0.1.2 桌面宿主），否则回退 `settings` 服务的 `installSection` 方法（无垫片的 0.1.2 npm 环境）；`TRAE_SETTINGS_NS` 改为字面量 `'trae'`。
   - `@deepseek-ai/dsh-client-runtime` 包在上游被拆分删除：客户端入口的 `ClientContext` 类型改从 `@deepseek-ai/cordis` 导入，`slots` / `settingsScope` / `locale` 服务类型分别通过 `dsh-client-ui-renderer/client`、`dsh-client-ui-settings/client`、`dsh-client-locale/client` 的类型增广获得；`package.json` 的 `dsh.client.inject` 相应把 `@deepseek-ai/dsh-client-runtime` 替换为 `@deepseek-ai/dsh-client-ui-renderer`（0.1.2 中 `slots` 服务的提供方，该包在 0.1.1 中同样存在）。
   - `llm.registerModelDiscovery` 的取消信号从 `request.signal` 移到回调第二个参数：发现回调改用 `(request, signal)` 签名并透传给 Trae 发现请求，修复 0.1.2 宿主下取消不再传播的问题；0.1.1 宿主回退读取 `request.signal`。
 - devDependencies 升级至 `@deepseek-ai/dsh-*@0.1.2-rc.1`、`cordis@^4.0.2`、`schemastery@3.18.2`、`pi-ai@0.84.2`（新增 `dsh-client-ui-renderer`、`dsh-client-ui-settings`，移除已删除的 `dsh-client-runtime`），`pnpm run check` 现在直接面向 0.1.2 类型与运行时验证；`peerDependencies` 维持 `>=0.1.2-0 <0.2.0-0` 不变。
@@ -4362,7 +4436,8 @@ Tr                        ← 我们的行只剩开头两个字母
 
 ### Fixes
 
-- 对齐 DSH 宿主（`dsh-plugin-desktop`）实际提供的依赖版本，修正 `peerDependencies` 范围：`@deepseek-ai/dsh-*` 由 `^0.1.1-rc.2` 改为 `>=0.1.2-0 <0.2.0-0`（覆盖宿主 `0.1.2-alpha.1` 及 npm 预发布线），`@earendil-works/pi-ai` 由精确 `0.82.1` 放宽为 `>=0.82.1`（宿主为 `0.84.3`）。修复旧范围按 node-semver 预发布元组规则静默排除宿主版本、安装时报 `ERESOLVE` 的问题。
+- 对齐 DSH 宿主（`dsh-plugin-desktop`）实际提供的依赖版本，修正 `peerDependencies` 范围：`@deepseek-ai/dsh-*` 由 `^0.1.1-rc.2` 改为 `>=0.1.2-0 <0.2.0-0`（覆盖宿主 `0.1.2-alpha.1` 及 npm 预发布线），`@earendil-works/pi-ai` 由精确 `0.82.1` 放宽为 `>=0.82.1`（宿主为 `0.84.3`）。
+  修复旧范围按 node-semver 预发布元组规则静默排除宿主版本、安装时报 `ERESOLVE` 的问题。
 
 ## 1.1.1 (2026-08-31)
 
@@ -4446,3 +4521,7 @@ Tr                        ← 我们的行只剩开头两个字母
 - 新增 `docs/SOLO_ROUTE_DECISION.md`、`docs/USAGE_API_RESEARCH.md`、`docs/HANDOFF.md`。
 - README 中英双语双文件，对齐插件外部形象标准。
 - 新增 `THIRD_PARTY_NOTICES.md` 第三方开源声明：只记录与 Trae 接入直接相关的架构/协议参考项目及其许可证与合规说明；README 增加对应章节，发布包 `files` 白名单纳入该文件。
+
+## 本地文档同步（2026-11-06，未发布）
+
+对照 WorkBuddy 基线 c58243e 的文档检查方法，更新中英文 README 的设置分栏、读数显示、占位协调及费用说明，修正英文批量签到描述；补充 fork 发布边界与逐文件检查记录。历史研究保留原始数据，本轮未重新验证历史接口结论。

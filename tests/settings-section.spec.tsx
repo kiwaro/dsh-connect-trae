@@ -1,28 +1,5 @@
 // @vitest-environment jsdom
-/**
- * The configuration page as a `settings.section`, not a card on the Plugins page.
- *
- * WHY THIS FILE EXISTS. The configuration entry moved seats: the card used to
- * register into the Plugins page's `plugins.bundle.config` / `plugins.row.config`
- * slots (so the whole form sat inside the plugin's market detail page, below its
- * README) and now registers a page into `settings.section`, addressed by the same
- * id its nav glyph uses.
- *
- * Three things can go wrong here and each has its own failure shape, so each is
- * pinned separately:
- *
- *  1. NO PAGE AT ALL. A `slots.inject` wrapped in a capability probe registers
- *     nowhere when the probe is wrong, silently — the failure mode the sibling
- *     `dsh-subagent-default-model` shipped twice (2.1.16/2.1.17). The entry must
- *     call `inject` unconditionally and let the host answer.
- *  2. NO GLYPH, or a glyph whose id does not match the page's: the shell renders
- *     `settings.section.icon` filtered by `{ only: section.id }`, so a mismatched
- *     id never appears and the default gear silently stays.
- *  3. THE WRONG CHROME. This surface is a page inside the Settings DIALOG, which
- *     already owns the panel, the nav and the close control. Drawing the sidebar
- *     page's "back to conversation" header here would offer a second, competing
- *     way out of a modal that is not a centre-column panel.
- */
+/** Both the dedicated settings page and plugin detail configuration stay available. */
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -115,7 +92,7 @@ async function boot(plugins: PluginShape[]): Promise<Context> {
   return ctx
 }
 
-describe('the client entry registers a settings SECTION, not a Plugins-page card', () => {
+describe('the client entry exposes settings and plugin detail configuration', () => {
   it('registers settings.section and its glyph under the SAME id', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const ctx = await boot([Slots, Locale, ConfigForms])
@@ -130,10 +107,10 @@ describe('the client entry registers a settings SECTION, not a Plugins-page card
     // mismatch is a silently missing icon, not an error anywhere.
     expect(icon?.id).toBe(section?.id)
 
-    // The old seats are GONE. Keeping them would mean two configuration
-    // surfaces maintained side by side, one of them inside a market listing.
-    expect(slots.registrations.map(entry => entry.name)).not.toContain('plugins.bundle.config')
-    expect(slots.registrations.map(entry => entry.name)).not.toContain('plugins.row.config')
+    expect(slots.registrations.filter(entry => entry.name === 'plugins.bundle.config').map(entry => entry.id))
+      .toEqual(['dsh-connect-trae', 'include:dsh-connect-trae'])
+    expect(slots.registrations.filter(entry => entry.name === 'plugins.row.config').map(entry => entry.id))
+      .toEqual(['dsh-connect-trae#dsh-connect-trae', 'include:dsh-connect-trae#include:dsh-connect-trae'])
 
     spy.mockRestore()
     await ctx.fiber.dispose()
@@ -167,6 +144,22 @@ describe('the client entry registers a settings SECTION, not a Plugins-page card
     expect(errors.some(args => String((args as unknown[])[0]).includes('settings nav icon failed to register'))).toBe(true)
 
     spy.mockRestore()
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps plugin details usable when the host has no settings.section slot', async () => {
+    class DetailOnlySlots extends Slots {
+      override inject(name: string, callback: () => void | (() => void)): () => void {
+        if (name.startsWith('settings.section')) return () => {}
+        return super.inject(name, callback)
+      }
+    }
+    const ctx = await boot([DetailOnlySlots, Locale, ConfigForms])
+    const fiber = ctx.plugin(clientEntry as unknown as PluginShape)
+    await vi.waitFor(() => { expect(fiber.state).toBe(2) })
+    const slots = ctx.get('slots') as unknown as Slots
+    expect(slots.registrations.filter(entry => entry.name.startsWith('plugins.'))).toHaveLength(4)
+    expect(slots.registrations.some(entry => entry.name === 'settings.section')).toBe(false)
     await ctx.fiber.dispose()
   })
 

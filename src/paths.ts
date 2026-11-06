@@ -122,15 +122,12 @@ export function traeStorageCandidates(
 }
 
 /**
- * Candidate CLI token paths. Only CN/SOLO editions are targeted here for the
- * same reason the store ignores SG desktop installs, and `.trae-cn` is mapped
- * to `cn` while `.trae` is the CLI's international home and is therefore
- * skipped by the store's edition filter.
+ * Candidate CLI token paths. .trae-cn is classified as cn and .trae as sg.
+ * The credential store currently accepts CN CLI candidates only, while desktop
+ * candidates support both regions. Finding a path does not establish a valid login.
  *
- * The CLI home is a dotfile directory directly under `$HOME` on every platform
- * observed so far, but this is only verified on macOS; the Windows and Linux
- * spellings are probed speculatively and a miss is harmless because every
- * candidate is tried in order.
+ * CLI home names were observed on macOS. Windows and Linux roots are candidates
+ * that may be absent; callers continue scanning after a missing candidate.
  */
 export function traeCliCandidates(
   platform: NodeJS.Platform = process.platform,
@@ -148,9 +145,8 @@ export function traeCliCandidates(
   const result: TraeStorageCandidate[] = []
   for (const root of roots) {
     for (const name of CLI_HOME_NAMES) {
-      // `.trae-cn` is the CN CLI home. `.trae` is kept as a low-priority
-      // fallback so a renamed CN home is still discovered on a machine that has
-      // no international install; the store filters by edition afterwards.
+      // Keep the region label attached to each path; the store decides whether
+      // this source and region are supported. .trae is not a CN fallback.
       const edition: TraeEdition = name === '.trae-cn' ? 'cn' : 'sg'
       result.push({ edition, path: join(root, name, TRAE_CLI_TOKEN_FILENAME), source: 'cli' })
     }

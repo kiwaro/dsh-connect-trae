@@ -1,5 +1,7 @@
 # issue #7 回复（2.0.2 发布后贴）
 
+> 2026-11-06 全文复核：历史诊断或回复草稿，版本、测试数与环境均限于原记录日期；发布和对外回复步骤不是本轮指令。核对2.0.2模型限制，后续function覆盖扩展，旧不可用断言不再适用。
+
 > 用途：回复 https://github.com/dingminhua/dsh-connect-trae/issues/7
 > （zyk-mjzs：「traecode 有 glm 5.3 但这边只有 5.2」；BrowserZz 追加：「traecode 有
 > GLM-5.3-Flash、DeepSeek-V4.1-Flash 模型。什么时候支持？」）
@@ -31,7 +33,7 @@
 @zyk-mjzs 提到的 **GLM-5.3 其实已经支持**（2.0.2 起）。请更新后再看一下：
 
 ```bash
-npm i -g dsh-connect-trae@2.0.2
+dsh plugin --profile desktop add dsh-connect-trae@2.0.2
 ```
 
 > 顺带区分一个容易混的点：**`GLM-5.3` 支持**（走 SOLO），**`glm-5.3-flash` 不支持**——名字像，但是两个不同的模型。
@@ -45,7 +47,7 @@ npm i -g dsh-connect-trae@2.0.2
 - **本地 Hub Bridge / Aha IPC**：存在，但是私有协议，且要求 IDE 同机常驻。
 - **TraeCLI（`trae-cli`）**：公网版需要交互式 SSO 登录；而且它**本身就是 agent**，模型出口是私有后端（`/trae-cli/api/v1/llm/proxy` + 私有头），不是可复用的 LLM 代理。用它就等于让 TraeCLI 干活、DSH 退化成壳，与插件定位冲突。
 
-一句话：这属于**上游授权边界**，不是插件能绕过的技术问题。取证细节我留在了仓库里（`docs/DS41_CALLABILITY.md`、`docs/CODEC_CHANNEL_FEASIBILITY.md`、`docs/TRAECLI_FEASIBILITY.md`）。
+该错误属于**上游授权边界**，不是插件能绕过的技术问题。取证细节我留在了仓库里（`docs/DS41_CALLABILITY.md`、`docs/CODEC_CHANNEL_FEASIBILITY.md`、`docs/TRAECLI_FEASIBILITY.md`）。
 
 ## 现在想用这 4 个模型怎么办
 

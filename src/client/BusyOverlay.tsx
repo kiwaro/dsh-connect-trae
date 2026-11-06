@@ -1,25 +1,7 @@
 /**
- * The shared busy veil: one overlay for every account write whose result only
- * lands on screen after the Host re-reads its settings document.
- *
- * The card's two write paths (saveModels, writePreference) each carry a
- * "busy" moment that the rest of the card can only hint at with disabled
- * controls and a label swap. A user watching a specific row change needs to
- * see PROGRESS, not just greying-out — so the veil exists to say "waiting for
- * this step to land". It is the same shape as the sibling workbuddy plugin's
- * veil (both plugins were written by the same author and share one
- * external-presentation language); its message is provided by the caller per
- * scenario, and the veil itself never times out or narrates — it only renders.
- *
- * The veil comes down exactly when the write path that raised it finishes
- * (its finally clears the busying flag), which is when the re-read has caught
- * up — so the delay the user would otherwise see as "saved but not there" is
- * rendered as "waiting while it happens" instead.
- *
- * The spinner follows the host's own state spinner rather than a
- * self-invented border ring: an SVG arc that breathes while it turns,
- * currentColor so it inherits whatever tier it sits in, and the same 1.5s
- * beat as every other spinner in the shell.
+ * Shared overlay for an operation in progress. The caller provides translated
+ * text and controls visibility, including refresh waits and timeout behavior.
+ * Hiding the overlay alone does not establish that a write or refresh succeeded.
  *
  * @module dsh-connect-trae/client/BusyOverlay
  */
@@ -62,10 +44,9 @@ function VeilSpinner(): ReactElement {
 }
 
 /**
- * The veil. Deliberately NOT a modal dialog: it carries no focusable control
- * and no dismissal — there is nothing for the user to decide, only a step to
- * wait through. `aria-busy` plus a polite live region state that to screen
- * readers, which is the whole accessibility contract a wait screen needs.
+ * The veil has no focusable control or dismissal button. It announces the
+ * caller's message through a polite status region and marks the region busy.
+ * The caller controls completion and timeout handling.
  */
 export function BusyOverlay({ message, hint, visible }: BusyOverlayProps): ReactElement | null {
   if (!visible) return null

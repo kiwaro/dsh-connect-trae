@@ -25,7 +25,7 @@ import type {
   TraeWebModel,
   TraeWebUsage,
 } from '../status-paths.ts'
-import type { TraeUsageCardInjected } from './TraeUsageCard.tsx'
+import type { TraeUsageCardInjected } from './trae-card-types.ts'
 import { AccountPool } from './AccountPool.tsx'
 import type { TraePoolRowClaim, TraePoolRowDetail } from './AccountPool.tsx'
 import { AccountTransfer } from './AccountTransfer.tsx'
@@ -51,7 +51,7 @@ export interface TraeAccountRowView {
   value: ReactNode
   /** Absent when the credential carries no refresh token (a CLI token does not). */
   refreshExpiresAtMs?: number | undefined
-  /** Dry of the last claim attempt for this row, already worded by the card. */
+  /** Outcome of the last claim attempt for this row, already worded by the card. */
   error?: string | undefined
   /**
    * The check-in control for this row. Absent on a panel that has no check-in
@@ -73,6 +73,8 @@ export interface TraeRowClaim {
 }
 
 export interface TraeAccountPanelProps {
+  preferencesOnly?: boolean
+
   t: (key: TraeSettingsKey, params?: Record<string, unknown>) => string
   settingsScope?: TraeUsageCardInjected['settingsScope'] | undefined
   /** The panel (provider) this section is about. */
@@ -116,7 +118,7 @@ export interface TraeAccountPanelProps {
   switchingAccount: boolean
   onSwitchAccount(accountId: string): void
   onClaim(accountId: string): void
-  /** Re-read this panel after import/export wrote a credential. */
+  /** Re-read this panel after import changed stored credentials. Export does not write them. */
   onTransferChanged(): void | Promise<unknown>
 
   /** The pool document, when the Host serves one. */
@@ -202,16 +204,12 @@ function ClaimCell({ claim, onClaim, t }: {
 }
 
 /**
- * The account section: preferences, the roster, the pool, and every notice about
- * the credential.
- *
- * Everything here commits ON THE CLICK (the preference boxes write themselves,
- * the check-in claims immediately, the pool saves through its own footer). That
- * is precisely why this section has no 「保存」 of its own — the model catalog,
- * which does, lives in its own section.
+ * 账号页展示账号列表、签到、凭据通知及账号池。
+ * 账号切换和签到点击后执行；账号池偏好通过池内保存按钮提交。
+ * 模型草稿和能力开关分别由对应分栏管理。
  */
 export function TraeAccountPanel({
-  t, settingsScope, panel, status, statusLabel, credentialRegionIsAi, regionOn,
+  preferencesOnly, t, settingsScope, panel, status, statusLabel, credentialRegionIsAi, regionOn,
   showPointsInMainUi, onToggleShowPoints, creditPosition, onCreditPositionChange,
   sidebarPanelOn, sidebarPanelBusy, onToggleSidebarPanel,
   savingPreferences, creditsLabelId, creditsHintId,
@@ -225,20 +223,7 @@ export function TraeAccountPanel({
   const accounts = signedIn ? status.accounts : []
   const pool = signedIn ? status.pool : undefined
 
-  return (
-    <>
-      {/* The preference switches, as BARE LINES — no bordered box, no heading,
-          no 「保存」/「放弃」 footer.
-          
-          That is the sibling dsh-connect-workbuddy card's shape, and the reason
-          it is the better one here: a card that asks the user to press Save for a
-          boolean is asking them to remember something with no reason to need
-          remembering. The boxes write on their own click (see the card's
-          `writePreference`), exactly like the region on/off boxes in the tab bar
-          above — so the whole card has ONE commit model instead of two.
-          
-          The label IS the checkbox's own <label>, so the text is a larger click
-          target and the accessible name needs no ARIA. */}
+  if (preferencesOnly) return (
       <div className="dsm-trae-prefs">
         {/* REGION-AGNOSTIC: a readout exists on either side (CN credits,
             international plan), so the switch that turns it on belongs on either
@@ -319,6 +304,22 @@ export function TraeAccountPanel({
           </span>
         </label>
       </div>
+  )
+  return (
+    <>
+      {/* The preference switches, as BARE LINES — no bordered box, no heading,
+          no 「保存」/「放弃」 footer.
+
+          That is the sibling dsh-connect-workbuddy card's shape, and the reason
+          it is the better one here: a card that asks the user to press Save for a
+          boolean is asking them to remember something with no reason to need
+          remembering. The boxes write on their own click (see the card's
+          `writePreference`), exactly like the region on/off boxes in the tab bar
+          above — so the whole card has ONE commit model instead of two.
+
+          The label IS the checkbox's own <label>, so the text is a larger click
+          target and the accessible name needs no ARIA. */}
+
 
       {/* ONE account table, not two. Once the pool document exists the pool's
           member table below lists the same accounts with the same credits and the

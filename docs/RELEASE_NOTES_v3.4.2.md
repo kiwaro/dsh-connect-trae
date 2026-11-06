@@ -1,15 +1,16 @@
 ## v3.4.2（2026-10-13）
 
+> 适用版本：v3.4.2。本文保存该版本的行为、测试数量和当时观察；当前操作以 [README](../README.md) 为准。
+
 > **插件现在与它自己解析到的那份 `@earendil-works/pi-ai` 代数对齐了。**
 > 修的是 [issue #27](https://github.com/dingminhua/dsh-connect-trae/issues/27)：任意模型都报
 > `PI_AI_ERROR / Cannot read properties of undefined (reading 'length')`。
 
 这是一次 **patch** 升级，只做一件事——**让插件说它对面那个库听得懂的话**。
 
-起因很迷惑人：报告人**换任何模型都崩**（`step-5-preview`、`mimo-v2.6-flash`、`glm-5.3-flashx`
-全部必现），**105 毫秒内**就在本地失败，每次的 usage 都是 `0/0/0`。
-「与模型无关 + 本地瞬间失败 + 没发出任何请求」这三个特征合起来说明：**问题不在模型，也不在 Trae**，
-而在请求被构造出来之前的那一步。
+起因很迷惑人：报告人**换任何模型都崩**（`step-5-preview`、`mimo-v2.6-flash`、`glm-5.3-flashx` 全部必现），**105 毫秒内**就在本地失败，每次的 usage 都是 `0/0/0`。
+
+「与模型无关 + 本地瞬间失败 + 没发出任何请求」这三个特征合起来说明：**问题不在模型，也不在 Trae**， 而在请求被构造出来之前的那一步。
 
 ---
 
@@ -26,11 +27,9 @@
   | 系统提示 | 顶层 `systemPrompt` | **只**挂在那条 system 消息上 |
   | 工具声明 | 顶层 `tools` | **只**挂在那条 system 消息的 `toolsAdded` 上 |
 
-  崩溃的机理很具体：新代在入口调一次 `normalizeContext()`，于是 provider 收到的是归一化 transcript；
-  而旧代的 `estimateMessageTokens` **没有 `role === 'system'` 分支**，它 `for (const block of message.content)`
-  迭代一个**字符串**，逐字符拿到 `block`，再读 `block.name.length` → `TypeError`。
-  这一步位于 `buildBaseOptions` 内、**早于任何 HTTP 构造** —— 所以是「105ms 本地崩溃 + usage 恒 0 +
-  换模型无效」。
+  崩溃的机理很具体：新代在入口调一次 `normalizeContext()`，于是 provider 收到的是归一化 transcript； 而旧代的 `estimateMessageTokens` **没有 `role === 'system'` 分支**，它 `for (const block of message.content)` 迭代一个**字符串**，逐字符拿到 `block`，再读 `block.name.length` → `TypeError`。
+
+  这一步位于 `buildBaseOptions` 内、**早于任何 HTTP 构造** —— 所以是「105ms 本地崩溃 + usage 恒 0 + 换模型无效」。
 
   **两个方向都修了**，因为 DSH 自己也横跨两代（`dsh-llm-pi-ai` ≤0.2.0-rc.1 声明 `^0.85.1`，
   0.2.0-rc.2 起声明 `^0.87.1`，0.2.1-alpha.2 已到 `^1.0.2`）：
@@ -61,10 +60,9 @@
   （`major > 0` 或 `minor >= 86` 即新代），所以 `0.9.0` 不会被误判为高于 `0.86.0`，已发布的 `1.x`
   也无需改动即可正确归类；版本读不到时退化为包布局判据。
 
-  一个反直觉的发现：**`import.meta.resolve()` 不能用来做这个探测**。bundler 风格的解析器
-  （vite，以及在它之上的 vitest）会把 exports map 里的 `"./utils/*"` 通配符展开成路径**并直接返回，
-  不检查文件是否存在**，于是对 0.85.1 也回答「有」。实测该假阳性会把 0.85.1 判成新代 ——
-  **在声称「按能力判断」的同时原样放过 issue #27**。
+  一个反直觉的发现：**`import.meta.resolve()` 不能用来做这个探测**。bundler 风格的解析器 （vite，以及在它之上的 vitest）会把 exports map 里的 `"./utils/*"` 通配符展开成路径**并直接返回， 不检查文件是否存在**，于是对 0.85.1 也回答「有」。
+
+  实测该假阳性会把 0.85.1 判成新代 —— **在声称「按能力判断」的同时原样放过 issue #27**。
 
 ### 诊断
 
@@ -78,7 +76,7 @@
   ④ 折返时不移除顶层字段 → 2 例失败；⑤ 折返不做幂等短路 → 5 例失败；⑥ 漏读 `sections` → 2 例失败；
   ⑦ 折上跳过多 system 消息 → 1 例失败；⑧ 不可探测时默认旧代 → 1 例失败。
 
-- 其中变异 ① 最初**没被捕获** —— 函数级用例全绿，而接线有缺陷的工厂照样通过。
+- 其中变异 ① 最初**没被捕获** —— 函数级用例全部通过，而接线有缺陷的工厂照样通过。
   这正是 issue #27 本身的形状（函数没问题，只是没人调用），因此另设了
   `tests/pi-ai-adapter-wiring.spec.ts`：mock 掉 pi-ai 的 api 模块，经
   `adapter.current() → piProvider → streamSimple` 走**真实装配路径**断言交付的形状。
@@ -99,7 +97,7 @@
 ### 升级
 
 ```bash
-dsh plugin install dsh-connect-trae@3.4.2
+dsh plugin --profile desktop add dsh-connect-trae@3.4.2
 ```
 
 升级后重启 DSH 即可。若你在日志里看到
@@ -109,4 +107,3 @@ dsh plugin install dsh-connect-trae@3.4.2
 ---
 
 **完整比较**：[v3.4.1...v3.4.2](https://github.com/dingminhua/dsh-connect-trae/compare/v3.4.1...v3.4.2)
-

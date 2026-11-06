@@ -9,10 +9,9 @@
  * fine for a paying one. The only honest answer comes from asking upstream, and
  * the user asked for exactly that, on the models they have enabled.
  *
- * COST — this is a REAL chat call per model, unlike every other query this
- * plugin makes (the usage/model surfaces are read-only and consume nothing).
- * The prompt is a one-word user turn with no tools, so the charge is the
- * smallest a call can be, and the model is not told to do anything. It is
+ * COST: each probe makes a real chat call that may consume credits. Usage and
+ * directory reads do not consume model credits. The default prompt is one word
+ * without tools; the actual charge depends on the model and upstream rules. It is
  * user-initiated only: no timer, no startup pass, no refresh hook.
  *
  * CLASSIFICATION RULES — the verdict must never turn an inconclusive answer
@@ -24,7 +23,7 @@
  *  - `available`    — output arrived.
  *  - `gated`        — `1005`: the plan does not cover this model (`extra.plan`
  *                     carries the tier). A paying account may pass.
- *  - `unsupported`  — `4001`: no SOLO function serves this config_name. This is
+ *  - `unsupported`  — `4001`: the attempted function rejected this config_name. This is
  *                     the ONLY code that may produce this verdict.
  *  - `rate_limited` — upstream throttled the probe: `4011`, or an honest 429.
  *                     Issue #33 moved `4011` here: it is Trae's rate limit (its
@@ -157,7 +156,7 @@ export function classifyProbeResult(result: TraeChatResult, outputSeen: boolean)
   return { verdict: 'unknown', detail: message }
 }
 
-/** Read a probe response without letting a large or endless body stall. */
+/** Read the full probe response; request cancellation supplies the timeout. */
 async function readProbeOutput(response: Response): Promise<{ output: boolean; error?: Error }> {
   try {
     const text = await response.text()
@@ -168,26 +167,11 @@ async function readProbeOutput(response: Response): Promise<{ output: boolean; e
 }
 
 /**
- * The chat call one probe makes.
- *
- * `inputTokens` pads the user turn so the probe carries roughly as much text as
- * a real conversation. Size matters because an upstream that refuses LARGE
- * requests will happily answer a one-word probe, and a verdict earned by a
- * 1-token request says nothing about the 30k-token turn the user is about to
- * send. `0` keeps the historical minimal probe (one word) — that is the default
- * because it spends the least credit and answers the question the pool ranks on
- * ("can this account talk at all").
- *
- * The filler is `x` words: one ASCII word is about one token, so the body size
- * is predictable (tokens ≈ inputTokens × 2 characters) without a tokenizer.
- */
-/**
- * The largest probe this plugin will pad.
- *
- * A 100k-token probe is already ~200 KB of JSON; anything above that is a request
- * the user's real turn would not plausibly reach in this product, and a config
- * file edited by hand must not turn one "test all" click into a multi-megabyte
- * upload.
+ * Upper bound for the requested probe padding. probeBody repeats an ASCII filler
+ * of about two characters per requested unit. inputTokens is an approximate
+ * size control, not a tokenizer measurement; actual tokens depend on the model.
+ * A successful padded probe does not guarantee that different content of the
+ * same length will succeed. The default value 0 sends only ping.
  */
 export const MAX_PROBE_INPUT_TOKENS = 100_000
 

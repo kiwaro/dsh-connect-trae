@@ -1,5 +1,7 @@
 # Trae 国际版（SG）协议证据矩阵
 
+> 2026-11-06 全文复核：记录2026-09-15及10-11的SG样本。早期只读范围不包含后续刷新及聊天实验；目录、function和区域判断已有后续修订，US边界见ISSUE66_DIAGNOSIS.md。
+
 > 本文只记录脱敏结构、字段名、host、路径与行为。不得复制 token、用户消息正文、账号信息或完整请求 body。
 >
 > 取证时间：2026-09-15。取证主机：macOS（同时安装 Trae CN / TRAE SOLO CN / TRAE SOLO 国际版；Trae 国际桌面版 App 已卸载但数据目录与历史日志保留）。
@@ -9,7 +11,7 @@
 ## 证据等级（沿用 PROTOCOL_EVIDENCE.md）
 
 - **A：历史真实请求日志**——官方 App 本机实际发出并成功返回。
-- **A+：本次受控只读探测**——用国际版有效凭证实测返回 HTTP 200（零状态变更）。
+- **A+：本次受控只读探测**——受控请求及响应证据；是否只读取决于具体端点，刷新会轮换凭据、聊天可能消耗额度。
 - **B：当前安装包可执行文件/bundle**——可证明客户端具备某字段或分支，但未必是当前请求必填。
 - **D：本项目草案**——纯离线结构，不能证明上游接受。
 
@@ -27,7 +29,7 @@
 | TRAE SOLO（国际） | `https://growsg-normal.trae.ai` | `{"region":"SG","_aiRegion":"SG"}` |
 
 - `userRegion.region`（`"CN" | "SG"`）是权威判定字段；host 后缀（`.trae.ai` vs `.trae.cn`）与之一致，可作为兜底判定。
-- SG 侧 host 不统一（`api-sg-central` / `growsg-normal`），且 `account` 含 `migrateToSG` 字段（CN 账号可迁移）。路由必须按凭证自带 host，不可硬编码单一 SG host。
+- SG 侧 host 不统一（`api-sg-central` / `growsg-normal`），且 `account` 含 `migrateToSG` 字段（CN 账号可迁移）。刷新使用凭据host；模型、用量和聊天按已验证的REGION_GATEWAYS服务地址选择，不能把凭据host直接用于所有服务。
 - `account.username`、`email` 等字段可用于账号展示；**不要**把 `nonPlainTextMobile` 等敏感字段带出 Host。
 
 ## 2. SG 端点地图
@@ -47,9 +49,9 @@ Trae 国际桌面版 2026-05 历史日志（7 个会话目录）中的真实成�
 
 TRAE SOLO 国际版今日（2026-09-15）日志同样使用 `coresg-normal.trae.ai/api/remote/v1/*`——**国际版两个 App 共用该网关**，它是 `trae-api-cn.mchost.guru` + `solo.trae.cn` 的 SG 合并等价物。
 
-mchost 在 SG 侧也存在分片（`api5/api16/api22-normal-alisg.mchost.guru`，承载 `get_detail_param`、`check_content`、`code_completion` 等 IDE 辅助端点），由 `icube16-normal-sg.trae.ai/icube/api/v1/native/config/query` 等配置服务下发。插件实现**统一走 `coresg-normal.trae.ai`** 即可（2.3 已验证其同样承载 `get_detail_param`）。
+mchost 在 SG 侧也存在分片（`api5/api16/api22-normal-alisg.mchost.guru`，承载 `get_detail_param`、`check_content`、`code_completion` 等 IDE 辅助端点），由 `icube16-normal-sg.trae.ai/icube/api/v1/native/config/query` 等配置服务下发。
 
-### 2.2 Refresh 契约（等级 A；**按 App 分叉，不按 region 统一**）
+插件实现**统一走 `coresg-normal.trae.ai`** 即可（2.3 已验证其同样承载 `get_detail_param`）。
 
 ## 2.2 Refresh 契约（等级 A；**按 App 分叉，不按 region 统一**）
 
@@ -97,7 +99,9 @@ TRAE SOLO 国际版 2026-09-15 日志记录了官方 App 自己的刷新调用�
 | solo | `en1oxy7wnw8j9n` | `SOLO_PC` | 200 |
 | solo-sg | `en1oxy7wnw8j9n` | `SOLO_PC` | 200 |
 
-**ClientID 按「是否 SOLO 包」分叉，不按 region**——官方客户端的分支是 `packageType ∈ {SOLO_CN, SOLO_I18N, SOLO_CN_ENTERPRISE}` → SOLO ClientID，其余 → 桌面 ClientID。所以 **`solo`（SOLO CN）必须用 `en1oxy7wnw8j9n`**，这正是 §2.2 旧表「SOLO CN 用桌面 ClientID」在新契约下失效的地方（用桌面的 id 会得到 `10101 无效参数`）。
+**ClientID 按「是否 SOLO 包」分叉，不按 region**——官方客户端的分支是 `packageType ∈ {SOLO_CN, SOLO_I18N, SOLO_CN_ENTERPRISE}` → SOLO ClientID，其余 → 桌面 ClientID。
+
+所以 **`solo`（SOLO CN）必须用 `en1oxy7wnw8j9n`**，这正是 §2.2 旧表「SOLO CN 用桌面 ClientID」在新契约下失效的地方（用桌面的 id 会得到 `10101 无效参数`）。
 
 **`DeviceProof` 的签名细节（全部实测确认，缺一不可）**：
 
@@ -141,7 +145,11 @@ TRAE SOLO 国际版 2026-09-15 日志记录了官方 App 自己的刷新调用�
 
 说明这个分叉**属于 OAuth client，不属于 endpoint**：两条路径上是同一个 client 在换 token。3.1.0 之前的插件在旧路径上写死桌面 id，因此 **solo-sg 从来没有可用的刷新路径**——这也解释了为什么国际 SOLO 账号一旦过期就再也刷不回来。
 
-**回退策略**：实现**先试新契约（带 `DeviceProof`）、失败再试旧契约**，**两条路径都用各自 edition 的 ClientID**。新契约需要 device keypair，**没有 keypair 时（CLI-only / 旧安装）直接走旧契约**，不发送注定被 `20405` 拒绝的请求。实测四个 edition 在**两条路径上都能刷新成功**，所以回退是真正的兜底而非摆设。
+**回退策略**：实现**先试新契约（带 `DeviceProof`）、失败再试旧契约**，**两条路径都用各自 edition 的 ClientID**。
+
+新契约需要 device keypair，**没有 keypair 时（CLI-only / 旧安装）直接走旧契约**，不发送注定被 `20405` 拒绝的请求。
+
+实测四个 edition 在**两条路径上都能刷新成功**，所以回退是真正的兜底而非摆设。
 
 > 复现脚本：旧 `scripts/probe-intl*.mjs` 仍是 §2.2/§2.3 的；本次 §2.2.1 的结论由「读客户端 bundle 的 `NPe()`/`$v()`/`m(t)` 三个函数 + 读 App 自写日志 + 四 edition 实测」三方交叉得到，未新增脚本。
 
@@ -199,7 +207,7 @@ TRAE SOLO 国际版 2026-09-15 日志记录了官方 App 自己的刷新调用�
 | `solo_agent_lite` | 31 条 | 部分 |
 | `solo_work` | 0 条 | — |
 
-因此插件的**目录查询**在 ai region 改用 `solo_agent`（remote 目录仍是合并骨架，agent 内部模型与 paygo 变体不会浮出）；**聊天** function 两侧统一 `solo_work_lite`（国际网关端到端实测 200）。
+因此插件的**目录查询**在 ai region 改用 `solo_agent`（remote 目录仍是合并骨架，agent 内部模型与 paygo 变体不会浮出）；该次聊天样本使用`solo_work_lite`；当前聊天按目录行的wireFunction分派，缺失时才使用默认function（国际网关端到端实测 200）。
 
 ## 4. SG Pay/Usage（订阅制，数据源与 CN 不同）
 
@@ -238,4 +246,6 @@ CN 版 `web_user_ent_usage`（积分包明细）在 SG 日志中**未出现**；
 | `x-app-id` 等请求头 | `6eefa01c-1036-4c7e-9ca5-d891f63bfcd8` 等 | 相同（实测接受） |
 | 解密器 | `decryptTraeStorageValue` | 相同（实测四版通吃） |
 
-**分桶结论：region 只有两个（CN / ai-国际），是「2 套存储」的分桶键**——模型目录、勾选、预算、fallback、聊天网关、usage 数据源全部按 region 二分。edition（cn / sg / solo / solo-sg 共 4 个）只是**凭证来源标签**（决定扫描哪个安装目录、product.json 路径、refresh 契约分支），edition → region 映射为 `cn|solo → CN`、`sg|solo-sg → ai`。
+**分桶结论：受支持的存储区域为CN与ai-SG；另有可识别但当前不支持的US，是「2 套存储」的分桶键**——模型目录、勾选、预算、fallback、聊天网关、usage 数据源全部按 region 二分。
+
+edition（cn / sg / solo / solo-sg 共 4 个）只是**凭证来源标签**（决定扫描哪个安装目录、product.json 路径、refresh 契约分支），edition → region 映射为 `cn|solo → CN`、`sg|solo-sg → ai`。

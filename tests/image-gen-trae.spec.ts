@@ -159,7 +159,7 @@ describe('signedTraeResourceUrl', () => {
     expect(signedTraeResourceUrl({ url_map: { [key]: 'https://cdn/signed' } }, key)).toBe('https://cdn/signed')
   })
 
-  it('url_map 里没有这个 key 时抛 IMAGE_UNAVAILABLE 并带上 key（图已生成、积分已扣）', () => {
+  it('url_map 里没有这个 key 时抛 IMAGE_UNAVAILABLE 并带上 key（生成请求可能已计费）', () => {
     const key = 'tos-cn-i-x/cn/1/gen_image/missing'
     const error = (() => {
       try { signedTraeResourceUrl({ url_map: { other: 'https://cdn/x' } }, key) } catch (thrown: unknown) { return thrown }
@@ -168,6 +168,6 @@ describe('signedTraeResourceUrl', () => {
     expect(error).toBeInstanceOf(TraeImageError)
     expect((error as TraeImageError).code).toBe('IMAGE_UNAVAILABLE')
     expect((error as Error).message).toContain(key)
-    expect((error as Error).message).toContain('积分已经扣了')
+    expect((error as Error).message).toContain('可能已计费')
   })
 })

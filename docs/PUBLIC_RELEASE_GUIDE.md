@@ -1,5 +1,9 @@
 # 对外 README 与发布基准
 
+## 本文用途
+
+本文保留早期发布工程设计及市场提交调研。当前发布步骤见 [发布流程](../RELEASING.md)，实际随包文件由 `package.json` 的 `files` 和打包结果确定。市场接收条件是当时整理的资料；真实提交前需核对市场仓库现行规则。
+
 ## 基准项目
 
 `dsh-connect-trae` 的对外展示和发布流程参考团队项目：
@@ -14,7 +18,7 @@
 正式对外 README 应按以下顺序组织：
 
 1. 居中项目截图或品牌图。
-2. 居中项目名和一句话价值主张。
+2. 居中项目名，并说明插件提供什么功能。
 3. 中文/英文、安装、配置、更新日志、问题反馈导航。
 4. npm version、downloads、CI、license、stars、DSH 市场等徽章。
 5. 项目定位和适用范围。
@@ -45,7 +49,7 @@
 - `files` 发布白名单
 - `test`、`typecheck`、`build`、`check`、`prepack` 脚本
 
-发布白名单原则上只包含：
+早期建议的最小发布清单如下。当前还包含截图、第三方声明、Windows 诊断脚本和两份维护记录，完整清单见 `package.json`：
 
 ```text
 lib/
@@ -81,7 +85,7 @@ package.json           # npm 自动包含
 
 ## 权威发布文档
 
-项目根目录在进入发布准备阶段时创建 `RELEASING.md`，作为唯一权威发布流程。内容应基于 `dsh-subagent-default-model/RELEASING.md`，但使用本项目的真实路径、包名、测试命令和账号要求，不能机械复制过时信息。
+仓库顶层已存在 `RELEASING.md`，作为当前发布流程。维护该文件时，使用本项目的真实路径、包名、测试命令和账号要求；参考项目提供发布工程思路，具体步骤仍需核对当前实现。
 
 建议步骤：
 
@@ -98,14 +102,15 @@ package.json           # npm 自动包含
 11. 从 npm 在干净 profile 安装，验证 provider 注册、模型目录和短流式对话。
 12. 必要时创建 GitHub Release 和市场提交。
 
-## 市场提交（Awesome DSH Plugin）
+## 市场提交调研
 
-提交给 [Awesome DSH Plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 市场（`contributing.md` 为唯一权威流程，以下为要点）：
+以下是当时对 [Awesome DSH Plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 市场规则的摘记。实际提交以其现行 `contributing.md` 为准。
 
-- **提交位置**：PR 需要在市场仓库的 **`data/plugins/<owner>__<repo>.yml`** 放下一个 yml（不是本项目 `awesome-dsh-plugin-submission/` 目录——那只是本地草稿，提交时以市场仓库 `data/plugins/` 为准）。yml 只含 `url` / `name` / `category` / `description`（见现有草稿 `awesome-dsh-plugin-submission/dingminhua__dsh-connect-trae.yml`）。
+- **提交位置**：PR 需要在市场仓库的 **`data/plugins/<owner>__<repo>.yml`** 放下一个 yml（不是本项目 `awesome-dsh-plugin-submission/` 目录——那只是本地草稿，提交时以市场仓库 `data/plugins/` 为准）。
+  yml 只含 `url` / `name` / `category` / `description`（见现有草稿 `awesome-dsh-plugin-submission/dingminhua__dsh-connect-trae.yml`）。
 - **README 必须生成、禁止手编**：市场仓库两个 README 由脚本生成，提交 yml 后需在其仓库执行 `npm ci` + `node scripts/generate-readme.mjs`，把生成的 README 与 yml 一起提交。手工编辑 README 是常见打回原因。
 - **硬性要求自检**：`package.json` 声明 `dsh.bundle`（仅 `dsh.client` 会被拒）；仓库满 1 天且提交数 ≥ 10；仓库带 `dsh-plugin` topic；`description.en` 必填、描述属实、不带营销词；`category` 从指南给定的取值里选最贴切的。
-- **截图声明位置**：市场截图在**自己仓库**根目录的 `screenshots.json` 声明（相对路径，1-8 张，见仓库根 `screenshots.json`）；绝对 URL 只接受 GitHub 托管。市场仓库的 `data/screenshots.json` 是旧条目回退文件，**禁止新增键**，也不要在本地造 `screenshots-entry.json` 之类的映射文件。
+- **截图声明位置**：当时规则要求在项目的 `screenshots.json` 声明 1–8 张截图，使用相对路径；绝对 URL 限 GitHub 托管。市场仓库的 `data/screenshots.json` 用于旧条目回退，新条目使用项目自己的截图清单。
 - **依赖与去重**：依赖须指向原作者仓库或其 npm 包；聚合包只收其中的单个插件，不单独收录；一个 PR 最多 3 个条目。
 
 ## 发布门槛
@@ -126,7 +131,7 @@ package.json           # npm 自动包含
 
 编写 README、CHANGELOG、RELEASING 和生成发布候选包属于开发工作；以下动作必须等待用户明确确认：
 
-- Git commit（若当时治理或用户要求另有门禁，也必须遵守）
+- Git commit，按当次用户授权和项目要求执行
 - Git tag
 - Git push
 - GitHub Release

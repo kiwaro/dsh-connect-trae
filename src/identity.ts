@@ -32,10 +32,10 @@ export interface TraeIdentity {
   osVersion?: string
   /**
    * Device display name; the official client sends the OS account's full name.
-   * Optional because the new refresh contract does not read it.
+   * Optional in this plugin; tested refresh requests did not require it.
    */
   deviceName?: string
-  /** Device model, e.g. `MacBookPro18,2`. Optional; not required by the server. */
+  /** Device model, e.g. MacBookPro18,2; optional in the tested refresh shape. */
   deviceModel?: string
   /** The install's registered device keypair, when `storage.json` carries one. */
   deviceKeyPair?: TraeDeviceKeyPair
@@ -88,7 +88,7 @@ export interface TraeIdentityReadOptions {
   env?: NodeJS.ProcessEnv
 }
 
-/** Read stable identity from Trae-owned files without generating impersonated IDs. */
+/** Read persisted desktop identity; CLI fallback derivation is handled separately. */
 export async function readTraeIdentity(candidate: TraeStorageCandidate, options: TraeIdentityReadOptions = {}): Promise<TraeIdentity> {
   const platform = options.platform ?? process.platform
   const home = options.home ?? homedir()
@@ -148,7 +148,7 @@ export async function readTraeIdentity(candidate: TraeStorageCandidate, options:
   const osVersion = `${platform === 'darwin' ? 'macOS' : platform === 'win32' ? 'Windows' : platform} ${release()}`
   // The OS account's full name is what the official client sends as DeviceName,
   // and the host's hardware model is what it sends as DeviceModel. Both are
-  // best-effort: neither is read by the server, and an unreadable user record
+  // best-effort: tested requests did not require them; an unreadable user record
   // must not fail identity resolution.
   const deviceName = ((): string | undefined => {
     try { return nonEmpty(userInfo().username) } catch { return undefined }

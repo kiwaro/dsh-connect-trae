@@ -1,5 +1,7 @@
 # Trae 模型管理与专属能力设计
 
+> 2026-11-06 全文复核：早期设计与分阶段更正。当前mergeTraeModelSources会补充符合条件的wire行，再由official-roster处理官方可见性；不能只按本稿早期wire join决定是否展示。源码及README是当前实现依据。
+
 ## 目标
 
 在 DSH 的「设置 → 模型 → Trae → 编辑」中提供符合 DSH 原生体验的模型管理能力：
@@ -55,7 +57,7 @@ Trae
    GET https://solo.trae.cn/api/remote/v1/models?functions=solo_agent_remote,solo_work_remote
    ```
 
-2. **补充源（wire id 映射）**：`get_detail_param` 只用于解析每个展示名对应的真正 `config_name`（`llm_utils_chat` 接受的 id），不决定模型列表本身：
+2. **补充源（wire id 映射）**：早期用`get_detail_param`补充`config_name`；当前还使用其输出上限、function、促销等元数据，并按规则提升wire独有模型：
    ```text
    POST https://trae-api-cn.mchost.guru/api/ide/v1/get_detail_param
    function = solo_work_lite
@@ -66,11 +68,19 @@ Trae
 1. `wire.config_name` == remote `id`（多数情况，两者相同，无需 `wireConfigName`）；
 2. `wire.display_name` == remote 展示名（历史改名场景，`wireConfigName` 记为 config_name）。
 
-**关键约束（2026-08-30 实测）**：Remote 目录里存在 `get_detail_param` 里**没有对应 `config_name`** 的模型（`Doubao-Seed-Code`、`glm-5.3`），这类模型对 `llm_utils_chat` 必然返回 `4001 "param is invalid"`。因此 join 不到任何 wire 行的 remote 行必须**从目录剔除**，不能对外暴露一个每次调用都失败的模型。
+**关键约束（2026-08-30 实测）**：Remote 目录里存在 `get_detail_param` 里**没有对应 `config_name`** 的模型（`Doubao-Seed-Code`、`glm-5.3`），这类模型对 `llm_utils_chat` 必然返回 `4001 "param is invalid"`。
 
-> 为什么需要 `get_detail_param` 补充 wire id：两套接口对同一模型使用不同 id。只有 `get_detail_param` 的 `config_name` 才是 `llm_utils_chat` 真正接受的 id，Remote 目录的 `name` 只是展示名。2026-08-30 实测 `Doubao-Seed-Code`（Remote 展示 id）已经**不是**任何 `config_name`——Seed-Code 已下线/改名（现为 `Doubao-Seed-2.0-Code`、`seed-code-pro-0430`），发 `config_name=Doubao-Seed-Code` 必失败。
+因此 早期曾要求join不到wire行就剔除；该要求已被后续保留目录行、调用时如实报错的策略取代，不应继续执行，不能对外暴露一个每次调用都失败的模型。
 
-> **更正（2026-10-01，issue #19 跟进）**：上一条的「不是任何 `config_name`」只对**当时提问过的那几个 function** 成立。补测 `chat_v3` 后发现 `Doubao-Seed-Code` 的 `config_name` **就在它的名单里**，并且用 `function: chat_v3` 调用**正常出字**（`glm-5.1`、`qwen-3.5` 同样如此）；ai 区域同理由 `chat_v3` 解锁 6 个模型（`kimi-k2.7-code`、`deepseek-v3.2`、`Dola-Seed-2.0-Code` 等）。join 规则本身不变（**join 不到 wire 的 remote 行仍然剔除**、不可调用的模型仍不暴露），变的是「有没有 wire」必须建立在**完整的 function 名单**上——`get_detail_param` 按 function 返回不同名单，漏问一个宽名单就会得出一批「不存在」的错误结论。
+> 为什么需要 `get_detail_param` 补充 wire id：两套接口对同一模型使用不同 id。
+只有 `get_detail_param` 的 `config_name` 才是 `llm_utils_chat` 真正接受的 id，Remote 目录的 `name` 只是展示名。
+
+2026-08-30 实测 `Doubao-Seed-Code`（Remote 展示 id）已经**不是**任何 `config_name`——Seed-Code 已下线/改名（现为 `Doubao-Seed-2.0-Code`、`seed-code-pro-0430`），发 `config_name=Doubao-Seed-Code` 必失败。
+
+> **更正（2026-10-01，issue #19 跟进）**：上一条的「不是任何 `config_name`」只对**当时提问过的那几个 function** 成立。
+补测 `chat_v3` 后发现 `Doubao-Seed-Code` 的 `config_name` **就在它的名单里**，并且用 `function: chat_v3` 调用**正常出字**（`glm-5.1`、`qwen-3.5` 同样如此）；ai 区域同理由 `chat_v3` 解锁 6 个模型（`kimi-k2.7-code`、`deepseek-v3.2`、`Dola-Seed-2.0-Code` 等）。
+
+join 规则本身不变（该次仍采用剔除策略，后续 #19 的完整处理已改为保留未知行并清除无证据function），变的是「有没有 wire」必须建立在**完整的 function 名单**上——`get_detail_param` 按 function 返回不同名单，漏问一个宽名单就会得出一批「不存在」的错误结论。
 
 已验证字段映射：
 

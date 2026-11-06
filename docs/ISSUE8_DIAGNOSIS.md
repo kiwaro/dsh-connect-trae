@@ -1,5 +1,7 @@
 # issue #8 取证：国际版未安装时「Trae Global 加载失败」
 
+> 2026-11-06 全文复核：历史诊断或回复草稿，版本、测试数与环境均限于原记录日期；发布和对外回复步骤不是本轮指令。核对fallback上下文缺口，临时复现脚本仅为当次环境。
+
 > issue：https://github.com/dingminhua/dsh-connect-trae/issues/8
 > （hackxmli：「本机没安装国际版,是不是导致国内模型也取不到」）
 > 截图报错：

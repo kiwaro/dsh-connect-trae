@@ -1,31 +1,19 @@
 # issue #67 诊断：缓存命中率恒为 0%，不是插件丢了数字
 
+> 2026-11-06 全文复核：原文关于「没有前缀缓存」「仅整请求复用」的结论已被2026-10-29的 #69 计费实验推翻。null与零只能证明这些字段的值；TTFT不足以证明内部复用机制或否定缓存折扣。保留原始实验供对照，以ISSUE69_DIAGNOSIS.md的后续证据为准。
+
 > issue：<https://github.com/dingminhua/dsh-connect-trae/issues/67>
 > （「无论简单或复杂提问，缓存命中均为百分之零」，10 个会话复现，tps 浮动 60–80）
 > 诊断时间：2026-10-28　方法：读代码 + 上游实测（CN/AI 双区、4 个账号、7 个模型、4 种 function）+ DSH 会话日志
-> 状态：**上游行为，非插件缺陷**。本版把「上游没有分配缓存池」变成可观测事实。
+> 状态：字段转发检查未发现丢失；内部缓存机制的原判定已撤回。
 
 ---
 
-## 0. 一句话结论
+## 0. 更正后的结论
 
-**插件没有丢缓存数字。** 上游 `llm_utils_chat` 现在跑在 `llm_raw_chat_v2` 管线上、后端是火山方舟
-（Volcengine Ark）的 `ep-…` 端点，它在 `metadata` 里用 `prompt_cache_pool_record: null` 明确告诉
-我们：**这次请求根本没有分配前缀缓存池**。没有池，`cache_read_input_tokens` 就只能是 0 ——
-所以 0% 命中率是**正确的读数**，不是被吞掉的字段。
+本次样本的缓存读写计数为 0，`prompt_cache_pool_record` 为 null。转发代码保留了这些字段；null 的内部语义尚无足够证据，不能据此断言没有缓存池或没有缓存折扣。后续 #69 通过计费对照观察到了前缀缓存折扣。
 
-| 现象 | 根因 | 本版的处理 |
-| --- | --- | --- |
-| 缓存命中恒 0% | 上游不为这些请求分配 prompt cache 池（`prompt_cache_pool_record: null`，100% 请求如此） | 解码并上报该事实，用户能区分「上游没给池」与「插件丢了数」 |
-| 简单/复杂提问都一样 | 缓存是**前缀**级的；池没分配时，prompt 长短不影响结果 | 同上；文档说明机制 |
-| tps 60–80 浮动 | 与缓存无关：TTFT 的差别来自**整请求复用**（同一条请求重发才快），复用不产生 `cached_tokens` | 不修（非缺陷） |
-| 2026-10-25 曾真实命中过 | 当时上游仍给 `trae-global` 分配缓存池（实测 `cacheReadTokens` 2048→46720） | 佐证：是上游变了，不是插件变了 |
-
-**一个容易踩的坑（请勿据此下结论）**：DSH 里另有一批 `cacheReadTokens` 非 0 的记录
-（`session-cc6ff6f0`，751/754 命中），逐行读 `data.message.source.provider` 可确认它们属于
-`workbuddy` / `dsh-opencode-go`，**没有一行是 `trae`**。用它们证明「trae 有缓存」是错的。
-
----
+延迟测量仅说明部分重复请求更快，无法确认服务端使用整请求复用，也不能排除前缀缓存。以下保留当时的原始响应和时间数据，实验没有在本轮重新执行。
 
 ## 1. 证据链（按数据流）
 
@@ -41,7 +29,7 @@ TraeSoloUpstreamClient             src/solo.ts
       │  POST https://trae-api-cn.mchost.guru/api/agent/v3/llm_utils_chat
       ▼
 Trae SSE（200，即使拒绝也是 200）
-      ├─ metadata      { prompt_cache_pool_record: null }   ← 关键：无缓存池
+      ├─ metadata      { prompt_cache_pool_record: null }   ← 字段值，不代表缓存机制结论
       ├─ timing_cost   { name: "llm_raw_chat_v2",
       │                  provider_model_name: "ep-20261020221437-cfj9b" }  ← 火山方舟端点
       ├─ output        { response, reasoning_content }
@@ -64,17 +52,17 @@ pi-ai 1.1.0 的 `parseChunkUsage` 读 `prompt_tokens_details?.cached_tokens`，�
 反证：同一个 DSH 版本里 `workbuddy` / `dsh-opencode-go` 的 `cacheReadTokens` 正常非 0 —— 显示链路
 没坏。
 
-### 1.2 上游侧：池没有分配
+### 1.2 上游侧：字段值为 null
 
 `metadata.prompt_cache_pool_record` 在 **100% 的实测请求**里都是 `null`（CN/AI 双区、4 个账号、
-`agent-task` / `raw-chat` / `model-detail` 三种头、以及各种字段注入）。它非空才代表上游挂了缓存池。
+`agent-task` / `raw-chat` / `model-detail` 三种头、以及各种字段注入）。尚未证明该字段与实际缓存或计费折扣的充分必要关系。
 
 `timing_cost.name` 恒为 `llm_raw_chat_v2`，`provider_model_name` 是火山方舟端点 id（`ep-…`，CN 与 AI
 各自不同）。这与 2026-09-22（issue #10 测量时）不是同一条服务路径。
 
 ### 1.3 复现 issue #10 的原始实验：现在是 0
 
-`scripts/probe-cache-convention.mjs` 就是当初产出 5248 / 9216 的那份脚本，原样重跑：
+`scripts/probe-cache-convention.mjs` 就是当初产出 5248 / 9216 的那份脚本，原样重新运行：
 
 | 轮次 | prompt_tokens | cache_read（2026-09-22） | cache_read（2026-10-28） |
 | --- | --- | --- | --- |
@@ -82,7 +70,7 @@ pi-ai 1.1.0 的 `parseChunkUsage` 读 `prompt_tokens_details?.cached_tokens`，�
 | t2 | 9224 | **5248** | **0** |
 | t3 | 9224 | **9216** | **0** |
 
-同一脚本、同一套 header、同一份前缀 —— 变量只有上游。这是最强的单点证据。
+同脚本在两个日期观察到不同响应，支持继续调查上游字段变化，但没有控制所有条件。
 
 ### 1.4 覆盖面：不是某个模型/区域/函数的特例
 
@@ -95,7 +83,7 @@ pi-ai 1.1.0 的 `parseChunkUsage` 读 `prompt_tokens_details?.cached_tokens`，�
   `prepareSoloBody` 白名单，且 `metadata.session_id` 回显正确证明字段被采纳）→ `5235/5247/5260`
   全 `read=0`。
 
-### 1.5 决定性实验：TTFT 证明「整请求复用 ≠ 前缀缓存」
+### 1.5 延迟实验：不能单凭 TTFT 判断缓存机制
 
 用 `timing_cost.first_sse_event_time` 测首字节：
 
@@ -108,35 +96,33 @@ pi-ai 1.1.0 的 `parseChunkUsage` 读 `prompt_tokens_details?.cached_tokens`，�
 | 同一 system + 不同 user | 2910（冷）→ 1096（重发）→ 新 user 1806 / 3124 | 换 user 就重新变冷 |
 | 增长中的 agent 对话 T1–T5（20035→20095） | 2897 → 1102 → 1234 → 1341 → 1009 | 每轮都是「新请求」 |
 
-**结论**：加速是**整条请求的精确复用**（memoization），不是 token 级前缀缓存。共享 25k 前缀的
-请求依旧冷启动 —— 前缀缓存实际上是关着的。而整请求复用**不产生任何 `cached_tokens`**，所以它既
-解释了 tps/延迟的浮动，也解释了为什么命中率仍是 0。
+这些数据表明部分重复请求的 TTFT 较短。样本不能区分排队、模型调度和缓存机制；“整请求复用且前缀缓存关闭”的原结论已撤回。
 
 ### 1.6 上游变了的旁证：2026-10-25 真的命中过
 
-`session-4255a972-d3df-42da-9a63-54ee984c4972`（provider `trae-global`，2026-10-25T18:43Z）的 4 行
-assistant 记录，`cacheReadTokens` 依次 2048 → 41600 → 45824 → 46720，`inputTokens`
-39640/4247/921/14570。同一插件、同一账号体系，两天后归零。
+`session-4255a972-d3df-42da-9a63-54ee984c4972`（provider `trae-global`，2026-10-25T18:43Z）的 4 行 assistant 记录，`cacheReadTokens` 依次 2048 → 41600 → 45824 → 46720，`inputTokens` 39640/4247/921/14570。
 
-IDE 侧构建版本在 10-25 与 10-27 的日志里都是 `2.3.93438` —— **客户端没变**，变的是服务端。
+同一插件、同一账号体系，两天后归零。
+
+IDE 侧构建版本在 10-25 与 10-27 的日志里都是 `2.3.93438`。版本号相同不能排除账号、配置、实验分组或服务端变化；现有日志不足以确定原因。
 
 ---
 
-## 2. 排查过的「可能是插件」方向（均被否定）
+## 2. 排查过的插件相关假设
 
 | 假设 | 验证 | 结论 |
 | --- | --- | --- |
-| #10 的转发又坏了 | `lib/index.js` 含 `cached_tokens`；单测覆盖 | 否 |
-| `prepareSoloBody` 白名单丢字段 | 手工构造原始 body 绕过白名单，结果不变 | 否 |
-| 缺 `session_id` 导致不缓存 | 手工注入并确认 `metadata.session_id` 回显 | 否 |
-| `enable_user_prompt_cache` 开关没开 | 顶层 / `extra_info` / `ab_versions` / `client_config_ab_versions` 四处注入 | 否，管线不变 |
-| header profile 不对 | `agent-task` / `raw-chat` / `model-detail` 全试 | 否 |
-| `app_version` 为空导致降级 | body 与 header 两种方式注入 IDE 版本号 | 否，`app_version` 仍为 `""` |
-| 需要 v2 raw chat 路径 | `/api/ide/v2/llm_raw_chat` → `4001`；v1 → `4023` | 否，SOLO 是唯一活路 |
-| DSH 显示层吞了 | 同版本 `workbuddy` 正常非 0 | 否 |
+| #10 的转发又坏了 | `lib/index.js` 含 `cached_tokens`；单测覆盖 | 当次样本未支持该假设 |
+| `prepareSoloBody` 白名单丢字段 | 手工构造原始 body 绕过白名单，结果不变 | 当次样本未支持该假设 |
+| 缺 `session_id` 导致不缓存 | 手工注入并确认 `metadata.session_id` 回显 | 当次样本未支持该假设 |
+| `enable_user_prompt_cache` 开关没开 | 顶层 / `extra_info` / `ab_versions` / `client_config_ab_versions` 四处注入 | 当次注入未改变管线 |
+| header profile 不对 | `agent-task` / `raw-chat` / `model-detail` 全试 | 当次样本未支持该假设 |
+| `app_version` 为空导致降级 | body 与 header 两种方式注入 IDE 版本号 | 当次注入后 `app_version` 仍为 `""` |
+| 需要 v2 raw chat 路径 | `/api/ide/v2/llm_raw_chat` → `4001`；v1 → `4023` | 当次样本中仅 SOLO 路线可调用 |
+| DSH 显示层吞了 | 同版本 `workbuddy` 正常非 0 | 当次样本未支持该假设 |
 
-**顺带发现**：`src/sse.ts` 原本把 `metadata` / `timing_cost` 都归到 `unknown` 直接丢弃。功能上无害，
-但让用户无法区分「上游没给池」和「插件丢了数」——这正是本 issue 的观感来源。本版改为解码为
+**顺带发现**：`src/sse.ts` 原本把 `metadata` / `timing_cost` 都归到 `unknown` 直接丢弃。未发现其改变答案文本或 usage 映射，
+但让用户无法区分「上游字段为 null」和「插件丢了数」——这正是本 issue 的观感来源。本版改为解码为
 `diagnostic` 并上报。
 
 ---
@@ -154,15 +140,15 @@ IDE 侧构建版本在 10-25 与 10-27 的日志里都是 `2.3.93438` —— **�
 4. 回归测试：`tests/sse.spec.ts` 解码断言；`tests/solo-bridge.spec.ts` 上报断言 + 「metadata 之后
    的拒绝仍变成 402」断言。
 
-诊断事件不进入答案文本、不影响 usage 映射，因此**不改变**任何对外行为。
+诊断事件不进入答案文本、不影响 usage 映射，因此保留答案文本和 usage 映射；新增诊断日志属于可观察行为变化。
 
 ---
 
 ## 4. 给用户的建议
 
-- 0% 命中率在当前上游下是**预期读数**，不用再排查插件；
-- 缓存收益目前只体现为**同一请求重发**时更低的 TTFT，这不会显示成缓存命中；
-- 若某天 `metadata.prompt_cache_pool_record` 非空，`cached_tokens` 会自动恢复显示 —— 插件侧无需再改；
+- 0% 是这些样本的上报读数，不应仅凭0%读数断定插件丢字段；
+- 缓存计费收益应参考 #69 的后续对照，TTFT 不足以确定收益来源；
+- 只有上游实际返回非零缓存计数，`cached_tokens`才会显示非零 —— 插件侧已有映射逻辑；
 - 日志里出现 `upstream request diagnostics` 即可确认当时的真实情况。
 
 ---

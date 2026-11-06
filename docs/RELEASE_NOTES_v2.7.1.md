@@ -1,5 +1,7 @@
 ## v2.7.1（2026-10-05）
 
+> 适用版本：v2.7.1。本文保存该版本的行为、测试数量和当时观察；当前操作以 [README](../README.md) 为准。 本版的相同 Max 情况仍保留先到项，后续 [2.7.2](RELEASE_NOTES_v2.7.2.md) 增加默认窗口比较。
+
 > **修复「Max 档随机丢失、同一模型的上下文窗口在多次刷新之间漂移」**（[#23](https://github.com/dingminhua/dsh-connect-trae/issues/23)，报告人 JiewiW）。
 
 ### 修复

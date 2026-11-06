@@ -291,7 +291,8 @@ function remoteDressing(region: TraeRegion): { referer: string; timezone: string
  * Read-only model catalog client for the SOLO Web API.
  *
  * This deliberately has no chat/session method: the Remote session protocol
- * only exposes a final answer and cannot preserve DSH's structured tool loop.
+ * path examined during development exposed a final answer without the structured
+ * tool events this adapter requires. This module therefore handles catalogs only.
  */
 export class TraeSoloRemoteCatalogClient {
   private readonly fetchImpl: typeof fetch
@@ -306,9 +307,9 @@ export class TraeSoloRemoteCatalogClient {
    * the loop returns on the first success, so a backup that keeps answering
    * means the official base is never asked again. The official host is
    * therefore re-probed on a COOLDOWN instead (see {@link OFFICIAL_RETRY_MS}):
-   * while the cooldown runs the backup is used and the official host is
-   * skipped; when it expires the official host is tried FIRST again, so a
-   * healed network takes over within one cooldown window rather than never.
+   * while the cooldown runs backups are tried first and the official host
+   * remains a last candidate. After expiry the next refresh tries the official
+   * host first; there is no background probe or guaranteed recovery time.
    */
   private lastSuccessfulBase: string | undefined
   /**

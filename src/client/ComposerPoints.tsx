@@ -1,44 +1,12 @@
 /**
- * Credit readout for the composer row (`conversation.input.right`, rendered
- * immediately before the model picker).
+ * Trae 积分及套餐读数，支持模型选择所在行与输入框下方两种位置。
  *
- * Shows the bound CN account's general credit balance, but ONLY while the
- * session's selected model belongs to this plugin. That condition is the whole
- * point: the sidebar foot is a single shared row, so two connector plugins each
- * parking a line there end up fighting for the same space. The composer row is
- * per-session and provider-scoped, so exactly one plugin's credits are relevant
- * at a time and nothing overlaps.
+ * 显示条件和面板选择由 ComposerPointsGate 决定。选择其他插件模型时，仍可显示
+ * 已启用 Trae 面板的读数。多个连接器通过 composer-order.ts 协调工具栏顺序。
  *
- * The row itself is a bare clickable readout — `Trae CN · 657` — with NO
- * controls of its own. Clicking it opens an anchored panel: a TABLE with one row
- * per account in the region and that account's general balance, where a row
- * click switches to it.
- *
- * The panel's header carries the account-pool test batch, labelled 「刷新」, and
- * a SETTINGS pill that opens this plugin's own page in the wide Settings dialog
- * (`./settings-route.ts`).
- *
- * The pill was briefly removed, on the belief that no host seam could open the
- * dialog on a given section. That belief was wrong — the settings shell
- * publishes its state as the `sidebar.settings` store seat, whose `openSection(id)`
- * is exactly that seam — so the pill is back and now lands on this plugin's own
- * `settings.section` page. The route module records the finding.
- *
- * Two deliberate choices in that panel:
- *
- *  - GENERAL balance only, not Work credits. The table's one figure is the
- *    bucket the SOLO chat actually spends; two columns of numbers in a
- *    five-slot popover is noise, and the card is where the breakdown belongs.
- *  - Per-account figures are fetched ONLY while the panel is open. The
- *    5-minute readout must not multiply its upstream reads by the account
- *    count — a healthy balance should not pay for a table nobody is looking at.
- *    This is the same principle that keeps `creditAlternatives` firing only
- *    when a balance hits zero.
- *
- * The provider comes from the Host's own `modelSelection` projection rather
- * than from anything this plugin tracks: the projection is what the model
- * picker writes and what the next request will use, so the readout cannot
- * disagree with the model actually in effect.
+ * 点击读数打开账号表格，国内版列出积分，国际版列出套餐；操作列区分当前账号
+ * 和可切换账号。面板提供账号池测试及插件设置入口。
+ * 账号明细只在面板打开时查询，定时刷新失败时保留上次读数。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -104,7 +72,7 @@ export interface ComposerPointsProps extends Partial<ComposerPointsInjected> {
   /** Which region's credits to read when the provider is this plugin's. */
   region?: TraeRegion
   /**
-   * Settings scope from the configForms mirror. Present whenever a row click
+   * Settings scope from the configForms mirror. Present whenever an account switch
    * should switch accounts; without it the table still renders but the rows are
    * inert, because a panel that switches nothing must not pretend to.
    */
@@ -236,24 +204,9 @@ export function ComposerPoints(props: ComposerPointsProps) {
    */
   const [settingsFailed, setSettingsFailed] = useState(false)
   /**
-   * The account-pool test batch, driven from this panel's header.
-   *
-   * WHY IT LIVES HERE AT ALL: the rows below ARE the pool's members, and a row's
-   * mark is a MEASUREMENT (`被限流 · 约 6 小时后` is a probe result, not a
-   * setting). Re-reading the usage document cannot improve a stale measurement —
-   * only running it again can — so the question "which of these can serve right
-   * now?" had no answer from the place that asks it. The pool card can do this,
-   * but it is behind the settings page; the reader is already looking at these
-   * accounts.
-   *
-   * `testing` is separate from the panel's other busy states on purpose: this is
-   * a SERIAL batch against one account at a time with a gap (hitting the whole
-   * pool at once is how the upstream's volume limit gets tripped), so it can run
-   * for a minute while a credits read would be merely slow.
-   *
-   * `testFailed` is its own line so the two failures cannot take turns
-   * overwriting each other in one slot. `testNote` carries the last outcome summary, which is what makes the
-   * press feel answered even when the table's marks are subtle.
+   * 面板列出当前区域的全部账号，标题栏测试按钮只测试已勾选的池成员。
+   * 测试按账号串行执行并保留间隔，以控制并发；上游仍可能限流。
+   * 测试状态与余额刷新分别保存，避免覆盖彼此的错误和结果说明。
    */
   const [testing, setTesting] = useState(false)
   const [testFailed, setTestFailed] = useState<string | undefined>(undefined)
@@ -318,7 +271,8 @@ export function ComposerPoints(props: ComposerPointsProps) {
   }, [activeRegion])
 
   /**
-   * Every account's general balance — one upstream read per account.
+   * Request the account-balance route while the panel is open. The Host may
+   * perform multiple upstream reads for an account.
    *
    * Paid only while the panel is open (see the note at the top of this file).
    * A failure keeps whatever we already have rather than clearing it: a number
@@ -362,10 +316,10 @@ export function ComposerPoints(props: ComposerPointsProps) {
   }, [owned, fetchUsage])
 
   /**
-   * Every account's PLAN, one status read per account — ai only.
+   * Request every account's plan through its status route, for ai only.
    *
-   * Costs one upstream call per account, paid only while the panel is open (the
-   * same rule the credit route follows). A failed read leaves that account's plan
+   * Runs only while the panel is open. One HTTP status request can trigger
+   * multiple upstream reads. A failed read leaves that account's plan
    * undefined, which the row renders as a dash: the row still switches accounts,
    * which is the panel's primary job.
    */
@@ -474,14 +428,9 @@ export function ComposerPoints(props: ComposerPointsProps) {
   }
 
   /**
-   * Run the pool's test batch, then re-read what it changed.
-   *
-   * The route is the SAME one the card's "测试勾选的账号" drives — it tests the
-   * pool's checked-in members, not every account listed in this panel — and the
-   * model comes from the Host's saved target rather than from here, so a press
-   * cannot spend credits on a model the user did not choose. Same for the
-   * outcome vocabulary and the NDJSON fold: both live in `./pool-test.ts` so the
-   * card and this header cannot answer one batch two ways.
+   * 与设置卡片共用测试路由和结果解析，只测试已勾选的池成员。
+   * 模型由已保存的测试偏好决定；自动选择只使用费用已知为零的模型，
+   * 手动选择收费模型则可能消耗积分。
    *
    * The re-read afterwards is not a courtesy. The probes live in the USAGE
    * document (`usage.pool.accounts[].probe`), so the marks only move once that
@@ -825,6 +774,7 @@ export function ComposerPoints(props: ComposerPointsProps) {
                       <th scope="col" className="dsm-trae-composer-panel-num">
                         {activeRegion === 'ai' ? t('composer.plan') : t('composer.generalCredits')}
                       </th>
+                      <th scope="col" className="dsm-trae-composer-panel-action">{t('composer.action')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -854,6 +804,7 @@ export function ComposerPoints(props: ComposerPointsProps) {
                                 })()
                               : row.generalAvailable === undefined ? '—' : formatCredits(row.generalAvailable)}
                           </td>
+                          <td className="dsm-trae-composer-panel-action"><button type="button" data-current={current ? 'true' : undefined} disabled={!canSwitch || switchingId !== undefined || current} onClick={() => { void switchTo(row.id) }}>{current ? t('composer.inUse') : switchingId === row.id ? t('composer.switching') : t('composer.switch')}</button></td>
                         </tr>
                       )
                     })}
@@ -864,7 +815,7 @@ export function ComposerPoints(props: ComposerPointsProps) {
               read, so it is where "some of that balance is about to disappear"
               belongs — but only for the CN shape: the international document
               carries a plan, not packs, so it has no per-pack expiry at all. */}
-          {activeRegion === 'cn' && signedIn?.credits?.expiry !== undefined
+          {activeRegion === 'cn' && signedIn?.credits?.expiry !== undefined && expiryNotice(signedIn.credits.expiry) !== undefined
             ? <div className={`dsm-trae-expiry ${expiryToneClass(expiryNotice(signedIn.credits.expiry)?.tier ?? 'lapsed')}`} role="status">
                 <span>{expiryMessageOf(signedIn.credits.expiry, t)}</span>
                 {soonestExpiryOf(signedIn.credits.expiry) === undefined

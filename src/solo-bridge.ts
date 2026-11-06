@@ -60,13 +60,13 @@ export interface TraeFailure {
  *    `{"code":2001,"message":"no function config found for appId=...,
  *    function=solo_work_remote"}` (and the variant `[LLMUtilsChat.resolveByUsage]
  *    function is empty, cannot resolve model by usage=`). The roster came back
- *    empty and then self-resolved later with rows per function, so this is a
- *    TRANSIENT server-side gap the user can wait out or retry — never a local
- *    credential, plugin or account fault, and not something to re-login for.
+ *    empty and later returned rows without a local change. That sample supports
+ *    retrying a transient failure but does not rule out account, gateway or
+ *    credential-related causes for other 2001 responses.
  */
 const TRAE_ERROR_HINTS: Readonly<Record<number, string>> = {
   1005: 'Trae requires a paid plan for this model; the current account\'s plan does not cover it',
-  2001: 'Trae has not published its function config for this route (an upstream condition, not a local credential or config problem)',
+  2001: 'Trae could not find a function config for this route. Retry later; if it persists, check the account and route configuration',
   4001: 'Trae does not serve this model under the SOLO function the request used (config_name rejected)',
   4008: 'Trae reports the account\'s SOLO quota is exhausted for this request',
   4011: 'Trae throttled the SOLO channel for this account (a rate limit, not the credit balance)',
@@ -223,8 +223,8 @@ function bridgeTraeSource(
         if (decoded.type === 'diagnostic') {
           // Issue #67: record what the upstream said about prompt caching.
           // `prompt_cache_pool_record: null` is the upstream telling us it
-          // attached NO cache pool to this request — which is exactly the
-          // condition that makes a 0% cache rate correct rather than a bug.
+          // reported no cache-pool record. Keep that diagnostic separate from
+          // usage counters; null alone does not establish whether caching occurred.
           if (decoded.promptCachePoolRecord !== undefined || decoded.pipeline !== undefined) {
             log?.('dsh-connect-trae: upstream request diagnostics', {
               model,

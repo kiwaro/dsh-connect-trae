@@ -1114,13 +1114,13 @@ describe('the batch bar sits inside the member block', () => {
     expect(testAll.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('keeps the save bar reachable while scrolling the page', () => {
+  it('keeps the save bar in flow without covering settings', () => {
     // Both commit buttons used to sit at the very bottom of the section: with a
     // long roster the user edited a row, scrolled nowhere, and could not see what
     // applied the edit.
     const bar = /\.dsm-trae-pool-save-row\{([^}]*)\}/.exec(TRAE_CARD_CSS)
-    expect(bar?.[1]).toContain('position:sticky')
-    expect(bar?.[1]).toContain('bottom:0')
+    expect(bar?.[1]).toContain('position:static')
+    expect(bar?.[1]).not.toContain('bottom:0')
   })
 })
 

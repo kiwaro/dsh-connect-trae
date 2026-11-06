@@ -1,5 +1,7 @@
 # issue #11 取证：能否关掉「国际版」或「国内版」其中一个供应商
 
+> 2026-11-06 全文复核：历史诊断或回复草稿，版本、测试数与环境均限于原记录日期；发布和对外回复步骤不是本轮指令。核对先记录测试缺口再补测的阶段顺序；现有测试不能沿用当时缺失断言。
+
 > issue：https://github.com/dingminhua/dsh-connect-trae/issues/11
 > （tendun：「能禁用国际版或国内版吗，有没有配置的地方」/「比如说我根本用不到国际版」）
 >
@@ -76,7 +78,7 @@
 该槽位的目录 / 勾选 / 图片开关 / 上下文预算，以及另一个区域的整个槽位，全部原样带过。
 所以「关掉 → 再打开」能完整恢复用户的选择。
 
-对应地，卡片保存模型目录时必须**回写 `enabled`**——那次写入会替换整个槽位，
+对应地，卡片保存模型目录时必须**保留并写入 `enabled`**——那次写入会替换整个槽位，
 漏掉它就会「保存一次模型列表 = 悄悄重新打开已关闭的供应商」。
 
 ### 代价（已知且不可避免）
@@ -128,15 +130,13 @@
 这是漏测的关键缝隙。我先前声称「验证过」，实际验证的是 Helper 与 Host，
 **没有真正点过那个控件**。
 
-**修复**：`regionsMapOf()` 让这两个 Helper **同时接受两种入参**（整段或子对象），
-并统一由它收口，使「传错一半」在结构上不再可能静默返回 `true`。
-新增 2 条回归测试分别覆盖「整段入参」与「返回值必须是 `regions` 子对象」；
-把 `regionsMapOf` 的拆包逻辑改回原样，这 2 条立刻失败（已实测）。
+**修复**：`regionsMapOf()` 让这两个 Helper **同时接受两种入参**（整段或子对象）， 并统一由它收口，使「传错一半」在结构上不再可能静默返回 `true`。
 
-**仍未闭合的缺口**：本仓库 `vitest.config.ts` 只收 `tests/**/*.spec.ts` 且
-`environment: 'node'`，**无法渲染 React 组件**，所以「真实点击」仍未纳入 CI——
-这正是本次事故的结构性原因。后续应引入 jsdom + `@testing-library/react`、
-放开 `.spec.tsx`，把「点一下复选框 → 断言 settings 落值 + 勾选态翻转」变成自动化用例。
+新增 2 条回归测试分别覆盖「整段入参」与「返回值必须是 `regions` 子对象」； 把 `regionsMapOf` 的拆包逻辑改回原样，这 2 条立刻失败（已实测）。
+
+**仍未闭合的缺口**：本仓库 `vitest.config.ts` 只匹配 `tests/**/*.spec.ts` 且 `environment: 'node'`，**无法渲染 React 组件**，所以「真实点击」仍未纳入 CI—— 这正是本次事故的结构性原因。
+
+后续应引入 jsdom + `@testing-library/react`、 放开 `.spec.tsx`，把「点一下复选框 → 断言 settings 落值 + 勾选态翻转」变成自动化用例。
 
 ### 缺口已闭合：真实点击测试
 
@@ -158,9 +158,6 @@
 这 8 条里**4 条立刻失败**，其中就包括「存了 false 却显示为已勾选」——
 与用户看到的症状完全一致。测试确实咬得住。
 
-配套改动：`vitest.config.ts` 放开 `.spec.tsx`；`tsconfig.json` 排除 `.tsx` 测试、
-`tsconfig.client.json` 收入（组件测试要 JSX + DOM lib）；
-新增 devDependencies `jsdom` / `@testing-library/react` / `@testing-library/dom` /
-`react-dom@18`（对齐仓库的 React 18）。
-`@deepseek-ai/dsh-client-ui-primitives` 会拉入浏览器专用的 CSS modules，
-测试里整体 mock 掉它（卡片只用到其中一个图标），**产品依赖契约不变**。
+配套改动：`vitest.config.ts` 放开 `.spec.tsx`；`tsconfig.json` 排除 `.tsx` 测试、 `tsconfig.client.json` 收入（组件测试要 JSX + DOM lib）； 新增 devDependencies `jsdom` / `@testing-library/react` / `@testing-library/dom` / `react-dom@18`（对齐仓库的 React 18）。
+
+`@deepseek-ai/dsh-client-ui-primitives` 会拉入浏览器专用的 CSS modules， 测试里整体 mock 掉它（卡片只用到其中一个图标），**产品依赖契约不变**。

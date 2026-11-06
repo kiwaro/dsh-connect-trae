@@ -1,19 +1,21 @@
 # DSH 0.2.2-rc.1 同步结论
 
+> 2026-11-06 全文复核：本文件是4.8.1升级记录；1335用例和产物大小属于当次检查。当前运行时代码另有本地UI修订，见CHANGELOG未发布条目与本地部署记录。
+
 > 调研对象：桌面端宿主 **0.2.2-rc.1**（随包 `cordis@4.1.0`、`schemastery@3.19.0`、
 > `@earendil-works/pi-ai@1.3.0`）。
 > 对照基线：`dsh-connect-trae` 4.8.0 / 宿主 0.2.1-rc.5。
-> 结论一句话：**运行期无需适配即可工作；工程上必须补 2 个字段才能把开发树升到 0.2.2。**
+> 结论：**运行期无需适配即可工作；工程上必须补 2 个字段才能把开发树升到 0.2.2。**
 
 ## 一、结论摘要
 
 | 判断 | 结果 |
 | --- | --- |
 | 4.8.0 能否直接在 0.2.2-rc.1 上运行 | **能**。本机桌面端实测：插件已加载，`GET /plugins/dsh-connect-trae/usage` 返回 200 且 `signed-in` |
-| 插件消费的 13 个宿主包中带实质变化的 | **8 个**（attachment / client-locale / client-ui-primitives / client-ui-settings / client-ui-settings-plugins / host-webserver / llm / llm-pi-ai） |
+| 插件调用的 13 个宿主包中带实质变化的 | **8 个**（attachment / client-locale / client-ui-primitives / client-ui-settings / client-ui-settings-plugins / host-webserver / llm / llm-pi-ai） |
 | 契约破坏 | **1 处**：`ResolvedPiAiProviderProfile` 新增两个必填字段，手工构造 profile 的类型检查失败 |
-| 运行期行为破坏 | **0 处**（缺省值让旧 profile 继续工作） |
-| 需要改 peer 范围 | **不需要**，`0.2.2-rc.1` 已被 `>=0.1.7-rc.1 <0.3.0-0` 放行 |
+| 运行期行为破坏 | **该次检查未发现阻断运行的问题**；旧profile缺字段会跳过新增图片张数限制 |
+| 需要改 peer 范围 | **不需要**，`0.2.2-rc.1` 满足 `>=0.1.7-rc.1 <0.3.0-0` |
 | 三大价值（双区域 / 用量积分 / 每日签到） | **不受影响**，对应测试全绿 |
 
 ## 二、宿主变了什么
@@ -26,7 +28,7 @@
 | `@deepseek-ai/schemastery` | 3.18.5 | **3.19.0** | 代码与 3.18.5 逐字节相同，仅 `cosmokit` 依赖升到 `~1.9.0` |
 | `@earendil-works/pi-ai` | 1.1.0 | **1.3.0** | 默认上下文 262,144 → **1,000,000**、默认 `maxTokens` 32,768 → **128,000**；新增请求级图片数量上限；工具参数非法时以 `MALFORMED_RESPONSE` 失败 |
 
-### 2.2 逐包核对（13 个插件消费的宿主包）
+### 2.2 逐包核对（13 个插件调用的宿主包）
 
 **有实质变化（8）**
 
@@ -35,7 +37,7 @@
 - `dsh-llm-pi-ai`：`ResolvedPiAiProviderProfile` **新增两个必填字段** `maxRequestImages` /
   `imageOffloadCountQuantum`；`PiAiAdapterOptions` 新增 `prepareHeaders`，并新增
   `llm-pi-ai/request-headers` waterfall；中间系统消息改为按 `supportsMidConvoSystemMessages`
-  决定原生保留还是折成 `<system-reminder>`；Anthropic 兼容门禁新增 `supportsMidConvoEffort`。
+  决定原生保留还是折成 `<system-reminder>`；Anthropic 兼容兼容性检查新增 `supportsMidConvoEffort`。
 - `dsh-host-webserver`：新增 `WebResource` / `WebResourceRoute`，`register()` 与
   `registerFallback()` 可以收资源路由，新增 `readResource(request, peer)`；
   `webserver/index-inject(table, peer)` 与 `renderIndex(html, peer)` 增加 Peer 参数。

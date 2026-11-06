@@ -52,16 +52,10 @@ const REFRESH_WARN_DAYS = 30
  * The refresh-token warning for one account, or undefined when there is nothing
  * worth saying.
  *
- * The access token renews itself every few minutes, so its own expiry answers
- * "when does this need attention" with "never, until the refresh token lapses".
- * The refresh token is therefore the only honest countdown on this card, and it
- * has to be shown BEFORE it runs out: once it lapses the plugin cannot renew at
- * all and the only recovery is signing in to Trae again, which a user who has
- * been reading "auto-renewal" for months has no reason to expect.
- *
- * Three tones, matching the credit-expiry notice: `lapsed` (renewal already
- * dead), `soon` (inside the warning window), and nothing otherwise — a healthy
- * token must not add a line to every account row forever.
+ * Uses the reported refresh-token expiry to choose lapsed or soon. Access-token
+ * renewal may fail earlier because of revocation, network or upstream errors;
+ * this warning is not a guarantee of uninterrupted access until that date.
+ * No warning is added when no expiry is known or it is outside the window.
  */
 export function refreshTokenWarning(
   expiresAtMs: number | undefined,

@@ -42,8 +42,8 @@ export { TRAE_SOLO_FUNCTION }
  * the route that was asked (its own text says so, and issue #33's reporter hit
  * it on the CORRECT function), and the "this route does not serve that model"
  * condition is `4001` — measured on all 22 functions of a live CN credential.
- * The conclusion for this list is unchanged either way: a route that refuses
- * chat is not a chat route, so `solo_agent` stays out.
+ * solo_agent remains excluded because this project has no successful chat
+ * sample for it. A 4011 response alone does not prove the route cannot serve chat.
  *
  * Note `get_detail_param` DOES answer `solo_agent` with a 43-entry list, so
  * asking it looks helpful while making 8 of the 10 exposed ai-region models
@@ -275,13 +275,11 @@ export type TraeChatRoute = 'solo' | 'enterprise'
 /**
  * Thrown by {@link TraeSoloUpstreamClient.fetchModels} when every requested
  * directory function answered HTTP 200 but with an EMPTY `config_info_list`
- * (no rows at all), so the aggregate roster is empty. This is issue #39's root
- * signal: the upstream has published NO SOLO function config for this account /
- * route. It is a server-side, usually transient gap — the reporter's roster
- * returned empty and later self-resolved with rows per function — NOT a local
- * credential, plugin or account fault, and not something to re-login for. The
- * caller can catch this type to tell "the upstream published no config" apart
- * from "all directory functions errored" (which surfaces as a generic failure).
+ * (no rows at all), so the aggregate roster is empty. This identifies the
+ * observed response shape, not its root cause. The issue #39 sample later
+ * returned rows without a local change, but an empty response alone cannot
+ * exclude an account, permission, gateway or credential-related cause.
+ * Callers can distinguish this response from per-function request failures.
  */
 export class TraeEmptySoloDirectory extends Error {
   override name = 'TraeEmptySoloDirectory'
@@ -313,7 +311,7 @@ export class TraeSoloUpstreamClient {
     const region = assertSupportedRegion(regionOfCredential(credential))
     // Same gateway as this client's chat route: the two pools publish DIFFERENT
     // rosters (`DeepSeek-V4.1-Flash` is enterprise-only), so a consumer-pinned
-    // client that read the consumer roster would never discover it.
+    // client that read the enterprise roster would mix the two catalogs.
     const base = this.options.baseUrl ?? this.chatBaseOf(credential)
     const headers = { ...buildTraeCnHeaders(credential, identity), Accept: 'application/json' }
     const byId = new Map<string, TraeSoloModel>()

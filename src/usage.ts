@@ -3,13 +3,13 @@ import { TraeHttpError } from './failure.ts'
 import { assertSupportedRegion, REGION_GATEWAYS, regionOfCredential, type TraeRegion } from './region.ts'
 
 /**
- * Read-only Trae usage/credits client.
+ * Trae usage and credits client, with a separate check-in claim operation.
  *
  * CN sources the verified `api.trae.cn` pay/ug endpoints (see
  * `docs/USAGE_API_RESEARCH.md`); the international (ai) region is
  * subscription-based and reads `ide_user_pay_status` on its own gateway
- * (verified 2026-09-15, docs/INTL_SG_EVIDENCE.md §4). All queries are
- * read-only and do not consume Trae credits. The per-session consumption
+ * (verified 2026-09-15, docs/INTL_SG_EVIDENCE.md §4). Usage queries are
+ * read-only and do not consume model credits; claimCheckin changes reward state. The per-session consumption
  * detail table is deliberately not included: the endpoint returns no rows
  * for the current account, so we only expose what is actually retrievable.
  */
@@ -391,16 +391,17 @@ export class TraeUsageClient {
   /**
    * Claim today's check-in reward. The ONLY state-changing call in this client.
    *
-   * The upstream is idempotent per Beijing day (verified 2026-09-24: repeating
-   * the call on an already-claimed day answers `code: 0` while the entitlement
-   * total stays byte-identical), so a double click cannot double-grant. The
-   * card and its route still guard, because "cannot double-grant" is a property
-   * of the upstream we verify rather than one we rely on.
+   * A duplicate claim tested on 2026-09-24 returned code 0 with the entitlement
+   * total unchanged. This sample does not guarantee duplicate handling for every
+   * request. The card and route check current status before attempting a claim;
+   * concurrent requests still depend on the upstream's duplicate handling.
    *
+
    * A business refusal arrives as HTTP 200 with a non-zero `code` — most often
    * `9004` when the request carries no `x-device-id`. That is reported as
-   * `claimed: false` rather than thrown, so the caller can tell "the upstream
-   * refused this" apart from "the request never arrived".
+   * `claimed: false` rather than thrown, so the caller can distinguish an explicit business refusal from a
+   * transport or parsing failure. A transport failure does not prove that the
+   * request never reached the server.
    */
   async claimCheckin(signal?: AbortSignal): Promise<TraeCheckinClaim> {
     await this.requireCnRegion('check-in claim')

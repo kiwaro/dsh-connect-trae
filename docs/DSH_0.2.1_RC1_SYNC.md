@@ -1,10 +1,12 @@
 # DSH 0.2.1-rc.1 升级同步记录
 
+> 2026-11-06 全文复核：按各节日期记录旧宿主升级。对WorkBuddy的判断仅指当时参考版本，不能代表当前参考项目；当前开发树已到0.2.2-rc.1与pi-ai1.3.0。旧槽位与测试数不是本轮验证。
+
 > 调研日期：2026-10-17
 > 宿主：DSH Desktop，随包 `@deepseek-ai/dsh-desktop-runtime@0.2.1-rc.1`（后追加 rc.2 复核，见第九节；rc.3 复核，见第十节）
 > 插件：`dsh-connect-trae` 3.6.1 → **3.7.0**
 > 参考：`dsh-connect-workbuddy/docs/DSH-0.2.1-RC1-FOLLOWUP.md`（同批升级的姊妹项目调研）
-> 基线：升级前 660 例全绿（pi-ai 0.85.1 / dsh 0.2.0-rc.1）
+> 基线：升级前 660 例全部通过（pi-ai 0.85.1 / dsh 0.2.0-rc.1）
 
 ---
 
@@ -14,8 +16,8 @@
 |---|---|---|
 | **pi-ai 0.85.1 → 1.1.0 请求体** | ✅ **无回归** ，原因是 3.4.2 的双向适配已经覆盖。**但这是实测出来的，不是推断** | 加测试钉住（P0） |
 | **pi-ai 1.1.0 类型契约** | 🔴 `TranscriptContext` 新增 `unique symbol` 品牌，适配层两处调用点 `TS2345` | **必须改代码**（P0） |
-| **peer 版本范围** | ✅ `0.2.1-rc.1` 对现范围 **已判通过**（宿主用 `includePrerelease: true`） | 无（但收窄 pi-ai 上界） |
-| **宿主 API / 客户端外壳** | ✅ 消费点签名未变 | 无 |
+| **peer 版本范围** | ✅ `0.2.1-rc.1` 对现范围 **已判通过**（宿主用 `includePrerelease: true`） | 宿主范围不变；为 pi-ai 补充上界 |
+| **宿主 API / 客户端外壳** | ✅ 调用点签名未变 | 无 |
 | **开发树版本漂移** | 🟡 devDependency 仍钉 `0.2.0-rc.1` / pi-ai `^0.85.1` | 对齐宿主实际版本 |
 
 **一句话**：workbuddy 那份文档里最吓人的 P0（请求静默丢掉 system prompt 与工具）在本插件**不成立**——因为 trae 早就在做双向适配；真正需要动手的是**类型面**（1.1.0 加的品牌类型）和**版本对齐**。
@@ -39,7 +41,7 @@
 
 ---
 
-## 二、P0：pi-ai 1.1.0 下的请求体（结论：无回归，已钉住）
+## 二、P0：pi-ai 1.1.0 下的请求体（结论：无回归，已通过测试约束）
 
 ### 2.1 宿主侧的错配真实存在
 
@@ -111,7 +113,7 @@ export type TranscriptContext = {
 2. **旧代路径必须产出无品牌形状**。pi-ai ≤0.85 既没有 `normalizeContext` 也没有 transcript 类型，
    它的 api 要的正是 `adapt()` 返回的 `{ systemPrompt, tools, messages }`。
 
-也就是说，交给 `api` 的值是「**那一代 api 所消费的上下文**」，两边编译单元各自的类型名都没法表达它。
+也就是说，交给 `api` 的值是「**那一代 api 所接收的上下文**」，两边编译单元各自的类型名都没法表达它。
 
 ### 3.4 修法
 
@@ -122,11 +124,11 @@ const forApi = (context: Parameters<typeof adapt>[0]): Parameters<ProviderStream
   adapt(context) as Parameters<ProviderStreams['stream']>[1]
 ```
 
-测试侧同理，收进一个具名的 `send()` helper，而不是散落 `as never`。
+测试侧同理，将类型转换集中到具名的 `send()` 辅助函数，而不是散落 `as never`。
 
 ---
 
-## 四、P1：peer 范围（结论：无需改动，但要收窄 pi-ai 上界）
+## 四、P1：peer 范围（结论：无需改动，为 pi-ai 补充上界）
 
 ### 4.1 「预发布悬崖」在 DSH 上不触发
 
@@ -150,7 +152,7 @@ satisfies('0.2.1-rc.1', '>=0.1.7-rc.1 <0.3.0-0', {includePrerelease}) → true  
 
 ### 4.2 真正该改的是 pi-ai 上界
 
-原范围 `>=0.85.1` **没有上界**，`2.0.0` 也会被放行——而 2.x 的契约未审阅。收窄为：
+原范围 `>=0.85.1` **没有上界**，`2.0.0` 也会被接受——而 2.x 的契约未审阅。将范围限定为：
 
 ```jsonc
 "@earendil-works/pi-ai": ">=0.85.1 <2.0.0"
@@ -180,7 +182,7 @@ satisfies('0.2.1-rc.1', '>=0.1.7-rc.1 <0.3.0-0', {includePrerelease}) → true  
 
 ## 六、已核对确认「无需改动」
 
-- **宿主 API**：`dsh-llm`、`dsh-settings`、`dsh-host-webserver`、`dsh-llm-pi-ai` 的消费点签名未变。
+- **宿主 API**：`dsh-llm`、`dsh-settings`、`dsh-host-webserver`、`dsh-llm-pi-ai` 的调用点签名未变。
 - **客户端外壳**：构建产物 `lib/client.js` 仍只 `require` react / react-dom / react/jsx-runtime，
   全在宿主模块注册表内；槽位与主题令牌未变。
 - **`canDisableThinking`**（workbuddy 文档 §6）：trae 无此代码，不适用。
@@ -235,7 +237,7 @@ satisfies('0.2.1-rc.1', '>=0.1.7-rc.1 <0.3.0-0', {includePrerelease}) → true  
 
 ### 9.2 契约面：逐字节比对，零变化
 
-对插件消费的宿主包，比对 **`.d.ts` 类型声明**与 **`lib/*.js` 运行时实现**：
+对插件调用的宿主包，比对 **`.d.ts` 类型声明**与 **`lib/*.js` 运行时实现**：
 
 ```
 = dsh-llm / dsh-llm-pi-ai / dsh-settings / dsh-host-webserver
@@ -250,7 +252,7 @@ pi-ai 的 `openai-completions.js` 与 `utils/transcript.js` 也未变。
 > 这说明 rc.1 → rc.2 对**本插件**而言是纯版本号推进：没有新增/删除导出，没有签名变化，
 > 没有行为变化。上一轮的全部结论原样成立。
 
-### 9.3 peer 门禁
+### 9.3 peer 兼容性检查
 
 ```
 0.2.1-rc.1  -> true
@@ -262,7 +264,7 @@ pi-ai 的 `openai-completions.js` 与 `utils/transcript.js` 也未变。
 
 ### 9.4 实测复核（真实 rc.2 栈）
 
-重跑线上请求体探针（`dsh-llm-pi-ai@0.2.1-rc.2` + `pi-ai@1.1.0` + 本地 SSE 捕获）：
+重新运行线上请求体探针（`dsh-llm-pi-ai@0.2.1-rc.2` + `pi-ai@1.1.0` + 本地 SSE 捕获）：
 
 | 场景 | 线上 `roles` | 线上 system | 线上 `tools` |
 | --- | --- | --- | --- |
@@ -274,8 +276,9 @@ pi-ai 的 `openai-completions.js` 与 `utils/transcript.js` 也未变。
 ### 9.5 一处需要解释的「消失」
 
 payload 的 `node_modules` 里**没有** `dsh-client-ui-primitives` 与 `dsh-client-ui-slots`。
-这不是本次升级造成的：旧宿主里同样没有。原因是这两个包在本插件里**只作类型层引用**
-（`import type {} from ...`，用于 augment 宿主已注册的 service 类型），运行时由宿主 shell 提供。
+
+这不是本次升级造成的：旧宿主里同样没有。原因是这两个包在本插件里**只作类型层引用** （`import type {} from ...`，用于 augment 宿主已注册的 service 类型），运行时由宿主 shell 提供。
+
 它们保留在 `dsh.client.inject` 名册与 devDependency 中是正确做法。
 
 ### 9.6 本次改动与验证
@@ -283,8 +286,8 @@ payload 的 `node_modules` 里**没有** `dsh-client-ui-primitives` 与 `dsh-cli
 - devDependency 13 项 → `0.2.1-rc.2`（`cordis` / `schemastery` / `pi-ai` 不变）
 - `tests/dsh-peer-range.spec.ts` 的 `MUST_ADMIT` 补入 `0.2.1-rc.1` / `0.2.1-rc.2` / `0.2.1`——
   此前这条清单里**没有当前正在使用的版本**，是本次复核暴露的测试盲点
-- 变异验证：把 peer 上界收窄到 `<0.2.1-rc.2` → 多个包的对应用例立刻变红
-- 双 tsconfig 类型检查通过，**670** 例测试全绿，构建通过
+- 变异验证：把 peer 上界限定为 `<0.2.1-rc.2` → 多个包的对应用例立刻变红
+- 双 tsconfig 类型检查通过，**670** 例测试全部通过，构建通过
 
 ---
 
@@ -303,7 +306,7 @@ payload 的 `node_modules` 里**没有** `dsh-client-ui-primitives` 与 `dsh-cli
 
 ### 10.2 上游这一版改了什么
 
-以 DSH 源码仓的 tag 为准（`dsh-v0.2.1-rc.2..dsh-v0.2.1-rc.3`，共 6 个提交）：
+以 DSH 源码仓的 tag 为准（`dsh-v0.2.1-rc.2..dsh-v0.2.1-rc.3`，记录称6个提交，下表仅列出5项（原记录未补足第6项））：
 
 | 提交 | 性质 | 对本插件 |
 | --- | --- | --- |
@@ -330,7 +333,7 @@ pi-ai 仍钉在 1.1.0：3.4.2 起的双向适配结论原样成立，**适配层
 
 ### 10.4 契约面：13 个包里只有 1 个有代码变化，且全是新增
 
-对插件消费的 13 个宿主包，比对 npm 上 `0.2.1-rc.2` 与 `0.2.1-rc.3` 两版的**全量文件树**：
+对插件调用的 13 个宿主包，比对 npm 上 `0.2.1-rc.2` 与 `0.2.1-rc.3` 两版的**全量文件树**：
 
 ```
 = dsh-llm / dsh-llm-pi-ai / dsh-settings / dsh-host-webserver
@@ -351,9 +354,9 @@ pi-ai 仍钉在 1.1.0：3.4.2 起的双向适配结论原样成立，**适配层
 | `Menu` 增加 `minWidthFromAnchor` prop | 新增可选 prop |
 | 图标新增 `IconAppsAddOutlineRegular` / `IconAppsAddOutlineMedium` | 新增导出 |
 
-**为什么不需要适配**：本插件对 `dsh-client-ui-primitives` 只有**类型层引用**
-（`import type {} from '@deepseek-ai/dsh-client-ui-primitives'`），运行时不导入它的任何组件，
-因此这些新增 prop 与新的放置算法对本插件**不可见**。既没有签名被删改，也没有导出被移除。
+**为什么不需要适配**：本插件对 `dsh-client-ui-primitives` 只有**类型层引用** （`import type {} from '@deepseek-ai/dsh-client-ui-primitives'`），运行时不导入它的任何组件， 因此这些新增 prop 与新的放置算法对本插件**不可见**。
+
+既没有签名被删改，也没有导出被移除。
 
 ### 10.5 槽位核对：本插件注册的 5 个槽位全部健在
 
@@ -368,9 +371,9 @@ pi-ai 仍钉在 1.1.0：3.4.2 起的双向适配结论原样成立，**适配层
 宿主 rc.3 的 `dsh-client-ui-conversation` 只**新增**了一个槽位
 （`conversation.session.header.views.actions`）与两处契约字段
 （`MessageSubmission` 的 `newSession` / `agentPreset`；`DraftInitializationOptions.whenDraftExists`），
-均为**可选新增**，本插件不消费。
+均为**可选新增**，本插件未调用这些新增接口。
 
-### 10.6 peer 门禁
+### 10.6 peer 兼容性检查
 
 ```
 0.2.1-rc.2  -> true
@@ -385,7 +388,7 @@ pi-ai 仍钉在 1.1.0：3.4.2 起的双向适配结论原样成立，**适配层
 - devDependency 13 项 → `0.2.1-rc.3`（`cordis` / `schemastery` / `pi-ai` 不变）
 - `tests/dsh-peer-range.spec.ts` 的 `MUST_ADMIT` 补入 `0.2.1-rc.3`
 - **代码零改动**：13 个宿主包里唯一有代码变化的 `dsh-client-ui-primitives` 对本插件只是类型层引用
-- 双 tsconfig 类型检查通过，**1080** 例测试全绿，构建通过
+- 双 tsconfig 类型检查通过，**1080** 例测试全部通过，构建通过
 
 ## 十一、0.2.1-rc.5 复核（2026-10-30）
 
@@ -414,7 +417,7 @@ pi-ai 仍钉在 1.1.0：3.4.2 起的双向适配结论原样成立，**适配层
 | `fix(ui)`：More 菜单的 tooltip 去掉动态文案 | 回退了 rc.3 引入的 `session.moreViewsCurrent` | 不击中 |
 | `fix(web): customize thinking block rendering` | **行为变化**，见 11.4 | **不击中**（本插件不注册该槽位） |
 
-### 11.3 契约面：本插件消费的 13 个宿主包逐字节未变
+### 11.3 契约面：本插件调用的 13 个宿主包逐字节未变
 
 对 npm 上 `0.2.1-rc.3` 与 `0.2.1-rc.5` 两版的全量文件树做逐字节比对（`lib/**.js` 的
 `md5 -q | md5` 汇总，`package.json` 的版本号行除外）：
@@ -439,7 +442,7 @@ pi-ai 仍钉在 1.1.0：3.4.2 起的双向适配结论原样成立，**适配层
 
 上游专门发了升级指南 `docs/upgrade-guide/v0.2.1-rc.4/reasoning-body-props/`。
 
-**对本插件的结论：不击中。** 本插件全仓不注册、不消费 `conversation.chat.*` 任何槽位
+**对本插件的结论：不击中。** 本插件全仓不注册或调用 `conversation.chat.*` 的任何插槽
 （`grep -rn "conversation.chat" src tests` 零命中），也从不包装 reasoning 渲染。
 
 ### 11.5 rc.4 的 stdout 修复为什么不击中本插件
@@ -481,12 +484,12 @@ react / react/jsx-runtime / react-dom / react-dom/client / @deepseek-ai/cordis /
 ```
 
 本插件 bundle 实际 `require` 的只有 `react` / `react-dom` / `react/jsx-runtime`，全部在表内。
-`tests/client-runtime-imports.spec.ts` 的 `HOST_REGISTERED` 常量保持不变——它记录的是
-「插件打算用的那一小撮」，多出来的 `zod` / `@tanstack/react-virtual` 与本插件无关。
+
+`tests/client-runtime-imports.spec.ts` 的 `HOST_REGISTERED` 常量保持不变——它记录的是 「插件打算用的那一小撮」，多出来的 `zod` / `@tanstack/react-virtual` 与本插件无关。
 
 注：`dsh-web-frontend` 的 `index-*.js` 在 rc.3 与 rc.5 之间**文件哈希相同**，即该外壳两版一致。
 
-### 11.8 peer 门禁
+### 11.8 peer 兼容性检查
 
 ```
 0.2.1-rc.3  -> true
@@ -497,7 +500,7 @@ react / react/jsx-runtime / react-dom / react-dom/client / @deepseek-ai/cordis /
 
 范围 `>=0.1.7-rc.1 <0.3.0-0` **无需改动**。
 （`cordis` / `schemastery` / `pi-ai` 三个非 `@deepseek-ai/dsh*` 的 peer 由 app-boot 跳过，
-不参与门禁；其实际解析版本 `4.0.5` / `3.18.5` / `1.1.0` 均在本插件声明的范围内。）
+不参与兼容性检查；其实际解析版本 `4.0.5` / `3.18.5` / `1.1.0` 均在本插件声明的范围内。）
 
 ### 11.9 本次改动与验证
 
@@ -505,6 +508,6 @@ react / react/jsx-runtime / react-dom / react-dom/client / @deepseek-ai/cordis /
 - `tests/dsh-peer-range.spec.ts` 的 `MUST_ADMIT` 补入 `0.2.1-rc.4` / `0.2.1-rc.5`
 - **插件代码零改动**：13 个宿主包的 JS 在 rc.3→rc.5 之间逐字节相同
 - `pnpm install --lockfile-only` + `pnpm install` 后，开发树解析到 rc.5
-- 双 tsconfig 类型检查通过，**1222** 例测试全绿（96 文件），`tsdown` 构建通过
+- 双 tsconfig 类型检查通过，**1222** 例测试全部通过（96 文件），`tsdown` 构建通过
 - 构建产物 `lib/client.js` 的 `require` 仍只有 react / react-dom / react/jsx-runtime；
   重建后宿主进程存活（无渲染进程崩溃）

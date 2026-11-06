@@ -101,16 +101,15 @@ export type TraeStreamEvent =
      * pipeline and the backing provider model).
      *
      * These events were previously folded into `unknown` and dropped. That
-     * mattered for issue #67: `prompt_cache_pool_record` is the ONLY upstream
-     * signal that says whether a prompt-cache pool was even attached to the
-     * request, so with it dropped a "0% cache" report could not be told apart
-     * from a plugin that lost the numbers. See docs/ISSUE67_DIAGNOSIS.md.
+     * mattered for issue #67: prompt_cache_pool_record is an additional upstream
+     * diagnostic, separate from cache usage counters. Preserve both so missing
+     * diagnostics can be distinguished from explicit null. See docs/ISSUE67_DIAGNOSIS.md.
      */
     type: 'diagnostic'
     /**
      * `metadata.prompt_cache_pool_record`. `null` is a real, observed value
-     * (100% of measured requests on 2026-10-28) and means the upstream attached
-     * no cache pool; it is kept distinct from "the field was absent".
+     * (100% of measured requests on 2026-10-28). Preserve it separately from an
+     * absent field; null alone does not prove that no caching occurred.
      */
     promptCachePoolRecord?: unknown
     /** `timing_cost.name`, e.g. `llm_raw_chat_v2`. */

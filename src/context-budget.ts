@@ -9,20 +9,10 @@
  */
 
 /**
- * The one intermediate budget the card offers, in tokens: 500K.
- *
- * WHY IT EXISTS: Trae advertises a dev window (typically 200K/256K/272K) and a
- * Max window (typically 1M). Switching dev→Max is a 5× jump for a user who
- * just wants more room without paying Max-tier pricing for the whole session.
- * 500K is the half-way point, and it is only ever offered for a model whose
- * Max window is at least that wide.
- *
- * WHY A CONSTANT AND NOT A PER-MODEL VALUE: this is a LOCAL preference that
- * DSH uses to decide when to compress; it is not a Trae-advertised window. The
- * value must be sane for every model that can select it, so eligibility is
- * gated on `maxContextWindow >= 500000` rather than inventing a window per
- * model. `applyContextBudgets` additionally refuses any budget wider than what
- * the model advertises, so a stale saved value cannot overflow a shrunken Max.
+ * Intermediate local context budget of 500,000 tokens. Offered only when it is
+ * strictly wider than the dev window and strictly narrower than the Max window.
+ * This controls DSH's local compression threshold, not an upstream window or
+ * pricing guarantee. applyContextBudgets clamps saved values to advertised limits.
  */
 export const TRAE_CONTEXT_BUDGET_MID = 500_000
 

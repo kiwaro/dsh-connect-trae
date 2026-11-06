@@ -1,8 +1,6 @@
 /**
- * Client styles for the Trae plugin card.
- * Copied verbatim from `dsh-subagent-default-model`'s SETTINGS_CSS so the two
- * plugins share one external-presentation language (same card shell, same
- * button primitives, same `--dsw-alias-*` token palette).
+ * Trae 插件卡片样式。基础卡片结构参考 dsh-subagent-default-model 的
+ * SETTINGS_CSS，并使用 DSH 的颜色变量；各面板和账号表格由本插件维护。
  */
 
 export const TRAE_CARD_CSS = `
@@ -14,9 +12,7 @@ export const TRAE_CARD_CSS = `
 .dsm-plugin-card-head{flex-direction:column;flex:1;gap:6px;min-width:0;display:flex}
 .dsm-plugin-card-title{color:var(--dsw-alias-label-primary,#e6e6e6);font-size:15px;font-weight:600;line-height:1.4}
 .dsm-plugin-card-description{color:var(--dsw-alias-label-tertiary,#999);font-size:12.5px;line-height:1.55}
-/* Pure-CSS caret: the host primitives' chevron icon names are not part of any
-   stable contract across DSH releases, so no static import is used 鈥?a border
-   caret in the plugin's own CSS is version-proof. */
+/* 使用 CSS 边框绘制展开箭头，避免依赖宿主图标名称。 */
 .dsm-plugin-card-chevron{color:var(--dsw-alias-label-tertiary,#999);flex:none;width:16px;height:16px;position:relative;transition:transform .16s}
 .dsm-plugin-card-chevron::before{content:"";display:block;position:absolute;left:4px;top:5px;width:7px;height:7px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(45deg)}
 .dsm-plugin-card-chevron-open{transform:rotate(180deg)}
@@ -62,20 +58,9 @@ export const TRAE_CARD_CSS = `
  * 就永远拿不到这条例外说明。视觉隐藏保留了它，且不占布局高度。
  * 完整文案仍可通过芯片行的 title 悬停看到（见 TraeUsageCard 的 tabSwitchHint）。 */
 .dsm-trae-tab-hint{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
-/* SECTION TABS: the card's own top-level split (account / models / diagnostics).
- *
- * Deliberately NOT the boxed chips above. Those are the REGION scope — a
- * three-way choice of which PROVIDER this whole card is about, each chip
- * carrying its own on/off switch — while these are panels of ONE document, the
- * shape a reader already knows from the app's own settings window. Two rows of
- * boxes would read as one six-way choice.
- *
- * The hidden ATTRIBUTE on each panel is what does the work: an inactive panel
- * stays MOUNTED, so switching back does not refetch, a half-filled model draft
- * survives the trip, and the account pool keeps its log. It also takes the
- * inactive panel out of the accessibility tree, which is exactly what
- * role="tabpanel" wants — unlike display:none reached by a CSS class, the user
- * agent's own rule for [hidden] cannot be overridden by a later declaration. */
+/* 账号、模型、能力和诊断构成四个内容分栏；上方的芯片用于选择供应商。
+ * 切换分栏时保留组件挂载，以保存草稿和账号池日志。hidden 属性隐藏非活动面板，
+ * 文件末尾的 .dsm-trae-panel[hidden] 规则明确设置 display:none，避免布局规则覆盖。 */
 /* 分栏条钉在外壳的滚动列顶部（STICKY, not a second scroller）。
  *
  * 站点：本插件**不**接管滚动。设置面板的 .options 列本来就负责滚动（它自己的
@@ -128,17 +113,8 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-refresh-warn-soon{color:var(--dsw-alias-state-warn-primary,#b45309)}
 .dsm-trae-refresh-warn-lapsed{color:var(--dsw-alias-state-error-primary,#dc2626)}
 .dsm-trae-account-picker{display:block}
-/* The 璁剧疆 block: label + hint on the left, control on the right, one save for
-   the whole block. It replaces the bare checkbox rows that used to write on
-   every click 鈥?a draft needs a visible way back out, so each row carries its
-   own explanation and the footer carries the buttons. */
-/* The preference switches: BARE LINES, one per switch, each with its label
-   wrapped around the box so the whole line is a click target.
- *
- * The 璁剧疆 block used to be a bordered box with a heading, two rows and a
- * 銆屼繚瀛樸€?銆屾斁寮冦€?footer. That is gone with the draft it existed to serve 鈥?this
- * is the sibling dsh-connect-workbuddy card's shape, where a preference is a
- * checkbox on a line that commits on the click. */
+/* 能力开关逐行排列，标签和说明放在左侧。开关点击后立即保存，
+ * 不使用模型选择或账号池偏好的保存按钮。 */
 .dsm-trae-prefs{display:flex;flex-direction:column;gap:14px;padding:2px 2px 0}
 .dsm-trae-pref{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:18px;color:var(--dsw-alias-label-secondary,#c6c9d0);cursor:pointer}
 .dsm-trae-pref input{flex:none;cursor:pointer;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
@@ -177,14 +153,14 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-credit-position{flex:none;max-width:none;margin-top:0;padding:3px 8px;font-size:12px;line-height:16px;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:7px;background:var(--dsw-alias-bg-layer-3,#2a2c33);color:var(--dsw-alias-label-primary,#e6e6e6);cursor:pointer}
 .dsm-trae-credit-position:disabled{cursor:default}
 /* The card's checkboxes are the platform's own, styled only with
-   accent-color 鈥?the SAME idiom .dsm-trae-mainui-switch-label above already
+   accent-color, the same pattern .dsm-trae-mainui-switch-label above already
    uses for the composer-line switch, and the one the sibling
    dsh-connect-workbuddy card uses for its tab and credits boxes.
  *
  * These were drawn by hand for one release: a 34x20 track with a 14px knob,
  * --dsw-alias-brand-primary when checked. That token is DSH's CONTRAST colour
  * (#0f1115 light / #f9fafb dark), not an accent, so a checked box came out as a
- * solid black pill 鈥?heavier than anything else in the card, and unrelated to
+ * solid black pill, heavier than anything else in the card, and unrelated to
  * the native box sitting two centimetres away in the composer toolbar. The
  * platform checkbox tracks the host's own accent and dark mode for free. */
 .dsm-trae-switch{display:inline-flex;align-items:center;cursor:pointer}
@@ -202,7 +178,7 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-switch-pill input:checked{background:var(--dsw-alias-brand-primary,#1b1c1e)}
 .dsm-trae-switch-pill input:checked::after{transform:translateX(16px)}
 /* The account block is a real table: the question it answers is "which of these
-   accounts, and what is the action on each one" 鈥?a dropdown can only ever show
+   accounts, and what is the action on each one". A dropdown can only ever show
    the one already chosen. */
 .dsm-trae-accounts{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:14px;background:var(--dsw-alias-bg-layer-2,#24262c)}
 .dsm-trae-accounts-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
@@ -210,15 +186,15 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-accounts-head>button{flex:none;white-space:nowrap}
 .dsm-trae-accounts-title{margin:0;font-size:13px;font-weight:600;line-height:18px;color:var(--dsw-alias-label-primary,#e6e6e6)}
 .dsm-trae-accounts-hint{margin:3px 0 0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#9aa0a8)}
-/* The account rows: two lines each 鈥?who the account is, then what it is worth
-   鈥?with the one action that applies to THAT row on the right. A four-column
+/* The account rows: two lines each: who the account is, then what it is worth,
+   with the one action that applies to THAT row on the right. A four-column
    table was the wrong instrument here: every field demanded its own header, the
    columns drifted with the content ("LaoDing" vs a full expiry stamp), and the
    bound row repeated its "in use" badge in two different columns. */
 /* The account table, shaped like the sibling WorkBuddy card's pool table: a
    bordered container, a tinted header row, and one grid row per account whose
    tracks are FRACTIONS of the container rather than sizes derived from the
-   content. That is the whole point 鈥?the previous four-column table let each
+   content. The previous four-column table let each
    column grow with its own text, so the columns did not line up from row to row
    and the table read as noise in a narrow panel. */
 .dsm-trae-account-table{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:var(--dsm-trae-pool-radius);overflow:hidden;background:var(--dsw-alias-bg-layer-2,#24262c)}
@@ -255,15 +231,13 @@ export const TRAE_CARD_CSS = `
    vocabulary in the card instead of a bespoke one per block. */
 .dsm-trae-account-row .dsm-trae-account-switch{padding:2px 10px;font-size:12px}
 @media (max-width:760px){.dsm-trae-account-row,.dsm-trae-account-table:not(.dsm-trae-account-table-checkin) .dsm-trae-account-row{grid-template-columns:1fr 1fr;row-gap:6px}.dsm-trae-account-row-head{display:none}}
-/* The check-in is the only action on this card that reaches upstream account
-   state, so it is the one button allowed a colour. Everything else in the row
-   defers to it. */
+/* 签到会向上游申请积分，使用强调色；同一行的切换按钮使用描边样式。 */
 .dsm-trae-account-checkin{appearance:none;font:inherit;cursor:pointer;white-space:nowrap;border:1px solid rgba(86,134,254,.4);border-radius:7px;padding:2px 9px;font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-brand-primary,#5686fe);background:rgba(86,134,254,.08)}
 .dsm-trae-account-checkin:hover:not(:disabled){background:rgba(86,134,254,.16)}
 .dsm-trae-account-checkin:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
 .dsm-trae-account-checkin-state{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#9aa0a8);white-space:nowrap}
 /* A disabled check-in still STATES something ("claimed", "device used"), so it
-   stays readable 鈥?clearly inactive, not invisible. */
+   stays readable: clearly inactive, not invisible. */
 .dsm-trae-account-checkin:disabled{opacity:.55;cursor:default;border-color:transparent;color:var(--dsw-alias-label-tertiary,#9aa0a8);background:transparent}
 /* The switch is the row's LIVE control, so it is brighter than the inert
    check-in labels beside it: same shape, different weight. */
@@ -379,7 +353,7 @@ export const TRAE_CARD_CSS = `
    the hint tooltip rather than looking like its read-only sibling. */
 /* The sidebar-credit switch. Two instances share this style: the card's own
    row at the top and the copy beside the model actions (2.9.3). Without it the
-   checkbox rendered unstyled and read as absent 鈥?the whole reason the switch
+   checkbox rendered unstyled and read as absent, the whole reason the switch
    looked missing. */
 .dsm-trae-models-actions{display:flex;align-items:center;gap:8px;flex:none}
 .dsm-trae-usage-alternative{display:flex;align-items:flex-start;gap:10px;margin-top:10px;padding:10px 12px;border:1px solid var(--dsw-alias-state-warn-secondary,#fbbf24);border-radius:10px;background:var(--dsw-alias-state-warn-tertiary,#fef3c7)}
@@ -431,14 +405,10 @@ export const TRAE_CARD_CSS = `
   color:var(--dsw-alias-brand-primary,#2563eb);font-size:11px;line-height:16px;
 }
 .dsm-trae-models-hint{margin:4px 0 0;color:var(--dsw-alias-label-tertiary,#999);font-size:11px;line-height:16px}
-/* Bulk context-budget row (issue #42): under the model list, above the
-   capability note. Wraps on narrow cards; keeps the two buttons visually a
-   pair and distinct from the save footer below. */
+/* 模型列表下方的三个批量预算按钮在窄卡片中换行，与保存按钮分开排列。 */
 .dsm-trae-context-bulk{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-/* Per-panel 「自主生图」 consent (trae_draw_image). Sits under the bulk-context
-   row, above the capability note, because it is a per-REGION runtime choice like
-   the model picks above it — not a global preference. The input stays a real
-   checkbox so the card's tests can find it by its accessible name. */
+/* 能力分栏中的自主生图开关按当前面板保存。保留原生 checkbox，
+ * 使读屏和测试可以通过标签定位控件。 */
 .dsm-trae-draw-image{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:11px;line-height:16px;cursor:pointer}
 .dsm-trae-draw-image input{flex:none;margin:2px 0 0}
 .dsm-trae-draw-image[data-disabled="true"]{cursor:not-allowed;opacity:.6}
@@ -652,24 +622,10 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-pool-subnote{margin:2px 0 0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#9aa0a8)}
 .dsm-trae-pool-select-actions{display:flex;flex:none;gap:6px}
 .dsm-trae-pool-select-actions .dsm-btn,.dsm-trae-pool-row-actions .dsm-btn{padding:4px 10px;font-size:12px;line-height:1.4}
-/* CONTAINMENT ROOT（learned from workbuddy 5.19.0 的同一次迁移）。
- *
- * 这张卡同时画在三处，宽度与窗口毫无关系：输入框卡片、整页版（上限 860px）、
- * 以及设置面板的内容列（1400px 屏上是 564px）。本文件里所有 @media 断点测的
- * 都是**视口**，所以在设置面板里它们永远不触发——564px 的列拿到了五列桌面表格，
- * 每个单元格都在截断（实测账号列被压到 76px，「用户7520607992」只剩「用户75」）。
- *
- * container-type:inline-size 让下面的断点改测**这张表**的宽度，那才是行真正要
- * 塞进去的宽度。
- *
- * 特意放在表格上而不是祖先上：container-type 会让这个元素成为 position:fixed
- * 后代的包含块。忙碌遮罩 .dsm-trae-veil 与账号导入对话框都是这张表的兄弟节点
- * （挂在 .dsm-trae-pool 或 cardBody 上，不在表格里），放在表格上就让它们继续
- * 相对视口定位——全屏遮罩本来该在那里。表格内部只有表头与成员行，没有 fixed 后代。
- *
- * overflow:hidden 与 container-type 冲突：容器查询要求这个盒子能被"测量"，而
- * overflow 会改变它的块格式化上下文。这里原本就有 overflow:hidden（用来裁圆角），
- * 二者在本例中兼容——表格自身不滚动，只是裁掉子元素的直角。 */
+/* 账号池表格按自身宽度响应布局。视口较宽时，设置页的内容列仍可能较窄，
+ * 因此仅使用 @media 不能覆盖这种情况。container-type:inline-size 让下方
+ * 容器查询依据表格宽度调整列。overflow:hidden 用于裁切圆角，两者可以共存。
+ * 容器放在表格上，使表格外的忙碌遮罩和账号导入对话框保持原来的定位范围。 */
 .dsm-trae-pool-table{--dsm-trae-pool-cols:minmax(0,1.4fr) 128px minmax(0,1.2fr) 96px 128px;container-type:inline-size;display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:var(--dsm-trae-pool-radius);overflow:hidden;background:var(--dsw-alias-bg-layer-2,#24262c)}
 .dsm-trae-pool-table-no-checkin{--dsm-trae-pool-cols:minmax(0,1.4fr) 128px minmax(0,1.2fr) 128px}
 .dsm-trae-pool-row{display:grid;grid-template-columns:var(--dsm-trae-pool-cols);align-items:start;gap:10px;padding:var(--dsm-trae-pool-pad-y) var(--dsm-trae-pool-pad-x);border-top:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.18))}
@@ -735,7 +691,7 @@ export const TRAE_CARD_CSS = `
 /* "Every member is unusable" is the one case that IS the pool's fault, so it
    keeps the warn tone the base class sets. */
 .dsm-trae-pool-warning-unusable{border-color:var(--dsw-alias-state-warn-secondary,#fbbf24);background:var(--dsw-alias-state-warn-tertiary,#fef3c7);color:var(--dsw-alias-state-warn-primary,#b45309)}
-.dsm-trae-pool-save-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--dsw-alias-border-l2,#36373b);padding-top:12px;position:sticky;bottom:0;z-index:2;padding-bottom:8px;background:var(--dsw-alias-bg-layer-3,#2a2c33)}
+.dsm-trae-pool-save-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--dsw-alias-border-l2,#36373b);padding-top:12px;position:static;padding-bottom:8px;background:var(--dsw-alias-bg-layer-3,#2a2c33)}
 .dsm-trae-pool-save-buttons{display:flex;align-items:center;justify-content:flex-end;gap:8px}
 .dsm-trae-pool-save-row .dsm-btn{padding:5px 14px;font-size:13px;line-height:1.5}
 
@@ -744,7 +700,7 @@ export const TRAE_CARD_CSS = `
  * move from a plugin card to a settings.section page).
  *
  * 上面的 @media 断点测的都是视口。这张卡现在画在设置面板的内容列里（564px），
- * 视口媒体查询在那里永远不触发：五列表格被塞进 564px，固定轨道 128+96+128 加
+ * 视口较宽时，媒体查询不会随该内容列变窄而触发：五列表格被塞进 564px，固定轨道 128+96+128 加
  * 四条 10px 间隙与两倍 14px 内边距之后，留给账号名与探针两条弹性轨道的只剩
  * ~144px，实测账号名列 = 76px。
  *
@@ -848,31 +804,60 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-section-title{margin:0;font-size:15px;font-weight:600;line-height:22px}
 .dsm-trae-section-desc{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#999)}
 .dsm-trae-panel-icon{display:block;border-radius:4px;flex:none}
+/* Shared connector settings presentation, aligned with WorkBuddy. */
+.dsm-trae-tab-cell{display:flex;align-items:center;gap:4px;flex:1;min-width:0;padding:8px 12px;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:10px;background:var(--dsw-alias-bg-layer-3,#2a2c33);transition:border-color .15s,background .15s}
+.dsm-trae-tab-cell:hover{border-color:var(--dsw-alias-label-dimmed,#777)}
+.dsm-trae-tab-cell:has(.dsm-trae-tab-active){border-color:var(--dsw-alias-brand-primary,#5686fe);background:var(--dsw-alias-bg-layer-2,#232529)}
+.dsm-trae-tab{appearance:none;font:inherit;cursor:pointer;flex:1;min-width:0;border:0;border-radius:7px;padding:0;color:var(--dsw-alias-label-tertiary,#999);font-size:13px;font-weight:600;line-height:20px;text-align:left;background:transparent;transition:color .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsm-trae-tab:hover:not(:disabled):not(.dsm-trae-tab-active){color:var(--dsw-alias-label-primary,#e6e6e6)}
+.dsm-trae-tab:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
+.dsm-trae-tab-active{color:var(--dsw-alias-label-primary,#e6e6e6)}
+.dsm-trae-tab-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:baseline}
+.dsm-trae-tab-switch input{margin:0;cursor:pointer;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
+.dsm-trae-tab-switch input:disabled{cursor:default}
+.dsm-trae-panel-tab{appearance:none;font:inherit;cursor:pointer;border:0;background:transparent;padding:7px 11px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--dsw-alias-label-tertiary,#999);font-size:13px;font-weight:600;line-height:20px;white-space:nowrap;transition:color .15s,border-color .15s}
+.dsm-trae-panel-tab:hover:not(.dsm-trae-panel-tab-active){color:var(--dsw-alias-label-primary,#e6e6e6)}
+.dsm-trae-panel-tab:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
+.dsm-trae-panel-tab-active{color:var(--dsw-alias-label-primary,#e6e6e6);border-bottom-color:var(--dsw-alias-brand-primary,#5686fe)}
+.dsm-trae-panel{margin-top:12px}
+.dsm-trae-pref{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:18px;color:var(--dsw-alias-label-secondary,#c6c9d0);cursor:pointer}
+.dsm-trae-pref input:disabled{cursor:default}
+.dsm-trae-pref:has(input:disabled){opacity:.6;cursor:default}
+.dsm-trae-pref-label{font-weight:500;color:var(--dsw-alias-label-primary,#e6e6e6)}
+.dsm-trae-pref-lead .dsm-trae-pref-label{flex:none}
+.dsm-trae-pref-hint{color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:17px}
+.dsm-trae-tab-off-notice{color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px;margin:0 0 4px;padding:8px 10px;background:var(--dsw-alias-bg-layer-3,#2a2c33);border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:8px}
+.dsm-trae-models-summary{margin:2px 0 0;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px}
+.dsm-trae-models-head-actions .dsm-btn{white-space:nowrap}
+.dsm-trae-page-head{display:flex;flex-direction:column;gap:6px}
+.dsm-trae-panel-icon{display:block;border-radius:4px;flex:none}
+
 `
 
 
 /**
- * Composer-row readout styles, injected by the readout itself.
- *
- * SEPARATE from `TRAE_CARD_CSS`, and that is not tidiness: the card's CSS is
- * only injected when the settings card module loads, so putting the composer's
- * rules in it means the readout renders UNSTYLED in the composer toolbar 鈥?
- * which is exactly what shipped in 2.13.0鈥?.13.4. The trigger fell back to the
- * browser's default button box, and the panel, without `position: fixed`, had
- * its inline left/top ignored and rendered nowhere useful.
- *
- * `tests/composer-styles.spec.tsx` now asserts that every class this component
- * renders has a rule here, so a rule cannot go missing without a test failing.
+ * 输入框积分读数独立注入样式，避免依赖设置卡片是否已加载。
+ * tests/composer-styles.spec.tsx 检查组件使用的 class 是否有对应规则。
  */
+
 export const COMPOSER_POINTS_CSS = `
-/* The readout is plain composer text 鈥?no border, no fill at rest. The padding
+.dsm-trae-composer-panel-table th.dsm-trae-composer-panel-action,
+.dsm-trae-composer-panel-table td.dsm-trae-composer-panel-action{width:76px;box-sizing:border-box;padding-left:16px;padding-right:0;white-space:nowrap;text-align:center}
+.dsm-trae-composer-panel-action button{appearance:none;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:60px;min-width:60px;height:28px;padding:0 6px;font:inherit;font-weight:500;white-space:nowrap;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.28));border-radius:6px;background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));color:var(--dsw-alias-label-primary,CanvasText);cursor:pointer}
+.dsm-trae-composer-panel-action button:hover:not(:disabled){filter:brightness(.92)}
+.dsm-trae-composer-panel-action button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:2px}
+.dsm-trae-composer-panel-action button:disabled{cursor:default;opacity:.6}
+.dsm-trae-composer-panel-action button[data-current="true"]{background:rgba(34,160,107,.14);border-color:rgba(34,160,107,.35);color:var(--dsw-alias-state-success-primary,#178250);opacity:1}
+.dsm-trae-composer-panel-actions{flex:none;margin-left:auto;display:flex;align-items:center}
+
+/* The readout is plain composer text, with no border, no fill at rest. The padding
    is only the click target, invisible until the pointer arrives. */
 .dsm-trae-composer-points{display:inline-flex;align-items:center;min-width:0}
 .dsm-trae-composer-points-trigger{
   appearance:none;display:inline-flex;align-items:center;align-self:stretch;
   padding:2px 6px;border:0;border-radius:6px;background:transparent;
   /* EXPLICIT, not inherit. The composer row's own font and body colour are
-     noticeably larger and darker than the neighbouring controls 鈥?a credit
+     noticeably larger and darker than the neighbouring controls. A credit
      readout is secondary information and must not shout. 12px matches this
      plugin's original line; label-tertiary matches the shell's own composer-row
      control (ContextMeter), which is the sibling this reads alongside. */
@@ -884,7 +869,7 @@ export const COMPOSER_POINTS_CSS = `
 .dsm-trae-composer-points-trigger:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14))}
 .dsm-trae-composer-points-trigger:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
 /* The panel is portaled to document.body and positioned from the trigger, so it
-   MUST be fixed 鈥?otherwise the left/top it measures are ignored and it lands in
+   must be fixed; otherwise the left/top it measures are ignored and it lands in
    document flow. All material comes from shell tokens so it follows the theme. */
 /* 264px, not the 248px this started as (m02477). The header holds a title plus
    two icon+word controls now, and measured in the browser the English pair
@@ -894,7 +879,7 @@ export const COMPOSER_POINTS_CSS = `
    "Refresh"/「刷新」 are what they asked for. */
 .dsm-trae-composer-panel{
   position:fixed;z-index:1100;box-sizing:border-box;
-  width:min(264px,calc(100vw - 24px));padding:12px;
+  width:min(360px,calc(100vw - 24px));padding:12px;
   border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.28));
   border-radius:var(--dsw-radius-lg,14px);
   background:var(--dsw-specific-menu,Canvas);
@@ -1025,13 +1010,8 @@ export const COMPOSER_POINTS_CSS = `
 @media (prefers-reduced-motion:reduce){
   .dsm-trae-composer-panel-settings{transition:none}
 }
-/* The panel is a TABLE: one row per account in the region, one figure (the
-   general balance) per row, and a row click switches accounts.
-
-   Rhythm is deliberate: the header sits on a hairline, the switch button owns
-   ALL horizontal padding (and pulls back by the same amount so its label lines
-   up with the header), and every row is the same height. A misaligned first
-   column is what makes a two-column popover read as broken. */
+/* 每个账号占一行，依次显示账号、积分和操作按钮。标题与数据列对齐，
+ * 通过操作列的按钮切换账号；当前使用的账号显示禁用的状态按钮。 */
 .dsm-trae-composer-panel-table{
   width:100%;border-collapse:collapse;
   font-size:12px;line-height:18px;
@@ -1044,7 +1024,8 @@ export const COMPOSER_POINTS_CSS = `
 .dsm-trae-composer-panel-num{
   text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;
 }
-.dsm-trae-composer-panel-table thead th.dsm-trae-composer-panel-num{padding-right:0}
+.dsm-trae-composer-panel-table thead th.dsm-trae-composer-panel-num,
+.dsm-trae-composer-panel-table tbody td.dsm-trae-composer-panel-num{text-align:right;padding-left:0;padding-right:0;vertical-align:middle}
 .dsm-trae-composer-panel-table tbody th{
   padding:0;font-weight:400;text-align:left;vertical-align:middle;
 }
@@ -1053,7 +1034,7 @@ export const COMPOSER_POINTS_CSS = `
   color:var(--dsw-alias-label-primary,CanvasText);
 }
 /* The current account reads as current without shouting: a filled dot and a
-   slightly heavier weight. Disabled 鈥?pressing it would write a selection that
+   slightly heavier weight. Disabled because pressing it would write a selection that
    has not changed. */
 .dsm-trae-composer-panel-table tbody tr.dsm-trae-composer-panel-row-current td{font-weight:600}
 .dsm-trae-composer-panel-switch{
@@ -1088,7 +1069,7 @@ export const COMPOSER_POINTS_CSS = `
 }
 .dsm-trae-composer-panel-empty{margin:0;color:var(--dsw-alias-label-tertiary,GrayText)}
 .dsm-trae-composer-panel-error{margin:8px 0 0;color:var(--dsw-alias-state-error-primary,#d92d20);font-size:11px;line-height:16px}
-/* Credit-expiry notice. Three tones by urgency, so the 24-hour case cannot be
+/* Credit-expiry notice. Four tones by urgency, so the 24-hour case cannot be
    mistaken for the 7-day one at a glance. Reads as an advisory, not an error:
    the account works fine, the credit is simply about to lapse. */
 .dsm-trae-expiry{

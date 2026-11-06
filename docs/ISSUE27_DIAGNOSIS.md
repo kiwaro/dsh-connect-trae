@@ -1,5 +1,7 @@
 # Issue #27 报告核验：pi-ai 代际错配导致 `Cannot read properties of undefined (reading 'length')`
 
+> 2026-11-06 全文复核：历史诊断或回复草稿，版本、测试数与环境均限于原记录日期；发布和对外回复步骤不是本轮指令。核对0.86代际边界、双向适配与vite假阳性；保留被后段推翻的早期方案并前置提示。
+
 > 对象：外部报告 `dsh-connect-trae-issue-27-report.md`（`~/Downloads/`，2026-10-13 收到）。
 > 本机复现环境：macOS / DSH Desktop `0.2.0-rc.2` / 宿主内置 pi-ai `0.87.1` / 本仓库 devDependency pi-ai `0.85.1`。
 > 结论先行：**报告的根因判断成立且本机独立复现成功；但报告有 3 处硬错误、1 处边界错位，照抄其修复方案会引入新的静默故障。**
@@ -36,8 +38,8 @@
 
 ### 本机独立复现（两种粒度都做了）
 
-- **模块级**：对真实 `0.82.1`（npm pack）与 `0.85.1`（本仓 node_modules）跑报告脚本 → 同一行同一列抛同一错；`legacy` 形状正常返回。
-- **端到端**：直接取本仓 `openAICompletionsApi()`（解析到 0.85.1）构造 api，喂入 0.87 transcript：
+- **模块级**：对真实 `0.82.1`（npm pack）与 `0.85.1`（本仓库 node_modules）跑报告脚本 → 同一行同一列抛同一错；`legacy` 形状正常返回。
+- **端到端**：直接取本仓库 `openAICompletionsApi()`（解析到 0.85.1）构造 api，喂入 0.87 transcript：
   ```
   errorMessage: "Cannot read properties of undefined (reading 'length')"
   usage: { input: 0, output: 0, totalTokens: 0 }
@@ -73,7 +75,9 @@ DSH 侧只要给了 system prompt（`options.system` 或首条 system 消息）�
 | 0.86.1 | 有 | 3 | 有 | 0 / 0 | 正常 |
 | 0.87.1（宿主） | 有 | 3 | 有 | 0 / 0 | 正常 |
 
-**为什么这个错位很危险**：workbuddy 的判据是 `Number(minor) >= 87 ? 'modern' : 'legacy'`（`src/pi-ai-runtime.ts` 的 `generationOf`），peer 声明 `>=0.85.0 <0.88.0`。若插件解析到 **0.86.x**，workbuddy 会判成 `legacy` → 执行折返 → 把一个**现代 api 本可原生消费**的 transcript 折回 `{systemPrompt, tools, messages}` → 而 0.86+ 的 api **完全不读**这两个顶层字段。本机实测这一折返的后果：
+**为什么这个错位很危险**：workbuddy 的判据是 `Number(minor) >= 87 ? 'modern' : 'legacy'`（`src/pi-ai-runtime.ts` 的 `generationOf`），peer 声明 `>=0.85.0 <0.88.0`。
+若插件解析到 **0.86.x**，workbuddy 会判成 `legacy` → 执行折返 → 把一个**现代 api 本可原生处理**的 transcript 折回 `{systemPrompt, tools, messages}` → 而 0.86+ 的 api **完全不读**这两个顶层字段。
+本机实测这一折返的后果：
 
 ```
 resolveTranscript(folded)            -> {"messages":[{"role":"user","content":"hi"}]}   ← system 消息被丢
@@ -85,7 +89,7 @@ getDeclaredTools(folded.messages)     -> []                                     
 
 ### 错误 2：CASE B 的实测输出不可复现
 
-报告称 `estimateContextTokens(legacy shape)` → `{"tokens":15,...}`。我用**同一份脚本原文**、真实 `0.82.1` 与 `0.85.1` 各跑一遍，结果都是：
+报告称 `estimateContextTokens(legacy shape)` → `{"tokens":15,...}`。我用**同一份脚本原文**、真实 `0.82.1` 与 `0.85.1` 各运行一次，结果都是：
 
 ```
 {"tokens":25,"usageTokens":0,"trailingTokens":25,"lastUsageIndex":null}
@@ -103,7 +107,11 @@ clampMaxTokensToContext({contextWindow:0,...},      ctx, undefined) -> NaN   // 
 Math.min(undefined, 5)                                              -> NaN
 ```
 
-好在后果无害：`openai-completions.js` 用 `if (options?.maxTokens)` 判空，`NaN` 为假值 → 该字段直接不下发。加上宿主 `catalog.ts:918-920` 对 `maxTokens` 有 `entry ?? base ?? request.defaultMaxTokens` 且强制正整数校验，这条路径在 DSH 内基本不可达。**结论（元数据不是崩溃原因）成立，但举证措辞不准**。
+好在后果无害：`openai-completions.js` 用 `if (options?.maxTokens)` 判空，`NaN` 为假值 → 该字段直接不下发。
+
+加上宿主 `catalog.ts:918-920` 对 `maxTokens` 有 `entry ?? base ?? request.defaultMaxTokens` 且强制正整数校验，这条路径在 DSH 内基本不可达。
+
+**结论（元数据不是崩溃原因）成立，但举证措辞不准**。
 
 ---
 
@@ -131,7 +139,7 @@ Math.min(undefined, 5)                                              -> NaN
 
 ---
 
-## 五、建议的修复方案（比报告更可落地）
+## 五、建议的修复方案（比报告更可实施）
 
 ### 5.0 先看四组合矩阵：这是「双向兼容」的实证基础
 
@@ -154,7 +162,7 @@ trae 插件声明 `@deepseek-ai/dsh-llm-pi-ai: ">=0.1.7-rc.1 <0.3.0-0"` —— *
 
 **结论：错配是双向的，修复也必须双向。** 报告只看到第 3 行（issue #27 的必崩），而第 2 行是同样真实、但更隐蔽的故障 —— 旧宿主 + 新库时不崩，却静默丢掉系统提示与全部工具。任何「旧代就折返」的单一判据都只修好一半：它在第 2 行什么都不会做，于是 legacy 形状照样喂给新代 api，照样静默丢光。
 
-因此判据必须**两道闸门串联**：
+因此判据必须**两道依赖检查串联**：
 
 ```
 收到 context
@@ -197,7 +205,7 @@ function resolvedPiAiSpeaksTranscript(): boolean {
 
 ### 5.3 必须补测试（这是本缺陷能漏过去的直接原因）
 
-本仓 55 个测试文件中，**没有任何一个** import `src/adapter.ts` 或引用 `@earendil-works/pi-ai`／`createProvider`／`openAICompletionsApi`。建议至少四条：
+本仓库当时的 55 个测试文件中，**没有任何一个** import `src/adapter.ts` 或引用 `@earendil-works/pi-ai`／`createProvider`／`openAICompletionsApi`。建议至少五条：
 
 1. **折返单测**：transcript + `toolsAdded` → 断言 `systemPrompt` 被提升、`tools` 就位、`messages` 中无 system 条目。
 2. **幂等单测**：旧代形状输入 → 返回同一对象（引用相等）。
@@ -207,7 +215,7 @@ function resolvedPiAiSpeaksTranscript(): boolean {
 
 ### 5.4 已实现（3.4.2）
 
-本仓已按上述方案落地，实现与验证状态：
+本仓库已按上述方案实施，实现与验证状态：
 
 | 项 | 位置 |
 |---|---|
@@ -220,11 +228,15 @@ function resolvedPiAiSpeaksTranscript(): boolean {
 | 函数级 + 集成对拍（30 例） | `tests/pi-ai-context.spec.ts` |
 | **接线层**（工厂路径，7 例） | `tests/pi-ai-adapter-wiring.spec.ts` |
 
-**一处与原计划的偏离，值得记录**：§5.1 建议用 `import.meta.resolve('@earendil-works/pi-ai/utils/transcript')` 做能力探测。实测**该探测在 vite/vitest 下是假阳性** —— bundler 风格解析器把 exports map 的 `"./utils/*"` 通配符展开成路径后**直接返回，不检查文件是否存在**，于是对 0.85.1 也报「有」，把旧代误判成 modern。若照此实现，**会在声称「按能力判断」的同时原样放过 issue #27**。最终判据改为读取包目录（版本号数值比较为主、`dist/utils/transcript.js` 是否存在为辅），两者都不经过解析器语义。
+**一处与原计划的偏离，值得记录**：§5.1 建议用 `import.meta.resolve('@earendil-works/pi-ai/utils/transcript')` 做能力探测。
+
+实测**该探测在 vite/vitest 下是假阳性** —— bundler 风格解析器把 exports map 的 `"./utils/*"` 通配符展开成路径后**直接返回，不检查文件是否存在**，于是对 0.85.1 也报「有」，把旧代误判成 modern。
+
+若照此实现，**会在声称「按能力判断」的同时原样放过 issue #27**。 最终判据改为读取包目录（版本号数值比较为主、`dist/utils/transcript.js` 是否存在为辅），两者都不经过解析器语义。
 
 **测试有效性的变异验证（8/8 被抓）**：① 工厂移除适配层 → 5 例失败；② 折返只搬 prompt 不搬 tools → 6 例失败；③ 边界写成 `>= 87` → 1 例失败；④ 折上不移除顶层字段 → 2 例失败；⑤ 折返不做幂等短路 → 5 例失败。
 
-其中变异 ① 最初**未被捕获** —— 函数级用例全绿而有缺陷的接线照样通过，这正是 issue #27 本身的形状（函数没问题，只是没人调用），因此专设了 `tests/pi-ai-adapter-wiring.spec.ts`。
+其中变异 ① 最初**未被捕获** —— 函数级用例全部通过而有缺陷的接线照样通过，这正是 issue #27 本身的形状（函数没问题，只是没人调用），因此专设了 `tests/pi-ai-adapter-wiring.spec.ts`。
 
 另有 3 条由独立评审的变异测试暴露，均已修复并补用例：
 
@@ -244,5 +256,5 @@ function resolvedPiAiSpeaksTranscript(): boolean {
 2. 但请更正三处：**代际边界是 0.86.0**（0.86.0 起有 `utils/transcript.js`、`estimateMessageTokens` 的 system 分支，且 api 不再读 `systemPrompt`/`tools`）；**CASE B 实测是 `{"tokens":25}`**，按脚本原文在 0.82.1/0.85.1 上均不可得 15；**`undefined maxTokens` 返回 `NaN` 而非夹回正整数**（后果无害，因 NaN 为假值不下发）。
 3. 「照抄 workbuddy 的代际门控」**不能照抄**：它的 `>=87 → modern` 把 0.86.x 误判为 legacy，折返会静默丢掉 system prompt 与全部 tools。修复应以 **0.86** 为界。
 4. 「收紧 peer」**不构成止血**：DSH 内核预检只覆盖 `@deepseek-ai/dsh*`（`plugin-compatibility.ts:75`），pi-ai 不在其中；你引用的 `install-compat` 告警来自 **dshmarket**，是 `soft-incompatible` 告警而非拒绝；且你的 `0.82.1` 本就在 `>=0.85.1` 之外，加不加上界都不改变该场景。
-5. **升级 DSH 不是出路**：你报的 `0.2.0-rc.2` 就是当时的最新宿主，而「新宿主」那一侧不可逆（0.2.0-rc.1 之后全是 `^0.87.1`/`^1.0.2`），升级只会让你更牢地留在崩溃组合里。真正能让 `0.82.1` 消失的是 `@opencode2dsh/dsh-plugin` 的硬依赖改变（其最新 0.3.11 仍声明 `^0.82.1`），或本插件的适配层 —— 后者已在 **3.4.2** 落地。
-6. 顺带修掉了一个**你没遇到但同样静默**的反向错配：旧宿主（`dsh-llm-pi-ai` ≤0.2.0-rc.1）配新库时不会崩，但现代 api 只读 system 消息，顶层 `systemPrompt`/`tools` 会被静默忽略 —— 系统提示与**全部工具声明**丢失。适配层现已双向覆盖，并有用例钉住。
+5. **升级 DSH 不是出路**：你报的 `0.2.0-rc.2` 就是当时的最新宿主，而「新宿主」那一侧不可逆（0.2.0-rc.1 之后全是 `^0.87.1`/`^1.0.2`），升级只会让你更牢地留在崩溃组合里。真正能让 `0.82.1` 消失的是 `@opencode2dsh/dsh-plugin` 的硬依赖改变（其最新 0.3.11 仍声明 `^0.82.1`），或本插件的适配层 —— 后者已在 **3.4.2** 实施。
+6. 顺带修掉了一个**你没遇到但同样静默**的反向错配：旧宿主（`dsh-llm-pi-ai` ≤0.2.0-rc.1）配新库时不会崩，但现代 api 只读 system 消息，顶层 `systemPrompt`/`tools` 会被静默忽略 —— 系统提示与**全部工具声明**丢失。适配层现已双向覆盖，并有用例通过测试约束。

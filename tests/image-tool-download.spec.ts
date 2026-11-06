@@ -118,13 +118,13 @@ describe('trae_draw_image retrieval', () => {
     expect(error).toBeInstanceOf(TraeImageError)
     expect((error as TraeImageError).code).toBe('IMAGE_UNAVAILABLE')
     expect((error as Error).message).toContain(KEY)
-    expect((error as Error).message).toContain('积分已经扣了')
+    expect((error as Error).message).toContain('可能已计费')
   })
 
   /**
    * 取图这一跳的 HTTP 失败**不能**沿用生图那套映射。
    *
-   * 图已经生成、积分已经扣掉了。回 403 时若照旧报 AUTH（"上游拒绝了凭据"），
+   * 图已生成，生成请求可能已计费。回 403 时若照旧报 AUTH（"上游拒绝了凭据"），
    * 用户会去重新登录，而钱已经花了、图还是拿不到——这是谎报成因。
    */
   it('maps a retrieval-hop HTTP failure to IMAGE_UNAVAILABLE, never to AUTH/RATE_LIMIT/UPSTREAM', async () => {
@@ -148,9 +148,9 @@ describe('trae_draw_image retrieval', () => {
       expect(error).toBeInstanceOf(TraeImageError)
       expect((error as TraeImageError).code).toBe('IMAGE_UNAVAILABLE')
       expect((error as Error).message).toContain(String(status))
-      expect((error as Error).message).toContain('积分已经扣了')
+      expect((error as Error).message).toContain('可能已计费')
       expect((error as Error).message).toContain(KEY)
-      // 不许把已付过钱的事说成凭据/限流问题。
+      // 下载失败不能当作登录凭据或生成接口限流错误，也不能断言实扣金额。
       expect((error as Error).message).not.toContain('拒绝了凭据')
       expect((error as Error).message).not.toContain('限流')
     }

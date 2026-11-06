@@ -89,7 +89,7 @@ function drawImageSwitch(): HTMLInputElement {
 async function renderModelsTab(scope: unknown): Promise<void> {
   render(<TraeUsageCard t={t} settingsScope={scope as never} />)
   fireEvent.click(screen.getByRole('button', { name: /row\.title/ }))
-  fireEvent.click(await screen.findByRole('tab', { name: 'row.panelModels' }))
+  fireEvent.click(await screen.findByRole('tab', { name: 'row.panelCapabilities' }))
   await waitFor(() => { expect(drawImageSwitch()).toBeTruthy() })
 }
 
@@ -152,7 +152,7 @@ describe('the 自主生图 switch on the card', () => {
     render(<TraeUsageCard t={t} settingsScope={scope as never} />)
     fireEvent.click(screen.getByRole('button', { name: /row\.title/ }))
     fireEvent.click(await screen.findByRole('tab', { name: 'row.tabAi' }))
-    fireEvent.click(await screen.findByRole('tab', { name: 'row.panelModels' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'row.panelCapabilities' }))
     await waitFor(() => { expect(drawImageSwitch()).toBeTruthy() })
 
     const box = drawImageSwitch()

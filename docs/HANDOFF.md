@@ -1,5 +1,13 @@
 # dsh-connect-trae 开发交接
 
+## 适用阶段与后续变化
+
+本文汇集 2026-08-28 前后的多次交接记录，原文中的“当前”指各段写作时的状态。前段已改用原生结构化工具通道，末段“已知限制”仍描述此前的远程会话轮询；它们属于不同实现阶段。
+
+当前 `src/index.ts` 使用 `TraeSoloBridge` 与 `TraeSoloUpstreamClient` 处理对话，`src/solo-remote.ts` 只负责读取模型目录。
+
+下文的 18 个测试文件、54 项测试及 macOS 安装路径均保留为历史证据。本机 Windows 安装和重启结果见 [本地部署记录](LOCAL-DEPLOYMENT.md)，当前维护检查见 [文档检查记录](DOCUMENT-SYNC-AUDIT.md)。
+
 ## 当前状态
 
 核心技术链路已经走通，并已完成本地实现：
@@ -200,7 +208,7 @@ dsh plugin --profile desktop add /Users/dmh2002/DshProject/dsh-connect-trae
 - ⑤ 通过DSH选择`trae / DeepSeek-V4-Flash`完成短对话（消耗Trae额度）。
 - ⑥ 验证请求取消、认证过期和错误显示。
 
-## 已知限制
+## 早期远程会话轮询的限制
 
 - 新版SOLO是云端Agent会话，不等价于纯模型Raw Chat；当前桥接只提取最终回答。
 - 远程会话在字节云端沙箱运行，不能直接访问用户本地文件系统；DSH本地工具仍由DSH执行。

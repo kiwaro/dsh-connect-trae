@@ -1,30 +1,13 @@
 /**
- * Parse a reset TIME out of an upstream failure message, when the upstream stated
- * one.
+ * 从上游错误信息中读取带有明确 UTC 偏移的额度恢复时间。
  *
- * 参考：`dsh-connect-workbuddy` 的 `src/probe.ts`（`parseUpstreamResetAt`）。
- *   该实现在 WorkBuddy 上是实测出来的（其网关的 429 正文里带一句「将在 … 重置」
- *   与一句英文 `will reset at …`），本文件把同一套解析规则搬过来，并把「偏移量
- *   必须显式」这条硬约束原样保留。
- * 改动：诚实标注**证据状态**。Trae 目前被记录在案的限流/配额文案里**没有任何一条
- *   带时间**：
+ * 解析规则参考 dsh-connect-workbuddy/src/probe.ts。已有 Trae 记录中的
+ * 4011 错误只要求稍后重试，4008 错误只说明额度不足；两者均未提供恢复时间，
+ * 见 docs/ISSUE33_DIAGNOSIS.md，因此这些样本应返回 undefined。
  *
- *   - `4011` → `We're sorry, your requests have exceeded the rate limit.
- *     Please wait and try again later.`（docs/ISSUE33_DIAGNOSIS.md:30，实测原文）
- *   - `4008` → `Your requests have exceeded the quota.`（同文档:55，实测原文）
- *
- *   所以本函数在 Trae 上大概率永远返回 `undefined`，而**这正是它应有的行为**：
- *   没有给出的时间不能变成插件自己编的倒计时（池会退回
- *   `POOL_UNKNOWN_COOLDOWN_MS` 的 30 分钟兜底并在卡片上如实显示「上游未给出
- *   何时恢复」）。它存在的理由只有一个：Trae 的中文网关将来若在正文里写了时间
- *   （与 WorkBuddy 中文网关同一族文案），不要把一个真实存在的时间当没有解析出来
- *   丢掉 —— 参考实现里那是一条实测的 bug（英文正文解析不到 → 账号比上游要求的
- *   早 ~18 小时回到池里，再花一次请求重新撞上同一个限制）。
- *
- * NEVER use it for a credit PACK's `endTimeMs`: that is when a balance STOPS
- * being usable, not when a new allowance ARRIVES. Attaching it as a retry time
- * would put an exhausted account back into rotation at the exact moment its
- * credit disappears.
+ * 以后若响应明确提供时间，按响应中的时区解析。响应未提供时间时，调用方
+ * 可以使用本地冷却策略，但不能把本地等待时间显示为上游承诺的恢复时间。
+ * 积分包的 endTimeMs 表示余额到期，不能作为额度恢复时间。
  *
  * @module dsh-connect-trae/reset-time
  */

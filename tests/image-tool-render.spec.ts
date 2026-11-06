@@ -136,7 +136,8 @@ describe('trae_draw_image render', () => {
   it('carries the hint that says not to rerun for the bytes', async () => {
     const cwd = await workDir()
     const { text } = await run(toolReturning(generated()), cwd)
-    expect(text).toContain('不要为了取图或换张重跑')
+    expect(text).toContain('请勿为下载原图重复生成')
+    expect(text).toContain('可能再次计费')
   })
 
   it('falls back to the object key as inline code when no file path exists', async () => {

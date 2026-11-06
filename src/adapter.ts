@@ -576,8 +576,8 @@ export function createTraeAdapter(options: TraeAdapterOptions): TraeAdapter {
     // with `INVALID_CONFIG` when the id is present. This plugin builds its
     // provider by hand from a live Trae catalog, so the kernel's own
     // catalog-resolution step (which populates this map) never runs for it;
-    // an empty map states the correct fact — every served model is
-    // serviceable. `piProvider` also became optional in 0.1.5, which this
+    // an empty map reports no locally recorded model configuration errors.
+    // It does not establish upstream availability. `piProvider` also became optional in 0.1.5, which this
     // hand-built profile still satisfies by always supplying it.
     modelErrors: new Map(),
     // Last-resort context capacity for any model row this route serves without

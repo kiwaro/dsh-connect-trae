@@ -2,11 +2,13 @@
 
 ## 状态
 
-Superseded as first implementation route by `docs/SOLO_ROUTE_DECISION.md`。Raw Chat结论保留作研究和未来路线。
+第一阶段实现路线已由 [SOLO 路线决策](SOLO_ROUTE_DECISION.md) 取代。本文保留早期对 Raw Chat 的研究判断；其中“后续”和“仍需确认”描述当时的待办。当前对话入口由 `src/index.ts` 接入 `src/solo.ts` 与 `src/solo-bridge.ts`，不按本文早期方案调用 Raw Chat。
 
 ## 背景
 
-历史日志确认 `/api/agent/v3/create_agent_task` 是 Trae 主 Agent 链路，但其请求包含完整 Agent 上下文、工具、skills、workspace、memory 和多层 ID，一次 body 可达约146KB。直接复刻该协议会把 DSH 的 agent/tool 体系与 Trae 自身 agent runtime 双重叠加，复杂度和语义冲突都很高。
+历史日志确认 `/api/agent/v3/create_agent_task` 是 Trae 主 Agent 链路，但其请求包含完整 Agent 上下文、工具、skills、workspace、memory 和多层 ID，一次 body 可达约146KB。
+
+直接复刻该协议会把 DSH 的 agent/tool 体系与 Trae 自身 agent runtime 双重叠加，复杂度和语义冲突都很高。
 
 ## 新证据
 

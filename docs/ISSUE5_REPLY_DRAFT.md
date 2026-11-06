@@ -1,5 +1,7 @@
 # issue #5 回复草稿（发布 2.0.1 之后再贴）
 
+> 2026-11-06 全文复核：历史诊断或回复草稿，版本、测试数与环境均限于原记录日期；发布和对外回复步骤不是本轮指令。核对CLI身份修复与目录隐私，更新安装语法。
+
 > 用途：回复 https://github.com/dingminhua/dsh-connect-trae/issues/5 中 JoberYongk 反馈的「模型列表显示不出来」。
 > 发布 2.0.1 到 npm 并确认 `npm view dsh-connect-trae version` 显示 2.0.1 后，再把下面横线以内的内容贴到 issue。
 
@@ -35,7 +37,7 @@
 ## 升级方式
 
 ```bash
-npm i -g dsh-connect-trae@2.0.1
+dsh plugin --profile desktop add dsh-connect-trae@2.0.1
 ```
 
 ## 如果升级后仍不正常
@@ -56,6 +58,6 @@ npm i -g dsh-connect-trae@2.0.1
 - 发布后一致性核验（RELEASING.md 第 8 步）：8 个源文件与 tagged 提交逐字节一致；
   `lib/` 由 tagged 源码重建后与 npm 产物逐字节相同；修复代码（`crash-reporter-id`
   与 `resolveTraeIdentity`）确认在发布包内
-- 修复提交：`ef8b19e`（含 6 个 CLI-only 身份解析用例，226/226 全绿）
+- 修复提交：`ef8b19e`（含 6 个 CLI-only 身份解析用例，226/226 全部通过）
 - 验证方式：临时 home 内只放 `~/.trae-cn/{trae-jwt-token,argv.json,builtin/ide_version.json}`，确认 `resolveTraeIdentity` 由「必抛」变为成功返回（machineId 64 hex、deviceId 取 crash-reporter-id、appVersion 取 CLI version）
 - 若用户回帖说仍失败，下一步要取证的是：**官方 traecli 实际发送的请求头集合**（本机已无 traecli 可执行文件，无法自行抓取）

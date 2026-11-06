@@ -1,5 +1,7 @@
 # Trae 用量管理 API 调查
 
+> 2026-11-06 全文复核：多阶段历史用量研究。签到claim是写操作，聊天与模型测试另可能消耗积分；下文早期实现已由09-26账号/设备口径修正取代。真实设备标识不应公开。
+
 > 只记录脱敏结构、字段名、数值与行为。不得复制 token、用户消息正文、账号信息或完整请求 body。
 
 ## 目标
@@ -57,8 +59,8 @@ consumption_ratio = 0.78395...
 
 | display_desc | currency | credits_limit | 说明 |
 |---|---|---|---|
-| 老用户福利 | 1 | 2000 | entitlement 326737122050 |
-| 老用户福利 | 1 | 2000 | entitlement 326737122306 |
+| 老用户福利 | 1 | 2000 | 历史权益包A |
+| 老用户福利 | 1 | 2000 | 历史权益包B |
 | 免费 | 0 | — | `free_utc20268_...` |
 | 每月登录赠送 | 1 | 500 | `monthly_bonus_...` |
 | 签到奖励 | 1 | 200 | `checkin_YYYYMMDD_...` 多笔（08-20 一笔已用剩 179.63） |
@@ -106,7 +108,9 @@ Body: `{}`（官方客户端发 `{"req_source":1|2}`，实测该字段对结果�
 
 ### 区域限制
 
-`/trae/api/v2/ug/*` 全族在**国际版网关上不存在**（2026-09-24 实测：`growsg-normal.trae.ai` / `api-sg-central.trae.ai` / `api.trae.ai` 均 404，`www.trae.ai` 回落 HTML 首页）。因此国际版 tab 不显示签到按钮，插件路由对该区域直接答 404，而不是把一个上游 HTML 404 当成网络故障抛给用户。
+`/trae/api/v2/ug/*` 全族在**国际版网关上不存在**（2026-09-24 实测：`growsg-normal.trae.ai` / `api-sg-central.trae.ai` / `api.trae.ai` 均 404，`www.trae.ai` 回落 HTML 首页）。
+
+因此国际版 tab 不显示签到按钮，插件路由对该区域直接答 404，而不是把一个上游 HTML 404 当成网络故障抛给用户。
 
 ### 客户端状态字段（来自官方 bundle）
 
@@ -165,9 +169,10 @@ Body: `{}`（官方客户端发 `{"req_source":1|2}`，实测该字段对结果�
 
 即：上游按 `x-device-id` 的值建索引，`0` 与空串被当成「无设备」（与官方 `guaranteedDeviceId` 里 `!== "0"` 的判定一致）。
 
-插件送的正是官方客户端送的那个号：官方日志 `[ICDRS] (constructor) did: <D>, ldid: aha-…, rdid: <D>` 里的 **did / rdid**，与 `src/identity.ts` 从 `iCubeAuthInfo://icube-dc:<id>` 解出的值逐字一致（`D` 同上表，已脱敏）；官方发的 aha **ldid**（`aha-` 前缀的 32 位十六进制）不是判定量（放进去返回 `false`）。这也解释了为什么本机 `Trae CN` 与 `TRAE SOLO CN` 两个安装共用同一个名额——它们的 `icube-dc` 号相同。
+插件送的正是官方客户端送的那个号：官方日志 `[ICDRS] (constructor) did: <D>, ldid: aha-…, rdid: <D>` 里的 **did / rdid**，与 `src/identity.ts` 从 `iCubeAuthInfo://icube-dc:<id>` 解出的值逐字一致（`D` 同上表，已脱敏）；官方发的 aha **ldid**（`aha-` 前缀的 32 位十六进制）不是判定量（放进去返回 `false`）。
+这也解释了为什么本机 `Trae CN` 与 `TRAE SOLO CN` 两个安装共用同一个名额——它们的 `icube-dc` 号相同。
 
-**「换新设备」在协议层确实成立**：上游对这个值不做签名或绑定校验（上表所有伪造组合都照常返回），换一个未登记的值就等于获得新的一天。**但这是绕过上游的活动规则，不是修缺陷**，因此没有实现：
+**「换新设备」在协议层确实成立**：该次只读状态实验没有观察到签名或绑定校验，未证明领取端采用相同校验（上表所有伪造组合都照常返回），只读状态对未登记值返回未签到；这不证明领取端会接受伪造值或发放奖励。**但这是绕过上游的活动规则，不是修缺陷**，因此没有实现：
 
 - 官方契约（`fb(headers)` 里的 `guaranteedDeviceId`）要求发**本机真实安装标识**，而「每设备每天一次」正是该活动的规则本身；
 - 后果落在用户账号上：Trae 的 `reportTea` / `icube_device_register_*` 埋点把 deviceId 一并上报，「同账号 × 大量设备号」是风控最容易识别的形态；
@@ -219,5 +224,5 @@ start_time, end_time, page_size, page_num, usage_type, Request
 4. ~~接入每日签到领取~~ **已完成（2026-09-24）**：
    - `TraeUsageClient` 新增 `claimCheckin()`（本客户端**唯一的写操作**），并让 `checkinStatus()` 一并回传 `didCheckedIn` / `extraCredits`；两者都带 `x-device-id`（`deviceId` 由 `index.ts` 从 `identity()` 注入，读不到时降级为不发该头，只影响领取、不影响状态查询）。
    - 新增路由 `POST /plugins/dsh-connect-trae/checkin`：仅 POST、仅回环来源、仅 `cn` 区域；**先读状态**，已领取直接返回且不发领取请求；活动关闭答 409。业务拒绝（如 9004）以 `claimed:false` + 原始 code/message 返回，不当成 500。
-   - 卡片新增签到行（每日奖励、按钮、领取中/已领取三态），已领取判定同时看 `checkedIn` 与 `didCheckedIn`，与官方客户端一致。
+   - 卡片新增签到行（每日奖励、按钮、领取中/已领取三态），该次v2.3.0曾同时看checkedIn与didCheckedIn，09-26已证明该判据错误，后续只用checkedIn判断账号已领取。
    - 新增 21 条测试（`usage.spec.ts` 6 条、`web-status.spec.ts` 7 条、`card-checkin.spec.tsx` 8 条，含真实点击；全仓测试数 261 → 282）；做过**变异验证**：去掉路由的 `didCheckedIn` 守卫、去掉卡片的同款判定、把卡片改成 GET，对应测试各自立刻失败。

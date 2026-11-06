@@ -1,5 +1,7 @@
 # dsh-connect-trae 对 LDVH 调研 c8746b85 的影响面核对
 
+> 2026-11-06 全文复核：2026-09-26的0.1.7-rc.2历史核对。当前本机为Windows，开发依赖已升到0.2.2-rc.1；macOS路径、未安装pnpm及未改文档均指当次环境。WSL跨PID共享锁限制仍需按实际部署评估。
+
 > 对照对象：`dsh-ldvh/ldvh-base/researches/research-c8746b85-daf2-4191-aa37-d005d1fbdecd.md`
 > （DSH 0.1.7-rc.1 → 0.1.7-rc.2 变更调研，11 项发现 / 4 未证实 / 5 缺口）
 > 核对时间：2026-09-26　方法：照搬该调研 F1/F8 的机械化符号比对
@@ -8,7 +10,7 @@
 ## 为什么本插件需要单独核对
 
 该调研的消费清单是 **dsh-ldvh 的**，其 frontmatter 与建议段都很清楚：结论只主张 dsh-ldvh 自身。
-但它自己写下的 gap #3 恰恰点名本插件：
+但它自己写下的 gap #3 恰恰列明本插件：
 
 > 本机 desktop profile 的 12 个第三方依赖未逐一核对 rc.2 兼容性
 > blocked_scope：「本机插件族在 rc.2 整体可用」类结论
@@ -20,7 +22,7 @@
 
 | 调研发现 | 对本插件 | 依据 |
 |---|---|---|
-| F1 契约面只增不改 | 不击中 | 本插件消费的每个符号在两版均存在（见下表） |
+| F1 契约面只增不改 | 不击中 | 本插件调用的每个符号在两版均存在（见下表） |
 | F2 会话格式未升级 | 不适用 | 本插件不消费 session 持久化 |
 | F3 atomic-write 锁接管 | **击中，但属条件性部署约束** | 见下节 |
 | F4 deepseekAccount 签名破坏 | 不击中 | 全仓不消费 `deepseekAccount`（grep 零命中） |
@@ -97,15 +99,15 @@ taken over.」），边界在 L181：「other PID namespaces sharing the file ar
 ## 未做的事
 
 - 未改动任何源码、文档或版本号。本核对结论是「无需修改」，故不产生代码变更。
-- 未把本插件加进 LDVH 仓的对话或对象系统（该仓 `governed-projects.yaml` 未列本仓，
+- 未把本插件加进 LDVH 仓的对话或对象系统（该仓 `governed-projects.yaml` 未列本仓库，
   且本会话 LDVH 管辖判定为 not_governed）。
 - 未对 rc.2 做端到端运行验收（本插件的 UI 四项目前跑在 rc.2 宿主上，但那属于既有状态，
   不构成本次变更的验收）。
 
-## 若要落地，可选的两项（均非必须）
+## 若要实施，可选的两项（均非必须）
 
 1. **开发树提到 rc.2**：`devDependencies` 现为 `0.1.7-rc.1`，而用户运行时是 rc.2，
    typecheck/测试实际验的是 rc.1 的类型。peer 范围已覆盖 rc.2 且本次比对证实无差异，
    因此这是「让开发树与运行时一致」的卫生项，不是修复。
-   落地需要 pnpm（本机未安装，仅 npm 可用），故未执行。
+   实施需要 pnpm（本机未安装，仅 npm 可用），故未执行。
 2. **WSL2 文档补一行**：把上面 F3 的跨 PID namespace 条件写进 `docs/WSL2_CLI_PROBE.md`。

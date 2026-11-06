@@ -1,7 +1,7 @@
 /**
  * The card's account-transfer section: batch export and import of a region's
- * stored credentials, in the file format shared with sibling credential
- * managers for the same upstream (the `dsh-connect-workbuddy` family).
+ * stored Trae credentials. The interaction follows the WorkBuddy sibling;
+ * that does not make credentials interchangeable between the two services.
  *
  * Modelled on that plugin's `AccountTransfer`, deliberately: the two plugins
  * share one external-presentation language, and a user who has imported
@@ -11,10 +11,10 @@
  * desensitised preview → tick → import) split the same way.
  *
  * Two properties are load-bearing and must not be relaxed:
- *  - The preview carries display fields and a `hasToken` boolean only. Tokens
- *    never enter the browser at all until the user explicitly exports a chosen
- *    account, and the Host re-parses the file on import rather than trusting
- *    anything this component says about it.
+ *  - The preview response carries display fields and a `hasToken` boolean.
+ *    The browser already holds the selected import file, including its tokens.
+ *    Export also returns selected credentials to the browser for download.
+ *    The Host re-parses the submitted text when importing.
  *  - Import is offered even when the region has NO account: a machine that has
  *    never signed in is exactly where importing someone else's export matters
  *    most. Only EXPORT needs an existing account to select.

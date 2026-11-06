@@ -28,14 +28,12 @@
  * Both together mean "a live host is serving bytes this build is about to
  * replace".
  */
-import { readdir, readlink, stat } from 'node:fs/promises'
-import { execFile } from 'node:child_process'
+import { readdir, readlink } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { promisify } from 'node:util'
+import { liveHosts } from './live-host-process.mjs'
 
-const execFileAsync = promisify(execFile)
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** Profiles that link THIS repository into their `node_modules`. */
@@ -61,18 +59,6 @@ async function linkedProfiles() {
     if (resolved === repo) linked.push(entry.name)
   }
   return linked
-}
-
-/** Is a DSH host process alive right now? */
-async function liveHosts() {
-  try {
-    const { stdout } = await execFileAsync('ps', ['-Ao', 'command'], { maxBuffer: 8 * 1024 * 1024 })
-    return stdout
-      .split('\n')
-      .filter(line => line.includes('dsh-desktop-host') || line.includes('dsh/lib/bin.js'))
-  } catch {
-    return []
-  }
 }
 
 const profiles = await linkedProfiles()

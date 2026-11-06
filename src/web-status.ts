@@ -1,3 +1,5 @@
+import { toCredits, toCheckin } from './web-credits.ts'
+export { toCredits, toCheckin } from './web-credits.ts'
 /**
  * Same-origin usage route for the Trae plugin card: sign-in state and the
  * read-only usage/credit summary, fetched by the browser half. The route
@@ -42,7 +44,7 @@ import {
 } from './status-paths.ts'
 import { mergeTransferRecords, parseTransferFile, previewTransferFile, traeTransferRecordOf } from './transfer.ts'
 import type { TraeTransferRecord } from './transfer.ts'
-import type { TraePoolPreferences, TraeWebAccount, TraeWebAccountCredit, TraeWebAccountState, TraeWebCheckin, TraeWebCreditAlternative, TraeWebCreditExpiry, TraeWebCredits, TraeWebExpiringCredits, TraeWebPool, TraeWebPoolAccount, TraeWebPoolOutcome, TraeWebUsage, TraeWebPayStatus, TraePoolCheckinRowView, TraePoolTestRowView } from './status-paths.ts'
+import type { TraePoolPreferences, TraeWebAccount, TraeWebAccountCredit, TraeWebAccountState, TraeWebCheckin, TraeWebCreditAlternative, TraeWebCredits, TraeWebPool, TraeWebPoolAccount, TraeWebPoolOutcome, TraeWebUsage, TraeWebPayStatus, TraePoolCheckinRowView, TraePoolTestRowView } from './status-paths.ts'
 import type { TraeCheckinClaim, TraeCheckinStatus } from './usage.ts'
 
 export { TRAE_USAGE_PATH, TRAE_ACCOUNT_CREDITS_PATH } from './status-paths.ts'
@@ -409,161 +411,6 @@ function loopbackOrigin(req: IncomingMessage): boolean {  const origin = req.hea
 }
 
 /**
- * Whether a pack's expiry is one the card can actually use.
- *
- * One predicate, shared by the per-pack projection and the bucket summary, so
- * the two can never disagree about which packs count as dated. `0` and the
- * non-finite values are excluded: a `0` here would read as 1970 and sort ahead
- * of every real date, and `NaN`/`Infinity` are not dates at all.
- */
-function usableExpiry(endTimeMs: number | undefined): endTimeMs is number {
-  return typeof endTimeMs === 'number' && Number.isFinite(endTimeMs) && endTimeMs > 0
-}
-
-/**
- * Map the credit snapshot to the card's compact credit document.
- *
- * Exported so the "is another account usable?" probe (issue #25) derives its
- * two buckets through the SAME endpoint classification the bound account uses
- * — a second implementation of the Work/general split would be free to disagree
- * with the number shown next to it.
- */
-export function toCredits(snapshot: { summary: { totalAmount: number; consumedAmount: number }; packs: { displayDesc: string; availableEndpoint?: number; consumedCredits?: number; creditsLimit?: number; endTimeMs?: number }[] }, nowMs: number = Date.now()): TraeWebCredits {
-  const { totalAmount, consumedAmount } = snapshot.summary
-  const credit = (value: number): number => Math.round(value * 10_000) / 10_000
-  const accounts = snapshot.packs.map(pack => ({
-    displayDesc: pack.displayDesc,
-    remain: credit(Math.max(0, (pack.creditsLimit ?? 0) - (pack.consumedCredits ?? 0))),
-    size: pack.creditsLimit ?? 0,
-    // Carried through because the pack's own expiry is what answers "which pack
-    // lapses first" — the one question the remaining balance alone cannot. The
-    // upstream already reports it per pack (`end_time`), so this is projection,
-    // not a new read. Omitted rather than zeroed when there is no usable time:
-    // a `0` here would read as 1970 and sort ahead of every real date.
-    ...(usableExpiry(pack.endTimeMs) ? { expiresAtMs: pack.endTimeMs } : {}),
-    // Which bucket this pack lives in, verbatim from upstream. The pool ranking
-    // needs it to tell spendable credit from credit that only the Work surface
-    // can reach; see {@link TraeWebCreditAccount.endpoint}.
-    ...(pack.availableEndpoint === undefined ? {} : { endpoint: pack.availableEndpoint }),
-  }))
-  // `usage.credits_amount` is consumed credit, not remaining balance. Derive
-  // each bucket's balance from its quota, matching total - consumed upstream.
-  const remaining = (endpoint: number): number => snapshot.packs
-    .filter(pack => pack.availableEndpoint === endpoint)
-    .reduce((sum, pack) => credit(sum + Math.max(0, (pack.creditsLimit ?? 0) - (pack.consumedCredits ?? 0))), 0)
-  return {
-    total: totalAmount,
-    consumed: consumedAmount,
-    available: totalAmount - consumedAmount,
-    workAvailable: remaining(1),
-    generalAvailable: remaining(0),
-    accounts,
-    ...summarisePackExpiry(accounts, nowMs),
-  }
-}
-
-/** Empty bucket, used whenever no pack qualifies. */
-const NO_EXPIRING_CREDIT: TraeWebExpiringCredits = { total: 0, packs: 0 }
-
-/**
- * Sum the credit lapsing inside `horizonMs` of `nowMs`.
- *
- * Only positive balances count: a lapsed pack with nothing left is not a loss,
- * and including it would make every long-lived account look permanently at
- * risk. Only *future* expiries count too — see {@link expiredPacks}.
- */
-function expiringWithin(
-  packs: readonly { remain: number; expiresAtMs?: number }[],
-  nowMs: number,
-  horizonMs: number,
-): TraeWebExpiringCredits {
-  return sumExpiring(packs, expiresAt => expiresAt > nowMs && expiresAt - nowMs <= horizonMs)
-}
-
-/**
- * Sum the credit whose pack has already lapsed but still carries a balance.
- *
- * Kept apart from {@link expiringWithin} because a lapsed pack satisfies every
- * forward-looking horizon at once (`expiresAt - now` is negative, hence "within
- * 24 hours"), which would make a long-dead pack look permanently imminent.
- */
-function expiredPacks(
-  packs: readonly { remain: number; expiresAtMs?: number }[],
-  nowMs: number,
-): TraeWebExpiringCredits {
-  return sumExpiring(packs, expiresAt => expiresAt <= nowMs)
-}
-
-/** Shared accumulator over packs whose expiry passes `matches`. */
-function sumExpiring(
-  packs: readonly { remain: number; expiresAtMs?: number }[],
-  matches: (expiresAtMs: number) => boolean,
-): TraeWebExpiringCredits {
-  let total = 0
-  let count = 0
-  let earliestExpiresAtMs: number | undefined
-  for (const pack of packs) {
-    const expiresAt = pack.expiresAtMs
-    if (!usableExpiry(expiresAt) || pack.remain <= 0) continue
-    if (!matches(expiresAt)) continue
-    total += pack.remain
-    count += 1
-    if (earliestExpiresAtMs === undefined || expiresAt < earliestExpiresAtMs) earliestExpiresAtMs = expiresAt
-  }
-  if (count === 0) return NO_EXPIRING_CREDIT
-  return {
-    total,
-    packs: count,
-    ...(earliestExpiresAtMs === undefined ? {} : { earliestExpiresAtMs }),
-  }
-}
-
-/**
- * Bucket the card's credit by how soon it lapses.
- *
- * Returns no `expiry` at all when not one pack carried a usable end time, so a
- * caller can tell "nothing is expiring" apart from "we were never told when
- * anything expires" — the second must not render as reassurance. Uses the same
- * {@link usableExpiry} predicate as the per-pack projection, so a summary is
- * never produced from a set of dates the card itself would not carry.
- */
-function summarisePackExpiry(
-  accounts: readonly { remain: number; expiresAtMs?: number }[],
-  nowMs: number,
-): { expiry?: TraeWebCreditExpiry } {
-  if (!accounts.some(pack => usableExpiry(pack.expiresAtMs))) return {}
-  const HOUR = 3_600_000
-  const DAY = 24 * HOUR
-  return {
-    expiry: {
-      within24h: expiringWithin(accounts, nowMs, DAY),
-      within3d: expiringWithin(accounts, nowMs, 3 * DAY),
-      within7d: expiringWithin(accounts, nowMs, 7 * DAY),
-      // Expiry in the past is worth surfacing too: the balance is still listed
-      // as credit, so a reader watching only the total would over-count it.
-      expired: expiredPacks(accounts, nowMs),
-    },
-  }
-}
-
-/** Map the check-in answer to the card's compact document. */
-export function toCheckin(status: {
-  checkedIn: boolean
-  credits: number
-  enabled: boolean
-  didCheckedIn: boolean
-  extraCredits?: number
-}): TraeWebCheckin {
-  return {
-    checkedIn: status.checkedIn,
-    didCheckedIn: status.didCheckedIn,
-    credits: status.credits,
-    enabled: status.enabled,
-    ...status.extraCredits === undefined ? {} : { extraCredits: status.extraCredits },
-  }
-}
-
-/**
  * Assemble one region's card document. `panel` is the tab the card is on; the
  * panel-scoped store already answers with only that region's accounts, so the
  * document's model slots and account list are that region's by construction.
@@ -658,12 +505,9 @@ export async function traeWebUsage(
   }
   let credential
   try {
-    // The first paint reads the credential that is ALREADY known locally.
-    // `resolve()` is the right call for the full document — it makes sure the
-    // tokens handed to the upstream are usable — but it can refresh them over
-    // the network, and no token refresh may decide when the account list
-    // appears. An expired token is fine here: the card only needs identity and
-    // expiry to paint, and the follow-up full document still validates it.
+    // First paint uses locally known identity and expiry without waiting for
+    // token refresh. The full document calls resolve(), which may refresh an
+    // expired token; successful resolution does not guarantee upstream acceptance.
     credential = fast ? await store.current() : await store.resolve()
     // With nothing known locally there is nothing to paint either; `resolve()`
     // then only classifies WHY (it makes no network call without a credential),
@@ -751,15 +595,10 @@ export async function traeWebUsage(
     }
   }
   /**
-   * The enterprise panel shows NO credit figure, deliberately.
-   *
-   * `client.snapshot()` reads the CONSUMER packs, and that is the personal
-   * balance — not what a tenant turn spends. There is no enterprise counterpart
-   * to read: every tenant quota endpoint answers 404 (probed 2026-10-17), and
-   * the tenant console at console.enterprise.trae.cn is the only place the
-   * enterprise balance exists. Showing the personal number under an enterprise
-   * heading would be actively misleading, so the panel reports the absence
-   * explicitly and the card explains where the real figure lives.
+   * Enterprise panels omit the personal credit balance returned by snapshot().
+   * The tenant quota endpoints tested on 2026-10-17 returned 404, so this plugin
+   * has no supported enterprise balance reader. The card directs users to the
+   * tenant console; that does not establish it as the only possible data source.
    */
   if (panel === 'enterprise') {
     return {
@@ -1220,8 +1059,8 @@ export function registerTraeUsageRoute(ctx: Context, deps: TraeUsageRouteOptions
     })
     /**
      * Per-account status for one row of the card's account table (CN:
-     * check-in + balances; ai: subscription). Read-only, one upstream call per
-     * account, fetched once per table render. `accountId` rides in the query
+     * check-in + balances; ai: subscription). The Host may make multiple
+     * read-only upstream calls per account. `accountId` rides in the query
      * (a GET, like every other read-only sibling). Absent `accountStateOf`
      * the route answers 503 so the table degrades to bare rows.
      */
@@ -1265,13 +1104,13 @@ export function registerTraeUsageRoute(ctx: Context, deps: TraeUsageRouteOptions
       },
     })
     /**
-     * Batch credential export / import (issue #37).
+     * Batch credential export and import (issue #37).
      *
-     * The Host owns every byte of the credential store; the browser only receives
-     * parsed answers. `preview` necessarily returns identifiers the card shows
-     * (uid / nickname / email) plus a `hasToken` boolean — never a token — and
-     * `import` re-parses the file server-side rather than trusting the preview,
-     * so a tampered browser cannot smuggle in a record the preview never showed.
+     * Export returns the selected plugin-owned credential records, including
+     * tokens, to the browser for download. Preview returns identifiers and a
+     * hasToken flag without tokens. Import independently parses the submitted
+     * text on the server and applies the selected indexes and region gate;
+     * it does not verify that the browser previously previewed the same text.
      */
     const disposeTransfer = ctx.webServer.register({
       kind: 'exact',
@@ -1354,8 +1193,7 @@ export function registerTraeUsageRoute(ctx: Context, deps: TraeUsageRouteOptions
      * One-click availability test for the enabled models.
      *
      * This ROUTE COSTS QUOTA: each tested model gets a real, minimal chat call.
-     * Every other plugin surface is read-only, so the guards here are tighter
-     * than a GET's — POST only, loopback origin only, and the id list is taken
+     * The route requires POST and a loopback origin. The id list is taken
      * from the request body and validated against the region's live catalog, so
      * a caller cannot spend calls on arbitrary upstream config names. The count
      * is capped for the same reason.
@@ -1387,10 +1225,9 @@ export function registerTraeUsageRoute(ctx: Context, deps: TraeUsageRouteOptions
       },
     })
     /**
-     * Daily check-in claim — the ONLY route in this plugin that mutates
-     * upstream account state, so it is guarded more tightly than its siblings:
-     * POST only, loopback origin only, and the status read runs FIRST so a day
-     * the ACCOUNT has already been paid for never reaches the upstream claim.
+     * Daily check-in claim requires POST and a loopback origin. A status read
+     * runs first and skips the claim when the account is already rewarded.
+     * Concurrent requests still depend on upstream duplicate-claim handling.
      *
      * `alreadyCheckedIn` and `deviceCheckedIn` are deliberately separate
      * answers, because the two flags mean different things (see
@@ -1401,10 +1238,9 @@ export function registerTraeUsageRoute(ctx: Context, deps: TraeUsageRouteOptions
      * today" and disabled the button, which is the right call for the wrong
      * reason and hides that the new account was never rewarded.
      *
-     * The upstream is idempotent per Beijing day (verified 2026-09-24: a
-     * repeat claim answers `code: 0` with the entitlement total unchanged), but
-     * relying on that for correctness would put the guard in someone else's
-     * hands.
+     * A repeated claim tested on 2026-09-24 returned code 0 with the entitlement
+     * total unchanged. This observation does not prove all duplicate requests
+     * will be handled identically; the local status guard avoids known repeats.
      */
     const disposeCheckin = ctx.webServer.register({
       kind: 'exact',

@@ -169,7 +169,7 @@ describe('the card splits into three sections', () => {
     fireEvent.click(tab('models'))
     expect(panel('models').querySelector('.dsm-trae-model-list')).not.toBeNull()
     // The account section is likewise still there behind the models panel.
-    expect(panel('accounts').querySelector('.dsm-trae-prefs')).not.toBeNull()
+    expect(document.querySelector('#dsm-trae-panel-capabilities .dsm-trae-prefs')).not.toBeNull()
   })
 
   it('marks exactly one tab selected and points each tab at its panel', async () => {

@@ -1,8 +1,13 @@
+import { formatCapacity, modelChannelLabel, probeBadge, promoBadge } from './trae-model-display.tsx'
+import { writeSettingsField } from './trae-settings-write.ts'
+export { writeSettingsField, TraeSettingsWriteError } from './trae-settings-write.ts'
+import type { TraeUsageCardProps } from './trae-card-types.ts'
+export type { TraeUsageCardInjected, TraeUsageCardProps } from './trae-card-types.ts'
 /**
  * Trae usage card contributed to Harness Plugin configuration.
  *
- * Structure, CSS classes, and button primitives mirror `dsh-subagent-default-model`'s
- * `SubagentModelCard` so the two plugins share one external-presentation language.
+ * Account, model, capability and diagnostic sections follow the shared
+ * Trae/WorkBuddy presentation. Plugin-specific data stays in this component.
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
@@ -34,7 +39,6 @@ import { providerOfPanel, regionOfPanel, type TraePanel } from '../region.ts'
 import { contextBudgetOptions, TRAE_CONTEXT_BUDGET_MID } from '../context-budget.ts'
 import { defaultEffortFor } from '../default-effort.ts'
 import { filterTraeModels, groupTraeModels, orderTraeModels, scopeTraeModels, type TraeModelView } from '../model-order.ts'
-import { selectTraePromoBadge, type TraePromoKind } from '../promo.ts'
 import { TRAE_PLUGIN_ICON } from './icon.ts'
 import { TRAE_CARD_CSS } from './styles.ts'
 import { BusyOverlay } from './BusyOverlay.tsx'
@@ -44,7 +48,6 @@ import type { TraePoolRowDetail } from './AccountPool.tsx'
 import { dotStyle, formatDateTime, formatNumber, refreshTokenWarning } from './display.ts'
 import { planVerdict as payVerdict } from './plan-text.ts'
 import { setSidebarPanelWanted, sidebarPanelEnabledOf } from './panel-switch.ts'
-import type { TraeSettingsKey } from './locales.ts'
 
 /**
  * Failure text of a route: the server's own message when it sent one, else the
@@ -63,65 +66,6 @@ function routeErrorText(body: unknown, status: number): string {
   return `HTTP ${status}`
 }
 
-/** Localized copy injected by the browser-plugin registration. */
-export interface TraeUsageCardInjected {
-  t: (key: TraeSettingsKey, params?: Record<string, unknown>) => string
-  /**
-   * Optional by design: before the configForms mirror populates (or on a host
-   * with no settings surface) this is undefined, and the card renders
-   * read-only — saving is the only capability that needs it.
-   */
-  settingsScope?: {
-    getSnapshot(): { status: string; value?: unknown; writable: boolean }
-    subscribe(listener: () => void): () => void
-    /** Whether the Host accepted the write. */
-    set(field: string, value: unknown): Promise<boolean>
-  }
-}
-
-/**
- * Props delivered by the Plugin configuration item slots
- * (`plugins.bundle.config` / `plugins.row.config`). The type is structural on
- * purpose: the slot names are declared by the host app bundle, not by any
- * package in the plugin's own tree, so referencing a named slot contract here
- * would fail to resolve in the plugin's dev environment.
- */
-export type TraeUsageCardProps = Partial<TraeUsageCardInjected> & {
-  /** The plugin manager asks for one of two views through its owner props.
-   * `page` is the full form with its own save control; `summary` is a
-   * one-liner. An absent `view` starts the card collapsed. */
-  view?: 'summary' | 'page'
-  /**
-   * Which SURFACE this card is drawn on.
-   *
-   * `card` (the default) is the collapsible `<li>` the Plugins page renders.
-   * `page` is the full-page body behind the OPTIONAL sidebar row
-   * (`sidebar.panellist` + `main`): a page has no card chrome to collapse, so
-   * it always renders expanded and draws its own header instead.
-   *
-   * `section` is the `settings.section` page — the configuration entry this
-   * plugin now ships. It is a THIRD surface, not a reuse of `page`, because the
-   * settings shell already owns the chrome a page has to draw for itself: it
-   * paints the panel, the nav row, the close control and the scroll column, and
-   * hands the section only `{ close }`. Drawing the page's "back to
-   * conversation" header there would offer a second, competing way out of a
-   * modal that is not a centre-column panel. What a section still wants is to
-   * say what it is, which `section` does with a heading and the one-line
-   * description instead of a back button.
-   *
-   * The distinction is a prop rather than three components because the body
-   * must stay ONE tree: the region tabs, the polling, the drafts and the pool
-   * log are identical on every surface, and a second component would be a copy
-   * that drifts.
-   */
-  surface?: 'card' | 'page' | 'section'
-  /** Back to the conversation, offered by the page header. Supplied by the
-   * browser entry (it soft-probes the host's `layout` service); absent on a
-   * host that does not declare one, and the affordance is then omitted rather
-   * than drawn dead. */
-  backToConversation?: () => void
-}
-
 const POLL_INTERVAL_MS = 60_000
 const TRAE_GITHUB_URL = 'https://github.com/dingminhua/dsh-connect-trae'
 
@@ -132,43 +76,6 @@ interface TraeDraft {
   imageIds: Set<string>
   contextBudgets: Record<string, number>
   thinkingEfforts: Record<string, string>
-}
-
-/**
- * Write one settings field and confirm the value actually landed.
- *
- * `configForms.set()` resolving is NOT proof that anything was stored: a write
- * can be accepted by the transport and still not materialize — a rejected
- * write reloads Host state and merely RETURNS, so the caller's `await`
- * succeeds while the document is unchanged. The form answers with an explicit
- * boolean for exactly this reason.
- *
- * Either way the caller must not report success on an unpersisted write: the
- * user would see the control flip and then silently revert.
- *
- * @throws {TraeSettingsWriteError} when the write was refused or did not land.
- */
-export class TraeSettingsWriteError extends Error {
-  constructor(field: string, detail?: string) {
-    super(detail === undefined || detail === ''
-      ? `trae: settings field "${field}" was not persisted by the settings write`
-      : `trae: settings field "${field}" was not persisted by the settings write (${detail})`)
-    this.name = 'TraeSettingsWriteError'
-  }
-}
-
-export async function writeSettingsField(
-  scope: NonNullable<TraeUsageCardInjected['settingsScope']>,
-  field: string,
-  value: unknown,
-  landed: (readBack: unknown) => boolean,
-): Promise<void> {
-  const accepted = await scope.set(field, value)
-  // The 0.1.7 form answers an explicit boolean: `false` is a refusal.
-  if (accepted === false) throw new TraeSettingsWriteError(field, 'the Host refused the write')
-  if (!landed(unwrapVolatileDeep(scope.getSnapshot().value))) {
-    throw new TraeSettingsWriteError(field)
-  }
 }
 
 /** Read one region's stored `regions` slot out of an unwrapped settings value. */
@@ -188,143 +95,6 @@ if (typeof document !== 'undefined') {
     document.head.appendChild(styleTag)
   }
 }
-
-function formatCapacity(value: number | undefined, unknown: string): string {
-  if (value === undefined) return unknown
-  if (value >= 1_000_000 && value % 1_000_000 === 0) return `${value / 1_000_000}M`
-  if (value >= 1_000 && value % 1_000 === 0) return `${value / 1_000}K`
-  return formatNumber(value)
-}
-
-/**
- * Human name for one wire channel (issue #52, P0).
- *
- * The group header answers 「why is this list so long」 — because it is the union
- * of several Trae modes — so it must name the mode, not print `solo_work_remote`.
- * An unknown function falls through to its raw name on purpose: a channel this
- * build does not know about is a fact worth showing rather than hiding behind
- * 「其他」, and it is exactly what a bug report should quote.
- */
-function modelChannelLabel(
-  channel: string | undefined,
-  t: (key: TraeSettingsKey, params?: Record<string, unknown>) => string,
-): string {
-  if (channel === undefined) return t('row.modelsChannelDefault')
-  const known: Record<string, TraeSettingsKey> = {
-    solo_work_remote: 'row.modelsChannelWorkRemote',
-    solo_work_lite: 'row.modelsChannelWorkLite',
-    solo_agent_remote: 'row.modelsChannelAgentRemote',
-    chat_v3: 'row.modelsChannelChatV3',
-    solo_coder: 'row.modelsChannelCoder',
-  }
-  const key = known[channel]
-  return key === undefined ? channel : t(key)
-}
-
-/**
- * The verdict badge for one model, or null when it has not been tested.
- *
- * `unknown` renders as inconclusive, never as a failure: a throttle or a dropped
- * connection says nothing about the model, and painting it the same red as a
- * real refusal is what makes users delete working models.
- */
-const PROBE_LABELS: Record<TraeModelProbeVerdict, TraeSettingsKey> = {
-  available: 'row.probeAvailable',
-  gated: 'row.probeGated',
-  unsupported: 'row.probeUnsupported',
-  rate_limited: 'row.probeRateLimited',
-  auth: 'row.probeAuth',
-  unknown: 'row.probeUnknown',
-}
-
-function probeBadge(
-  probe: { verdict: TraeModelProbeVerdict; detail: string } | undefined,
-  t: (key: TraeSettingsKey) => string,
-): ReactNode {
-  if (probe === undefined) return null
-  return (
-    <span className={`dsm-trae-model-probe dsm-trae-model-probe-${probe.verdict}`} title={probe.detail}>
-      {t(PROBE_LABELS[probe.verdict])}
-    </span>
-  )
-}
-
-/**
- * How each promotion kind is phrased.
- *
- * The wording is PLUGIN copy, not upstream's: Trae publishes a rule — a pay
- * ratio plus optional cheap-hours windows — and never a label (contrast
- * WorkBuddy's `badge.label`, see docs/PROMO_BADGE.md §3). Two things
- * follow, and both are deliberate:
- *
- *  - only `limited_discount` says 限时 / "limited"; upstream gives no end time
- *    for the other kinds, so claiming one would be inventing urgency;
- *  - the number shown is upstream's own pay ratio (`discount: 50` ⇒ 五折 /
- *    "50% off"), never a re-derived price.
- */
-const PROMO_LABELS: Record<TraePromoKind, TraeSettingsKey> = {
-  limited: 'row.promoLimited',
-  subsidy: 'row.promoSubsidy',
-  offPeak: 'row.promoOffPeak',
-}
-
-/** Pay ratio as the "折" figure a Chinese price tag uses: 50 → "5", 25 → "2.5". */
-function promoZhe(discountPercent: number): string {
-  const zhe = Math.round(discountPercent * 10) / 100
-  return Number.isInteger(zhe) ? String(zhe) : zhe.toFixed(1)
-}
-
-/**
- * The model row's promotion capsule, or nothing.
- *
- * Judged HERE, at paint time, not when the directory was parsed: the rule's
- * windows are wall clocks in an upstream-named zone (00:00–09:00 on weekdays,
- * …), so a verdict frozen into a saved catalog would still be shouting about
- * last night's discount tomorrow afternoon. The card re-renders on its poll, so
- * the capsule appears and disappears with the window.
- *
- * One capsule at most, and it sits BESIDE the name rather than inside it: the
- * name is ellipsis-truncated, so a badge placed inside would be clipped away
- * exactly on the long model names.
- */
-function promoBadge(
-  model: TraeWebModel,
-  t: TraeUsageCardInjected['t'],
-  now: Date,
-): ReactNode {
-  const badge = selectTraePromoBadge(model.activityDiscount, now)
-  if (badge === undefined) return null
-  const zhe = promoZhe(badge.discountPercent)
-  // Upstream's own figures go into the hover only; the capsule stays short so a
-  // 24-model list does not turn into a wall of numbers.
-  const hints: string[] = []
-  if (badge.beforeRate !== undefined && badge.rate !== undefined) {
-    hints.push(t('row.promoHintRate', { before: String(badge.beforeRate), rate: String(badge.rate) }))
-  }
-  if (badge.fromClock !== undefined && badge.untilClock !== undefined && badge.timeZone !== undefined) {
-    hints.push(t('row.promoHintWindow', { from: badge.fromClock, until: badge.untilClock, zone: badge.timeZone }))
-  }
-  if (badge.memberDiscountPercent !== undefined && badge.memberRate !== undefined) {
-    // Only reached when the member price is actually LOWER than the one above
-    // (`src/promo.ts` compares the two post-discount rates). Both phrasings are
-    // passed: zh spells "会员价 {rate} 积分/百万 token（{zhe} 折）", en says
-    // "({percent}% off)", and each uses the placeholders it names.
-    hints.push(t('row.promoHintMember', {
-      rate: String(badge.memberRate),
-      zhe: promoZhe(badge.memberDiscountPercent),
-      percent: String(100 - badge.memberDiscountPercent),
-    }))
-  }
-  return (
-    <span
-      className={`dsm-trae-model-promo dsm-trae-model-promo-${badge.kind}`}
-      title={hints.length === 0 ? t(PROMO_LABELS[badge.kind], { zhe, percent: String(badge.percentOff) }) : hints.join(' · ')}
-    >
-      {t(PROMO_LABELS[badge.kind], { zhe, percent: String(badge.percentOff) })}
-    </span>
-  )
-}
-
 
 /** Render Trae sign-in state and the total usage summary as one expandable card. */
 export function TraeUsageCard({ t, settingsScope, view, surface, backToConversation }: TraeUsageCardProps) {
@@ -347,7 +117,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
   /** The region whose tab is on screen; each tab is its own provider stack. */
   const [activeRegion, setActiveRegion] = useState<TraePanel>('cn')
   /**
-   * Which of the card's three sections is on screen (learned from the sibling
+   * Which of the card's four sections is on screen (learned from the sibling
    * `dsh-connect-workbuddy` card, whose settings page split for the same
    * reason).
    *
@@ -366,7 +136,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
    * inactive panel out of the accessibility tree, which is exactly what
    * `role="tabpanel"` wants.
    */
-  const [panel, setPanel] = useState<'accounts' | 'models' | 'diag'>('accounts')
+  const [panel, setPanel] = useState<'accounts' | 'models' | 'capabilities' | 'diag'>('accounts')
   /**
    * Last-known usage per region, so tab dots survive tab switches.
    *
@@ -510,18 +280,9 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
   }, [])
 
   /**
-   * The 设置 block: its committed values, its draft, and the ONE write path.
-   *
-   * The block commits on 「保存」 rather than on every click, so 「放弃」 has a
-   * meaning and a half-finished edit cannot land in the settings document. Both
-   * fields are written through `writeSettingsField`, which read-back checks the
-   * document — `set()` resolving has never been proof a value landed on this
-   * Host, so a saved-looking switch that silently reverted is exactly the
-   * failure that guard exists for.
-   *
-   * Committed values are read from the settings document, never echoed from
-   * local state: a write made elsewhere (the DSH settings form, another window)
-   * then shows up here instead of being shadowed by a stale copy.
+   * 读取已保存的积分显示设置。能力页开关通过 writeSettingsField 即时写入并回读，
+   * 不等待模型栏的保存操作；写入期间由 optimisticSettings 提供临时显示值。
+   * 写入完成后仍以设置文档为准，使其他窗口的修改能同步显示。
    */
   const committedSettings = {
     showPointsInMainUi: (unwrapVolatileDeep(settingsScope?.getSnapshot().value) as { showPointsInMainUi?: unknown } | null)?.showPointsInMainUi === true,
@@ -696,9 +457,8 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
    * Same shape as every other region write on this card: the whole target slot
    * goes in (so a seat change cannot drop that region's model picks, budgets or
    * enabled flag, nor touch the sibling region), the write is read-back
-   * verified, and the Host is re-read afterwards. The re-read is load-bearing
-   * here — the control renders the Host's answer, so without it the picker
-   * keeps showing the seat it had and the change looks like it did nothing.
+   * verified, and the Host is re-read afterwards. The control reads committed
+   * settings; the Host refresh updates the accompanying usage document.
    */
   const changeCreditPosition = async (item: TraePanel, position: TraeCreditPosition): Promise<void> => {
     if (settingsScope === undefined || settingsScope.getSnapshot().writable !== true) return
@@ -787,10 +547,10 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
    * reports: tens of seconds in which the card used to show nothing at all.
    *
    * The fast document is built from local state only (no upstream read at all), so
-   * it answers in milliseconds and carries everything needed to DRAW: the bound
+   * it avoids upstream latency and carries the locally known display data: the bound
    * account, its expiry, the model list and the pool rows. The live figures it
    * omits (credits, check-in column) are exactly the values that need the round
-   * trip, and the card already renders their absence as `—` / unknown.
+   * trip, and the card renders their absence as an unknown value.
    *
    * Deliberately separate from {@link refreshUsage} rather than a parameter of it:
    * a first paint never writes an error state (a slow upstream is not the user's
@@ -962,7 +722,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
       await writeSettingsField(settingsScope, 'accounts',
         { ...configured, [activeRegion]: accountId },
         readBack => configuredAccountsOf(readBack)[activeRegion] === accountId)
-      // Refresh the usage documentso the "in use" badge moves, and re-read the
+      // Refresh the usage document so the "in use" badge moves, and re-read the
       // newly bound account's per-row status so its check-in/balance/subscription
       // figures agree with the badge instead of disagreeing in front of the user.
       await refreshUsage(activeRegion)
@@ -1001,8 +761,8 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
   /**
    * Re-read EVERY row of one region, not just the one that was acted on.
    *
-   * Trae spends the DEVICE's daily check-in, not the account's, so one claim
-   * changes what every other row may do: they go from "check in" to "device
+   * Trae reports both account reward state and device claim state. One claim
+   * can therefore change other rows from "check in" to "device
    * already used". Re-reading only the claimed account left its siblings
    * advertising a claim that could only come back 9095 — a row of live buttons
    * of which exactly one could work, which is the same false promise the 3.2.0
@@ -1327,8 +1087,8 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
   const drawImageServable = (DRAW_IMAGE_PANELS as readonly TraePanel[]).includes(activeRegion)
   const drawImageUnavailableHint = activeRegion === 'ai' ? t('row.drawImageHintAi') : t('row.drawImageHintEnterprise')
   void settingsRevision
-  // The card always renders the last-refreshed raw directory (`status.models`
-  // carries `lastCatalog`), never a stale saved snapshot. Enabled flags come
+  // The card renders status.models; it may contain the saved lastCatalog
+  // until a live refresh succeeds. Enabled flags come
   // from the user's stored selection, re-mapped onto the current catalog by
   // model id (= Trae name); context budgets work the same way.
   const draft = drafts[activeRegion]
@@ -1338,10 +1098,10 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
    * then split into the channels the rows will actually be called through
    * (issue #52, P0).
    *
-   * The ROLL is `orderTraeModels` and it is applied here as well as at
+   * orderTraeModels is applied here as well as at
    * discovery, because a catalog saved by an older build carries the arrival
    * order — the very thing the reporter photographed. Re-sorting costs one
-   * comparison pass over ≤40 rows and makes the screen independent of which
+   * sorting pass over the current rows and makes the screen independent of which
    * version wrote `lastCatalog`.
    *
    * Every action below still ranges over `visibleModels` (the whole catalog),
@@ -1495,7 +1255,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
 
   /**
    * Bulk context-budget switch (issue #42 side request). The per-model radios
-   * stay exactly as they are; these two act on the whole region draft at once.
+   * stay exactly as they are; these controls act on the whole region draft at once.
    * The reporter counted 18 CN models whose Max window differs from the
    * default and described clicking 18 times per region — 「整区切到 Max」 is
    * those 18 clicks as one button. It writes `maxContextWindow` per row, which
@@ -1560,7 +1320,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
     try {
       // Save this region's raw directory plus the pure selection. The Host
       // derives the runtime catalog from these on save/restart, so re-opening
-      // the card re-reads Trae's current catalog instead of a stale snapshot.
+      // the card re-reads the saved directory; a live refresh is a separate action.
       // The CN and international apps expose different rosters, so the write
       // targets the slot keyed by the active tab's region: the other region's
       // picks are never touched.
@@ -1725,7 +1485,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
       )
     }
     // The enterprise panel reports no figure by design: tenant spend is not
-    // exposed by any endpoint the plugin can reach. Rendering the consumer
+    // exposed by a supported reader in this plugin. Rendering the consumer
     // packs here would put a PERSONAL balance under an enterprise heading.
     if (activeRegion === 'enterprise') {
       return <span className="dsm-trae-account-value dsm-trae-account-value-muted">{t('row.balanceConsoleOnly')}</span>
@@ -1957,7 +1717,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
           )
         })}
       </div>
-      <p className="dsm-trae-tab-hint">{t('row.tabHint')}</p>
+
       {writeError === undefined
         ? null
         : <p className="dsm-trae-usage-error" role="alert">{t('row.settingsWriteFailed', { message: writeError })}</p>}
@@ -1999,6 +1759,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
             >
               {t('row.panelModels')}
             </button>
+            <button type="button" role="tab" id="dsm-trae-tab-capabilities" aria-controls="dsm-trae-panel-capabilities" aria-selected={panel === 'capabilities'} className={`dsm-trae-panel-tab${panel === 'capabilities' ? ' dsm-trae-panel-tab-active' : ''}`} onClick={() => { setPanel('capabilities') }}>{t('row.panelCapabilities')}</button>
             <button
               type="button"
               role="tab"
@@ -2029,6 +1790,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
            see or change. */
         hidden={signedIn && panel !== 'accounts'}
       >
+        <p className="dsm-trae-models-summary">{t('row.tabHint')}</p>
         <TraeAccountPanel
           t={t}
           settingsScope={settingsScope}
@@ -2082,6 +1844,80 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
         />
       </div>
 
+      <div className="dsm-trae-panel" role="tabpanel" id="dsm-trae-panel-capabilities" aria-labelledby="dsm-trae-tab-capabilities" hidden={signedIn && panel !== 'capabilities'}>
+        <TraeAccountPanel preferencesOnly
+          t={t}
+          settingsScope={settingsScope}
+          panel={activeRegion}
+          status={status}
+          statusLabel={label}
+          credentialRegionIsAi={credentialRegionIsAi}
+          regionOn={activeRegionOn}
+          showPointsInMainUi={settingsEdits.showPointsInMainUi}
+          onToggleShowPoints={value => { void writePreference('showPointsInMainUi', value) }}
+          creditPosition={creditPositionOn(activeRegion)}
+          onCreditPositionChange={position => { void changeCreditPosition(activeRegion, position) }}
+          sidebarPanelOn={sidebarPanelOn}
+          sidebarPanelBusy={sidebarPanelBusy}
+          onToggleSidebarPanel={value => { void writeSidebarPanel(value) }}
+          savingPreferences={savingSettings}
+          creditsLabelId={creditsLabelId}
+          creditsHintId={creditsHintId}
+          rows={accountRows}
+          busy={busy}
+          rescanNote={rescanNote}
+          onRescan={() => { void rescanAccounts() }}
+          switchingAccount={switchingAccount}
+          onSwitchAccount={accountId => { void switchAccount(accountId) }}
+          onClaim={accountId => { void claimFor(accountId) }}
+          onTransferChanged={async () => {
+            // Re-read this region's snapshot so an imported account
+            // appears without the user closing and reopening settings.
+            const fresh = await refreshUsage(activeRegion)
+            if (fresh !== undefined) setStatusByRegion(current => ({ ...current, [activeRegion]: fresh }))
+          }}
+          poolDetails={poolDetails}
+          poolClaims={status.status === 'signed-in' && status.pool?.checkinSupported === true
+            ? Object.fromEntries(status.accounts.map(account =>
+                [account.id, claimViewOf(account.id, accountStatusByRegion[activeRegion][account.id])]))
+            : undefined}
+          models={visibleModels}
+          deviceClaimed={deviceClaimedToday}
+          onPoolChanged={async () => {
+            const fresh = await refreshUsage(activeRegion)
+            if (fresh !== undefined) setStatusByRegion(current => ({ ...current, [activeRegion]: fresh }))
+          }}
+          onPoolRefresh={async () => {
+            const fresh = await refreshUsage(activeRegion)
+            if (fresh !== undefined) setStatusByRegion(current => ({ ...current, [activeRegion]: fresh }))
+          }}
+          creditsUnavailable={status.status === 'signed-in' ? status.creditsUnavailable : undefined}
+          creditsExpiry={status.status === 'signed-in' ? status.credits?.expiry : undefined}
+          alternatives={status.status === 'signed-in' ? status.alternatives : undefined}
+          onSwitchToAlternative={accountId => { void switchAccount(accountId) }}
+        />
+              <label
+                className="dsm-trae-draw-image"
+                data-disabled={drawImageServable ? undefined : 'true'}
+                title={drawImageServable ? t('row.drawImageHint') : drawImageUnavailableHint}
+              >
+                <input
+                  type="checkbox"
+                  checked={drawImageOn}
+                  disabled={!drawImageServable || busy || saving || savingSettings || settingsScope?.getSnapshot().writable !== true}
+                  onChange={event => { void writeDrawImage(event.target.checked) }}
+                />
+                <span>
+                  {t('row.drawImage')}
+                  <span className="dsm-trae-draw-image-hint">
+                    {' '}
+                    {drawImageServable ? t('row.drawImageHint') : drawImageUnavailableHint}
+                  </span>
+                </span>
+              </label>
+              <p className="dsm-trae-model-capability-note">{t('row.modelCapabilityPending')}</p>
+
+      </div>
       {/* MODELS — the catalog section, and the only one whose edits are
           a DRAFT: the checkboxes below stage state that 「保存」 commits,
           which is precisely why it lives in a section of its own instead
@@ -2391,26 +2227,6 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
                   outright and say why (`DRAW_IMAGE_PANELS`, the same
                   list the Host registers from): enterprise bills through
                   a tenant gateway, ai was never probed. */}
-              <label
-                className="dsm-trae-draw-image"
-                data-disabled={drawImageServable ? undefined : 'true'}
-                title={drawImageServable ? t('row.drawImageHint') : drawImageUnavailableHint}
-              >
-                <input
-                  type="checkbox"
-                  checked={drawImageOn}
-                  disabled={!drawImageServable || busy || saving || savingSettings || settingsScope?.getSnapshot().writable !== true}
-                  onChange={event => { void writeDrawImage(event.target.checked) }}
-                />
-                <span>
-                  {t('row.drawImage')}
-                  <span className="dsm-trae-draw-image-hint">
-                    {' '}
-                    {drawImageServable ? t('row.drawImageHint') : drawImageUnavailableHint}
-                  </span>
-                </span>
-              </label>
-              <p className="dsm-trae-model-capability-note">{t('row.modelCapabilityPending')}</p>
               <div className="dsm-trae-model-actions">
                 <a
                   className="dsm-trae-usage-cheer"

@@ -1,11 +1,13 @@
 # 接入 Trae 的开源项目调研（2026-09-15）
 
+> 2026-11-06 全文复核：2026-09-15至09-16的有限检索，项目热度、维护状态和覆盖数均为当时观察。第三方伪代码不等于本机完整工具循环已跑通；后续SOLO目录与可调用性已有变化。
+
 > 目的：为「是否接入 Trae IDE 通道（`create_agent_task`）以拿到 IDE 侧模型
 > （deepseek-v4.1-flash / glm-5.3-flash / kimi-k2.8-preview）」寻找先例与做法参考。
 
 ## 一、结论先说
 
-**开源生态里没有任何项目真正实现了 Trae IDE 的 agent-task 通道。** 现有项目全部停在
+**本次检索的项目中，未找到可验证成功的Trae IDE agent-task实现。** 现有项目全部停在
 「SOLO 通道」或「IDE 旧 chat 端点」两条路上，它们的模型集合都不包含 IDE 的新模型。
 换句话说：**要做 IDE 通道，是一次没有先例可抄的逆向工程。**
 
@@ -32,11 +34,9 @@
  * 3. /api/agent/v3/create_agent_task (fallback 2 - full agent)
 ```
 
-但它的实现是 **`for (const endpoint of endpoints)` 用同一个 chat body 依次尝试**，并没有为
-`create_agent_task` 构造专门的 agent-task body。因此它必然撞上我们实测到的绑定校验
-（`conversation_id` / `session_id` / `user_id` / `device_id` / `agent_type` /
-`model_name` / `ide_version` / `user_input` 等必填字段）——**「列在 fallback 里」不等于
-「能工作」**。
+但它的实现是 **`for (const endpoint of endpoints)` 用同一个 chat body 依次尝试**，并没有为 `create_agent_task` 构造专门的 agent-task body。
+
+因此它必然撞上我们实测到的绑定校验 （`conversation_id` / `session_id` / `user_id` / `device_id` / `agent_type` / `model_name` / `ide_version` / `user_input` 等必填字段）——**「列在 fallback 里」不等于 「能工作」**。
 
 ### 2. 身份处理上，多数项目走的是本项目已明确拒绝的路
 
@@ -52,9 +52,9 @@ function generateMachineId() { return crypto.randomBytes(32).toString('hex'); } 
 
 ### 3. 兼容层项目普遍做「模型名映射」而非「原生模型集完整」
 
-`laojichao/trae-local-api` 维护一张 `MODEL_MAP`，把 `claude-opus-4-7`、`gpt-4o` 等外部名字
-映射到 Trae 侧模型（`glm-5.2`、`DeepSeek-V4-Pro`…）。这类项目的目标客户是 Claude Code /
-Cursor 等客户端，**只求「能跑」，不追求把 Trae 的模型菜单完整暴露**——与本项目的目标不同。
+`laojichao/trae-local-api` 维护一张 `MODEL_MAP`，把 `claude-opus-4-7`、`gpt-4o` 等外部名字 映射到 Trae 侧模型（`glm-5.2`、`DeepSeek-V4-Pro`…）。
+
+这类项目的目标客户是 Claude Code / Cursor 等客户端，**只求「能跑」，不追求把 Trae 的模型菜单完整暴露**——与本项目的目标不同。
 
 ### 4. 国际版 host 的一个新线索
 
@@ -92,14 +92,13 @@ node scripts/probe-toolcalls.mjs                # SOLO 各 function 工具调用
 > 搜索覆盖面：GitHub 平台搜索（多组关键词）、web 搜索（中英文）、本机已有的 4 个参考项目
 > 源码。未发现任何项目或文章描述 `create_agent_task` 的成功实现细节。
 
-## 六、关于「是否必须走 agent-task 通道」的补充调研（2026-09-16）
+## 六、关于「是否必须使用 agent-task 通道」的补充调研（2026-09-16）
 
 ### 6.1 发现了一个系统性的逆向资料库
 
-[`vibe-coding-labs/trae-reverse-engineering`](https://github.com/vibe-coding-labs/trae-reverse-engineering)
-（JS，2026-07 更新）对 Trae 的 `ai-agent`（本机那个 199MB 的原生库）做了 11 轮分析，
-产出 `analysis/iteration-*.md` 共 11 份文档（含 CLI LLM proxy、IPC/RPC、工具调用/MCP、
-模型配置、实现指南）。这是目前能找到的**唯一系统性 Trae 协议逆向资料**。
+[`vibe-coding-labs/trae-reverse-engineering`](https://github.com/vibe-coding-labs/trae-reverse-engineering) （JS，2026-07 更新）对 Trae 的 `ai-agent`（本机那个 199MB 的原生库）做了 11 轮分析， 产出 `analysis/iteration-*.md` 共 11 份文档（含 CLI LLM proxy、IPC/RPC、工具调用/MCP、 模型配置、实现指南）。
+
+这是目前能找到的**本次检索找到的系统性Trae协议研究资料**。
 
 其 `iteration-11-final-summary.md` 给出的端点表（节选）：
 
@@ -128,7 +127,7 @@ def handle_tool_call(tool_call):
 **含义**：agent 通道**确实允许客户端执行工具并回传结果**（这正是 DSH 需要的模式），
 因此它在能力上能承载 DSH 的工具循环——这是一个**正面结论**。
 
-### 6.2 本机验证（零消耗）
+### 6.2 本机验证记录
 
 | 探测 | 结果 |
 |---|---|
@@ -136,31 +135,29 @@ def handle_tool_call(tool_call):
 | `GET .../model_list?type=builder` | 200，3 个（kimi-k3 / deepseek-v4-pro / deepseek-v4-flash） |
 | `type=agent/all/code/chat_agent/...` | 400（无此 type） |
 | `/api/ide/v1/get_all_models`、`/v2/models`、`/available_models`、`/model_configs`、`/api/agent/v3/models` | 全部 404 |
-| **`POST /api/ide/v1/agents/runs`** | **200 + SSE**，`code:5003`（agent 运行配额类）→ **端点存在、鉴权通过** |
-| `POST /trae-cli/api/v1/llm/proxy`（4 个候选 host） | 全部 404 → 它是 **Trae CLI 的本地端点**，不是远程 API |
+| **`POST /api/ide/v1/agents/runs`** | HTTP 200 + SSE，返回 `code:5003` 配额类错误；鉴权是否完成及配额粒度仍未确认 |
+| `POST /trae-cli/api/v1/llm/proxy`（4 个候选 host） | 4个候选host均404，仅能排除这些组合；后续TRAECLI_FEASIBILITY.md将其识别为CLI发出的上游路径 |
 | 本机监听端口 | Trae CN 在 `127.0.0.1:51000` 监听，但**不响应 HTTP**（私有 IPC）；另有 `1.10-main.sock` 等 Unix socket |
 
-### 6.3 结论：要用 deepseek-v4.1-flash，是否必须走 agent 通道？
+### 6.3 结论：要用 deepseek-v4.1-flash，是否必须使用 agent 通道？
 
-**是（在远程 API 层面）。** 理由：
+**当时未找到可用的其他远程路径，但没有证据证明必须如此。** 当时依据：
 
 1. SOLO 通道的**全部 8 个 function** 都没有该模型（上一章已证）；
-2. **所有 HTTP 模型列表端点**都不暴露它；
+2. 当次测试的 HTTP 模型列表端点未返回它；
 3. 它只出现在 **IDE 自己的模型菜单**里，而那份菜单的数据来源是
    **本地 Hub Bridge（IPC）** 或 **agent 运行通道**；
 4. 本地那个「OpenAI 兼容代理」(`/trae-cli/api/v1/llm/proxy`) 是**进程内私有服务**
    （本机 51000 端口不答 HTTP），依赖本机运行 Trae CLI/IDE，不能作为插件的远程通道。
 
-**但结论是建设性的**：agent 通道既然有 `tool_call_outputs` 回传端点，就**具备承载
-DSH 工具循环的能力**；缺的是完整实现（会话生命周期、事件解析、工具回传、上下文构造），
-而上述逆向资料正好提供了所需的协议地图。
+`tool_call_outputs` 回传端点为工具循环提供了调查线索，但尚未验证完整工具循环。继续实现前需要确认会话生命周期、事件解析、工具回传以及上下文构造的实际契约。
 
 ### 6.4 可选路径
 
 | 路径 | 说明 | 评估 |
 |---|---|---|
-| A. 保持 SOLO 通道 | 14 个模型（含 glm-5.3），生产验证 | 现状，零风险 |
-| B. 实现 agent 通道 | 依上述逆向资料实现 `create_agent_task` / `agents/runs` 适配 | 中等偏大工程；**有资料可依**，且能一次性拿到 IDE 全部模型 |
+| A. 保持 SOLO 通道 | 当时已验证的 14 个模型，含 glm-5.3 | 沿用已有实现，仍受账号、计费和上游变化影响 |
+| B. 实现 agent 通道 | 依上述逆向资料实现 `create_agent_task` / `agents/runs` 适配 | 中等偏大工程；**有资料可依**，是否能覆盖IDE模型仍需逐项验证 |
 | C. 等上游下放 | 若 Trae 把 v4.1 等模型放进 SOLO 目录，则自动可用 | 不可控 |
 
 **建议**：若要投入 B，第一步应是**跑通一次最小 agent 任务**（用逆向资料解开

@@ -1,10 +1,12 @@
 # issue #42 回复草稿
 
+> 2026-11-06 全文复核：历史诊断或回复草稿，版本、测试数与环境均限于原记录日期；发布和对外回复步骤不是本轮指令。核对最大输出合并与80配置样本，只读首项安全不能推广。
+
 > 用途：回复 <https://github.com/dingminhua/dsh-connect-trae/issues/42>
 > （ahian-lee：「CN 区 32/32 模型没有 maxTokens：上游不发布 max_tokens？建议加覆盖入口或文档说明」）
 >
 > **状态：4.0.1 已发布**（GitHub Release [v4.0.1](https://github.com/dingminhua/dsh-connect-trae/releases/tag/v4.0.1)）。
-> `pnpm run check` 全绿（typecheck + 901 测试 + build）。可直接复制横线以内的内容。
+> `pnpm run check` 全部通过（typecheck + 901 测试 + build）。可直接复制横线以内的内容。
 
 ---
 
@@ -29,16 +31,17 @@
 
 ## 回答你「想确认的一点」
 
-`model_detail_list` 不是只读 `[0]` 会漏——**读 `[0]` 是安全的**，实测给你看：CN 的 80 个 config 里 71 个有
-两个 item（`__dev` / `__max` 双档），**两项的 `prompt_max_tokens` 与 `max_tokens` 恒等**，例如
-`custom_model_gpt-6` 两项都是 `p=240000 / m=32000`。键空间里也没有 `max_completion_tokens` 之类的别名
-（唯一沾边的 `tool_call_history_max_tokens` 与输出上限无关）。所以不需要动 `collectModels`。
+`model_detail_list` 不是只读 `[0]` 会漏——**读 `[0]` 是安全的**，实测给你看：CN 的 80 个 config 里 71 个有 两个 item（`__dev` / `__max` 双档），**两项的 `prompt_max_tokens` 与 `max_tokens` 恒等**，例如 `custom_model_gpt-6` 两项都是 `p=240000 / m=32000`。
+
+键空间里也没有 `max_completion_tokens` 之类的别名 （唯一沾边的 `tool_call_history_max_tokens` 与输出上限无关）。
+
+所以不需要动 `collectModels`。
 
 ## 修复之后还剩空白吗？还剩，而且是故意的
 
-修复后 CN 目录 32 行里 **30 行带值**。不带的正是 `kimi-k2.8-preview`、`qwen3.8-flash` 这类
-**TraeCode 通道行**：它们在 SOLO 的 wire 名单里根本没有 config，拿不到任何候选值——
-和 README「模型覆盖范围」记录的 4001 join-miss 是同一批。给它们编一个上限才是 bug。
+修复后 CN 目录 32 行里 **30 行带值**。不带的正是 `kimi-k2.8-preview`、`qwen3.8-flash` 这类 **TraeCode 通道行**：它们在 SOLO 的 wire 名单里根本没有 config，拿不到任何候选值—— 和 README「模型覆盖范围」记录的 4001 join-miss 是同一批。
+
+给它们编一个上限才是 bug。
 
 你观察到的「功能上没有坏」也是对的：`maxTokens` 是**元数据**，插件从不把它写进请求体
 （`prepareSoloBody` 有意剥掉 OpenAI 的 `max_tokens`），上限由 Trae 服务端决定。这次修复只让卡片、
@@ -53,7 +56,7 @@
 - **「全部恢复默认上下文」**——清空本区预算。
 
 仍是草稿→按「保存」生效，落盘形状与逐行单选、与你的手写字段完全一致，所以没有新增
-`contextBudgetMode` 配置键——运行时零新分支，旧配置零迁移。5 个新卡片测试钉住了落盘内容与
+`contextBudgetMode` 配置键——运行时零新分支，旧配置零迁移。5 个新卡片测试通过测试约束了落盘内容与
 两个按钮的禁用条件。
 
 ## 关于你的建议 1 和 2

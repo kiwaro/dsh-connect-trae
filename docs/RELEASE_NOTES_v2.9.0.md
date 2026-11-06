@@ -1,5 +1,7 @@
 ## v2.9.0（2026-10-06）
 
+> 适用版本：v2.9.0。本文保存该版本的行为、测试数量和当时观察；当前操作以 [README](../README.md) 为准。
+
 > **可选：在 DSH 主界面侧边栏常驻一行通用积分**（[#26](https://github.com/dingminhua/dsh-connect-trae/issues/26)，**实现由报告人 JiewiW 提交**）。
 
 ### 新增

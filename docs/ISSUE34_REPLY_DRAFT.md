@@ -1,5 +1,7 @@
 # issue #34 回复草稿
 
+> 2026-11-06 全文复核：历史诊断或回复草稿，版本、测试数与环境均限于原记录日期；发布和对外回复步骤不是本轮指令。核对双向上下文与运行时副本；WorkBuddy缺口仅指当时读取版本。
+
 > 用途：回复 <https://github.com/dingminhua/dsh-connect-trae/issues/34>
 > （xiean676：任一模型都报 `Cannot read properties of undefined (reading 'length')`，
 > 并附上了一份完整报告 `dsh-connect-trae-issue-27-report.md`）
@@ -7,7 +9,7 @@
 > **状态：3.4.2 已发布**（registry `dist-tags.latest` = `3.4.2`，
 > GitHub Release [v3.4.2](https://github.com/dingminhua/dsh-connect-trae/releases/tag/v3.4.2)，
 > npm `gitHead` = tag `v3.4.2` = `c3c37da`）。
-> `pnpm run check` 全绿（typecheck + 594 测试 + build），
+> `pnpm run check` 全部通过（typecheck + 594 测试 + build），
 > 发布后逐文件核验与 tag 一致（线上 tarball shasum 与 publish 日志完全相等）。
 >
 > **可直接复制横线以内的内容。**
@@ -67,17 +69,15 @@ estimateContextTokens(legacy shape) -> {"tokens":25,"usageTokens":0,"trailingTok
 
 「在插件侧做代际适配」——方向完全正确，这次就是这个思路。**但它不能照抄 `dsh-connect-workbuddy` 的实现**：
 
-那个插件的判据是 `generationOf(version)` → `>=0.87 ? modern : legacy`，
-**把 `0.86.x` 误判成 legacy**。而 0.86 起 api 已经不再读顶层字段了——照着它写，遇到 0.86.x 时会
-**错误折返**，结果是系统提示与**全部工具声明**被静默丢弃（模型永远不会产生 toolCall）。
+那个插件的判据是 `generationOf(version)` → `>=0.87 ? modern : legacy`， **把 `0.86.x` 误判成 legacy**。
+
+而 0.86 起 api 已经不再读顶层字段了——照着它写，遇到 0.86.x 时会 **错误折返**，结果是系统提示与**全部工具声明**被静默丢弃（模型永远不会产生 toolCall）。
+
 我那版实现按 **0.86** 划界，正是为了避免这个。
 
-还有一件事值得知道：**「收紧 peer 声明」不能止血**（报告里提到的那个想法）。
-DSH 内核的 peer 预检只覆盖 `@deepseek-ai/dsh*` 这一类，pi-ai 不在其中；
-报告里引用的 `install-compat` 告警来自 **dshmarket 社区插件**，是 `soft-incompatible`——
-**只告警、不阻止安装**。而且 `0.82.1` 本就在插件声明的 `>=0.85.1` 之外，
-加不加上界都不改变这个场景。（上界没加，是因为 0.86.0 / 0.87.1 / 1.0.2 实测都能正常工作，
-加了反而误伤。）
+还有一件事值得知道：**「收紧 peer 声明」不能止血**（报告里提到的那个想法）。 DSH 内核的 peer 预检只覆盖 `@deepseek-ai/dsh*` 这一类，pi-ai 不在其中； 报告里引用的 `install-compat` 告警来自 **dshmarket 社区插件**，是 `soft-incompatible`—— **只告警、不阻止安装**。
+
+而且 `0.82.1` 本就在插件声明的 `>=0.85.1` 之外， 加不加上界都不改变这个场景。（上界没加，是因为 0.86.0 / 0.87.1 / 1.0.2 实测都能正常工作， 加了反而误伤。）
 
 ## 四、修法（3.4.2 已发布）
 
@@ -90,10 +90,9 @@ DSH 内核的 peer 预检只覆盖 `@deepseek-ai/dsh*` 这一类，pi-ai 不在�
 - **旧宿主 + 新库**：不崩，但新代 api 只读那条 system 消息，顶层字段被**静默忽略**——
   系统提示与**全部工具声明**丢失。这类更隐蔽，同样已修。
 
-顺带一个反直觉的点：**升级 DSH 解决不了这个问题**，方向甚至是反的。
-`0.2.0-rc.2` 已是你那时的最新宿主，而「新宿主」这一侧只会继续往前
-（0.2.0-rc.2 起 `^0.87.1`，0.2.1-alpha.2 已到 `^1.0.2`），
-所以**继续升级只会让你更牢地留在崩溃那一侧**。能让 `^0.82.1` 消失的是插件侧的适配层，也就是这次这个修复。
+顺带一个反直觉的点：**升级 DSH 解决不了这个问题**，方向甚至是反的。 `0.2.0-rc.2` 已是你那时的最新宿主，而「新宿主」这一侧只会继续往前 （0.2.0-rc.2 起 `^0.87.1`，0.2.1-alpha.2 已到 `^1.0.2`）， 所以**继续升级只会让你更牢地留在崩溃那一侧**。
+
+能让 `^0.82.1` 消失的是插件侧的适配层，也就是这次这个修复。
 
 ## 五、期间怎么办
 

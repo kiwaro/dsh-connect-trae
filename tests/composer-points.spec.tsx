@@ -188,7 +188,7 @@ function makeScope(enabled: boolean | undefined, initial: Record<string, unknown
 }
 
 describe('ComposerPointsGate provider scoping', () => {
-  it('renders nothing while ANOTHER provider is selected, and fetches nothing', () => {
+  it('shows enabled Trae credits while another provider is selected', () => {
     // The entire point: the shared composer row stays untouched for every
     // provider this plugin does not own. The switch is deliberately ON here —
     // with it off this case would pass for the WRONG reason and stop testing
@@ -202,18 +202,16 @@ describe('ComposerPointsGate provider scoping', () => {
         useProjection={() => ({ lastUsed: { provider: 'workbuddy-global' } })}
       />,
     )
-    expect(container.innerHTML).toBe('')
-    expect(calls).toHaveLength(0)
+    expect(container.querySelector('.dsm-trae-composer-points')).not.toBeNull()
   })
 
-  it('renders nothing when the projection has not landed yet', () => {
+  it('shows enabled Trae credits before model selection', () => {
     const { calls } = stubRoute()
     const { scope } = makeScope(true)
     const { container } = render(
       <ComposerPointsGate t={t} settingsScope={scope as never} useProjection={() => undefined} />,
     )
-    expect(container.innerHTML).toBe('')
-    expect(calls).toHaveLength(0)
+    expect(container.querySelector('.dsm-trae-composer-points')).not.toBeNull()
   })
 
   it('renders and fetches CN credits for the trae provider', async () => {
@@ -262,7 +260,7 @@ describe('ComposerPointsGate provider scoping', () => {
         useProjection={() => ({ lastUsed: { provider: 'trae-global' } })}
       />,
     )
-    // The plan name, under the INTERNATIONAL product label — not "Trae CN".
+    // The plan name, under the INTERNATIONAL product label — not "Trae - CN".
     await waitFor(() => { expect(screen.getByText(/composer\.pointsGlobal/)).toBeTruthy() })
     expect(screen.getByText(/Pro/)).toBeTruthy()
     // And it read the AI region's document, not the CN one.
@@ -358,7 +356,7 @@ describe('ComposerPoints readout', () => {
   })
 
   it('separates label and value with a middle dot, and carries no unit word', async () => {
-    // The row is shared and narrow: "Trae CN · 3,392", matching the model seat
+    // The row is shared and narrow: "Trae - CN · 3,392", matching the model seat
     // beside it ("DeepSeek-V4.1-Flash · x0.08"). Pinned because both halves are
     // easy to lose in a refactor — a space instead of the dot, or the unit word
     // creeping back in.
@@ -370,21 +368,21 @@ describe('ComposerPoints readout', () => {
     expect(text).not.toMatch(/积分|credits/i)
   })
 
-  it('the SHIPPED copy says "Trae CN" with no unit word, in both languages', () => {
+  it('the SHIPPED copy says "Trae - CN" with no unit word, in both languages', () => {
     // Asserted against the real locale tables, not the key-returning test `t`:
     // with a fake `t` the rendered label is the KEY, so a unit word creeping
     // back into the real strings would never turn a test red.
-    expect(zh['composer.points']).toBe('Trae CN')
-    expect(en['composer.points']).toBe('Trae CN')
+    expect(zh['composer.points']).toBe('Trae - CN')
+    expect(en['composer.points']).toBe('Trae - CN')
     expect(zh['composer.points']).not.toMatch(/积分/)
     expect(en['composer.points']).not.toMatch(/credits/i)
   })
 
-  it('renders the REAL Chinese copy as "Trae CN · 3,392"', async () => {
+  it('renders the REAL Chinese copy as "Trae - CN · 3,392"', async () => {
     stubRoute()
     render(<ComposerPoints t={realT} provider="trae" region="cn" />)
     await waitFor(() => { expect(screen.getByText(/3,392/)).toBeTruthy() })
-    expect(screen.getByText(/3,392/).textContent).toBe('Trae CN · 3,392')
+    expect(screen.getByText(/3,392/).textContent).toBe('Trae - CN · 3,392')
   })
 
   it('renders the earliest expiry with its DATE, not just a clock time', async () => {
@@ -399,9 +397,9 @@ describe('ComposerPoints readout', () => {
     stubRoute({ expiryAt })
     render(<ComposerPoints t={realT} provider="trae" region="cn" />)
     await waitFor(() => { expect(screen.getByText(/3,392/)).toBeTruthy() })
-    // `realT` renders the shipped copy, so the trigger is named "Trae CN · 3,392"
+    // `realT` renders the shipped copy, so the trigger is named "Trae - CN · 3,392"
     // — not the locale key the key-returning `t` would produce.
-    fireEvent.click(screen.getByRole('button', { name: /Trae CN/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Trae - CN/ }))
     await waitFor(() => { expect(document.querySelector('[role="dialog"]')).not.toBeNull() })
 
     const detail = document.querySelector('.dsm-trae-expiry-detail')?.textContent ?? ''
@@ -432,7 +430,7 @@ describe('ComposerPoints readout', () => {
     stubRoute({ expiryAt: Date.UTC(2026, 9, 31, 23, 59) })
     render(<ComposerPoints t={realT} provider="trae" region="cn" />)
     await waitFor(() => { expect(screen.getByText(/3,392/)).toBeTruthy() })
-    fireEvent.click(screen.getByRole('button', { name: /Trae CN/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Trae - CN/ }))
     await waitFor(() => { expect(document.querySelector('[role="dialog"]')).not.toBeNull() })
 
     const foot = document.querySelector('.dsm-trae-composer-panel-foot')?.textContent ?? ''
@@ -640,7 +638,7 @@ describe('the expiry ladder picks the tightest bucket that has credit', () => {
     stubRoute({ expiry })
     const { container } = render(<ComposerPoints t={realT} provider="trae" region="cn" />)
     await waitFor(() => { expect(screen.getByText(/3,392/)).toBeTruthy() })
-    fireEvent.click(screen.getByRole('button', { name: /Trae CN/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Trae - CN/ }))
     await waitFor(() => { expect(document.querySelector('[role="dialog"]')).not.toBeNull() })
     const notice = document.querySelector('.dsm-trae-expiry')
     expect(notice).not.toBeNull()
@@ -826,7 +824,7 @@ describe('the same-day refresh stamp follows the READER\'s locale', () => {
     stubRoute()
     render(<ComposerPoints t={realT} provider="trae" region="cn" />)
     await waitFor(() => { expect(screen.getByText(/3,392/)).toBeTruthy() })
-    fireEvent.click(screen.getByRole('button', { name: /Trae CN/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Trae - CN/ }))
     await waitFor(() => { expect(document.querySelector('[role="dialog"]')).not.toBeNull() })
     const after = Date.now()
 

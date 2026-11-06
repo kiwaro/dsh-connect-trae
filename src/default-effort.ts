@@ -44,15 +44,9 @@
 import { TRAE_REASONING_EFFORTS, type TraeReasoningEffort } from './reasoning.ts'
 
 /**
- * The tier to fall back to when a model publishes a tier list but names no
- * default of its own and the user has never chosen one.
- *
- * `medium` is tried first because it is the only middle tier shared by the
- * families seen so far. It is deliberately not the only fallback: a model that
- * publishes `low / high` (measured on `Doubao-Seed-2.1-Pro` and
- * `step-5-preview`) has no `medium` at all, and picking its weakest tier instead
- * would silently mean "thinking off" — that is not a fallback, that is the worst
- * possible default.
+ * Local fallback order when neither a saved choice nor an upstream default is
+ * usable. Prefer medium, then a declared higher tier. A low tier is not assumed
+ * to disable reasoning; this ordering is a local preference, not an upstream fact.
  */
 export const TRAE_FALLBACK_EFFORT: TraeReasoningEffort = 'medium'
 

@@ -1,5 +1,7 @@
 # Windows 真机验证指引
 
+> 2026-11-06 全文复核：09-26输出和测试数为历史真机记录；脚本检查路径、凭据解析与身份字段，不等于已完成真实聊天验证。
+
 > 给需要在 Windows 上确认「dsh-connect-trae 到底能不能读到 Trae 登录」的人。
 > 对应 README 的「Windows 说明」与 `docs/WINDOWS_TOKEN_PROBE.md`。
 
@@ -39,17 +41,15 @@
 **已知限制**：`model-cache` 依赖 `sqlite3`（本机没有），实测抛 `ENOENT` 并正确
 兜底，不影响主流程。
 
-**同轮发现并修掉的一处缺口**：该模块原先把 `state.vscdb` 路径**硬编码为 `Trae CN`
-单一拼写**，而 `paths.ts` 是多候选；且它自行重算目录而未复用
-`traeStorageCandidates`。本机真实目录名是 `TRAE SOLO CN`，旧代码指向的
-`...\Trae CN\...\state.vscdb` **并不存在**——只因 `sqlite3` 缺失、该调用必然失败
-兜底，才把一个错误的路径藏在「依赖缺失」这个看似合理的错误后面。
-现改为**从凭据路径推导**（`state.vscdb` 与 `storage.json` 同在 `globalStorage`），
-真机复测已能正确选中 `%APPDATA%\TRAE SOLO CN\User\globalStorage\state.vscdb`。
+**本次修改期间发现并修掉的一处缺口**：该模块原先把 `state.vscdb` 路径**硬编码为 `Trae CN` 单一拼写**，而 `paths.ts` 是多候选；且它自行重算目录而未复用 `traeStorageCandidates`。
+
+本机真实目录名是 `TRAE SOLO CN`，旧代码指向的 `...\Trae CN\...\state.vscdb` **并不存在**——只因 `sqlite3` 缺失、该调用必然失败 兜底，才把一个错误的路径藏在「依赖缺失」这个看似合理的错误后面。
+
+现改为**从凭据路径推导**（`state.vscdb` 与 `storage.json` 同在 `globalStorage`）， 真机复测已能正确选中 `%APPDATA%\TRAE SOLO CN\User\globalStorage\state.vscdb`。
 
 **仍然缺的**：那台机器只装了 TRAE SOLO CN，所以 `Trae CN` / `trae-cn` 两个拼写
 **仍未经真机确认**。如果你装的是 **Trae 中国版**（或国际版 / CLI），非常欢迎照下面
-跑一遍并把输出贴到 issue。
+运行一次并把输出贴到 issue。
 
 ## 为什么真机验证不可省
 
@@ -67,7 +67,7 @@
 
 ## 一条命令（推荐）
 
-在**装好插件**或**clone 了本仓**的 Windows 机器上：
+在**装好插件**或**clone 了本仓库**的 Windows 机器上：
 
 ```powershell
 node scripts/verify-windows.mjs
@@ -81,7 +81,7 @@ profile 的 `node_modules` 里，路径取决于 `$DSH_HOME`（默认 `~\.dsh`�
 node "$env:USERPROFILE\.dsh\profiles\desktop\node_modules\dsh-connect-trae\scripts\verify-windows.mjs"
 ```
 
-若你的 profile 名不是 `desktop`，或设了 `DSH_HOME`，用这条定位（列出现装版本）：
+若你的 profile 名不是 `desktop`，请先按实际DSH_HOME定位；下面示例仅列默认USERPROFILE目录下的profile（列出现装版本）：
 
 ```powershell
 Get-ChildItem -Path "$env:USERPROFILE\.dsh\profiles" -Directory |
@@ -89,7 +89,7 @@ Get-ChildItem -Path "$env:USERPROFILE\.dsh\profiles" -Directory |
   Where-Object { Test-Path $_ }
 ```
 
-> 最省事的替代：直接 clone 本仓后 `pnpm install && pnpm run build`，在仓库根目录
+> 最省事的替代：直接 clone 本仓库后 `pnpm install && pnpm run build`，在仓库根目录
 > 跑 `node scripts/verify-windows.mjs`——脚本优先使用同级的 `lib/`。
 
 ### 它会输出什么
@@ -153,14 +153,14 @@ Get-ChildItem -Path "$env:USERPROFILE\.dsh\profiles" -Directory |
 
 ## 输出可以直接贴到公开 issue 吗
 
-**可以。**脚本的输出是脱敏的：
+脚本会脱敏常见字段，分享前仍需检查自定义路径和异常文本：
 
 | 内容 | 处理方式 |
 | --- | --- |
 | Windows 用户名（`C:\Users\你的名字\`） | 替换为 `<user>` |
 | 账号名（可能是真名或手机号） | 只报「几个字符、是否纯数字」 |
 | 设备号 `x-device-id` | 只报「几位、是否纯数字」 |
-| token / refreshToken / 密文 | **从不读取、从不打印** |
+| token / refreshToken / 密文 | 内部解析可能读取和解密；公开输出不得包含这些值 |
 | Trae 目录名（`Trae CN` / `trae-cn`） | **保留**——这正是要查的东西 |
 
 脱敏规则有 11 条单元测试（`tests/redact.spec.ts`），同时断言「敏感值必须消失」
@@ -175,11 +175,11 @@ Get-ChildItem -Path "$env:USERPROFILE\.dsh\profiles" -Directory |
 
 ## 为什么这件事必须由人来做
 
-不能自动化：CI 的 Windows runner 上不会安装 Trae，也不会有人登录 Trae 账号。
+需要带真实安装与登录态的受控环境；普通CI的Windows runner 上不会安装 Trae，也不会有人登录 Trae 账号。
 一个「未登录」的 Windows CI 上，插件的每一条路径探测都会失败——那恰好是
 「没有 Trae 的机器」的正常表现，与「目录名猜错」无法区分。
 
-所以这一环只能由**有一台装着 Trae 并已登录的 Windows 机器**的人完成。
+有授权且能访问真实安装的本地代理也可执行，不必要求用户手动重复。
 
 ---
 

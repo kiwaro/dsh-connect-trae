@@ -1,5 +1,13 @@
 # Trae CN 协议证据矩阵
 
+## 适用阶段与当前调用
+
+本文记录 2026-08-28 至 2026-08-29 的协议研究。下文的默认关闭状态和 Raw Chat 待办属于该阶段；当前 `src/index.ts` 仍将 Raw Chat 网关的 `enabled` 设置为 `false`，对话由 `TraeSoloBridge` 处理。
+
+后续已经通过指定功能使用 `llm_utils_chat` 执行原生结构化对话，见 [SOLO 路线决策](SOLO_ROUTE_DECISION.md)。
+
+历史二进制、日志和测量值保持原样，不作为本次重新实测的结果。
+
 > 本文只记录脱敏结构、字段名、长度和行为。不得复制 token、用户消息正文、账号信息或完整请求 body。
 
 ## 证据等级
@@ -16,7 +24,7 @@
 | CN 主聊天使用 `/api/agent/v3/create_agent_task` | A | ai-agent 历史日志：chat RPC 后 HTTP 200、SSE first-token |
 | `/api/agent/v3/llm_utils_chat` 用于标题、图标、分支名、commit message 等轻量任务 | A+B | 历史日志的 `generate_session_title_and_icon`；dylib 错误字符串 |
 | `/api/cue_agent/v3/create_agent_task` 属于 CUE/补全 agent | B | `cueMain.js` endpoint、事件枚举及 commit_toolcall_result |
-| 三个 endpoint 可共用一个 body | 否定 | A+B | 语义、事件和调用链不同 |
+| 三个 endpoint 可共用一个 body | 未获支持 | 语义、事件和调用链不同，需要分别验证 |
 
 ## Headers
 
@@ -145,7 +153,9 @@ Trae客户端明确具备模型级思考强度能力，动态库包含：
 
 模型详情接口`batch_get_detail_param`理论上是获取各模型`reasoning_effort_options/default_reasoning_effort`的权威来源，但当前受控探测仍返回HTTP 400空响应，尚未取得实际模型矩阵。
 
-后续校验确认：历史成功请求的185字节body对应枚举的数值序列化（`mode_type=0`、`access_type=0`），当前探测已精确复刻该长度；同时补齐历史成功请求中的版本、设备、OS和trace headers。CN桌面access token已过期，但插件的单飞刷新成功产生有效DSH副本，重新探测仍为400。因此问题不是token过期、枚举大小写或已知通用headers，残余差异位于官方HTTP认证/租户封装或当前版本schema。
+后续校验确认：历史成功请求的185字节body对应枚举的数值序列化（`mode_type=0`、`access_type=0`），当前探测已精确复刻该长度；同时补齐历史成功请求中的版本、设备、OS和trace headers。
+
+CN桌面access token已过期，但插件的单飞刷新成功产生有效DSH副本，重新探测仍为400。因此问题不是token过期、枚举大小写或已知通用headers，残余差异位于官方HTTP认证/租户封装或当前版本schema。
 
 ### DTO与响应字段证据
 
@@ -196,11 +206,15 @@ Trae CN 的 Agent 状态文件位于 `ModularData/ai-agent/database.db`，当前
 
 ### 当前 Trae 3.3.83 平台限制（2026-08-29）
 
-已用当前有效凭据、当前设备身份、精确 513-byte model-detail body、官方 16/20-header 集分别通过 Node fetch 与系统 curl 探测。两者均返回 HTTP 400 空响应；同一请求经 Trae native AhaNet 返回 HTTP 200。已排除普通 Cookie、代理路由、JSON 字节、header 大小写和 curl/Undici 实现差异。
+已用当前有效凭据、当前设备身份、精确 513-byte model-detail body、官方 16/20-header 集分别通过 Node fetch 与系统 curl 探测。
 
-AhaNet 位于 Electron NativeExtensionService / `libai_agent.dylib` 私有 ABI 中，JS 层没有公开 fetch bridge；内部 Unix socket/RPC 会话由 Trae 主进程建立。插件不会直接加载私有 dylib、连接内部 socket、安装 TLS MITM 证书或复用第三方自定义模型密钥。由此，当前版本的预置模型 Raw Chat gateway 不能由独立 DSH 插件安全复现。
+两者均返回 HTTP 400 空响应；同一请求经 Trae native AhaNet 返回 HTTP 200。已排除普通 Cookie、代理路由、JSON 字节、header 大小写和 curl/Undici 实现差异。
 
-已实现 capability-gated Raw Chat 框架：默认完全禁用；只有显式启用且短探测成功才成为 primary；否则稳定使用 SOLO Remote。该限制不是完成 text/reasoning/tool_calls/usage/done live 验证的替代，目标仍需等待公开 contract 或可验证的 native request sample。
+AhaNet 位于 Electron NativeExtensionService / `libai_agent.dylib` 私有 ABI 中，JS 层没有公开 fetch bridge；内部 Unix socket/RPC 会话由 Trae 主进程建立。
+
+插件不会直接加载私有 dylib、连接内部 socket、安装 TLS MITM 证书或复用第三方自定义模型密钥。由此，当前版本的预置模型 Raw Chat gateway 不能由独立 DSH 插件安全复现。
+
+当时已实现按能力探测结果控制的 Raw Chat 框架，默认禁用。框架允许调用方显式启用并在短探测成功后使用 Raw Chat；当前插件装配仍传入 `enabled: false`，生产对话使用原生 SOLO 通道。框架存在不能证明 Raw Chat 的文本、推理、工具调用及用量事件已经完成真实验证。
 
 ## 发布/联网门槛
 

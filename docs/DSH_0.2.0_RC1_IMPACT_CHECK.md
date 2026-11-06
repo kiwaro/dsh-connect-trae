@@ -1,17 +1,19 @@
 # dsh-connect-trae 对 DSH 0.2.0-rc.1 的适配性核对
 
+> 2026-11-06 全文复核：2026-09-29的旧宿主适配记录；当前开发依赖见package.json与DSH_0.2.2_RC1_SYNC.md。下述机器路径、依赖、测试数与未修改状态仅描述当次核对。
+
 > 对照对象：同级目录 `../deepseek-harness`，tag `dsh-v0.2.0-rc.1`（2026-09-28 19:48）
 > 本机运行时：**DSH Desktop 0.2.0-rc.1**（从 `app.asar` 内的 `dsh-app-boot/package.json` 读出）
 > 本插件：`dsh-connect-trae@2.3.1`，开发树依赖 `0.1.7-rc.1`
-> 核对时间：2026-09-29　方法：实包符号比对 + 运行宿主自带的门禁代码 + 本机实测
+> 核对时间：2026-09-29　方法：实包符号比对 + 运行宿主自带的兼容性检查代码 + 本机实测
 > 结论：**有 1 处必须改（已在运行中造成插件整体不加载），其余为卫生项，无需适配**
 
 ---
 
-## 0. 一句话结论
+## 0. 结论
 
 插件**当前在这台机器上根本没有加载**——不是某个功能坏掉，是整个 bundle 被 DSH 0.2.0-rc.1 的
-peer 兼容门禁拒绝挂载。根因是 8 条 peer 范围写成 `<0.2.0-0`，该上界把 `0.2.0-rc.1` 这类
+peer 兼容兼容性检查拒绝挂载。根因是 8 条 peer 范围写成 `<0.2.0-0`，该上界把 `0.2.0-rc.1` 这类
 **0.2.0 预发布版**也一并排除；契约本身没有任何破坏。
 
 ---
@@ -32,8 +34,9 @@ peer 兼容门禁拒绝挂载。根因是 8 条 peer 范围写成 `<0.2.0-0`，�
 
 ## 2. 根因（宿主源码级定位）
 
-DSH 自 0.1.7-rc.1 起新增了 **peer 兼容门禁**（`2c67633990 feat(plugins): enforce DSH peer compatibility with exact exemptions`）。
-对 bundle 而言，门禁在 `loadProfileDirectory()` 内，**拒绝即整个 bundle 跳过**：
+DSH 自 0.1.7-rc.1 起新增了 **peer 兼容兼容性检查**（`2c67633990 feat(plugins): enforce DSH peer compatibility with exact exemptions`）。
+
+对 bundle 而言，兼容性检查在 `loadProfileDirectory()` 内，**拒绝即整个 bundle 跳过**：
 
 ```ts
 // packages/boot/app-boot/src/profile.ts  (0.2.0-rc.1, L674-676)
@@ -50,7 +53,7 @@ if (issue !== undefined && !issue.exempted) throw new Error(pluginCompatibilityW
 >=0.1.7-rc.1 <0.2.0-0   →  0.2.0-rc.1 不满足 ❌
 ```
 
-因为 semver 里 `0.2.0-rc.1 < 0.2.0-0`（预发布版小于它自己的 `-0` 基准）。换言之
+因为 semver 里 `0.2.0-rc.1 > 0.2.0-0`（同核心版本下，字母预发布标识高于数字标识0）。换言之
 `<0.2.0-0` 的本意是「排除 0.2.0 正式版」，实际却连 **整个 0.2.0 预发布线**一起排除了。
 
 **这不是「0.2 破坏契约」**：同级插件 `dsh-connect-workbuddy`（`<0.2.0`）、`dsh-ldvh`、
@@ -61,17 +64,15 @@ if (issue !== undefined && !issue.exempted) throw new Error(pluginCompatibilityW
 > 原样运行其中的 `evaluatePluginCompatibility`，输入本插件 `package.json`。
 > 返回 `DENIED`，8 条 peer 全部列出，`exempted: false`。
 
-**同层验证**：把该门禁跑一遍本机 desktop profile 的全部 19 个 bundle，判定与运行中的挂载
-状态**逐一吻合**——5 个 `DENIED` 的 bundle（本插件、`@changfenhuang/dsh-genui`、
-`dsh-better-reasoning-effort`、`dsh-free-search`、`dsh-rewind-plugin`）**全部不在挂载行里**，
-11 个 `OK` 加 3 个内建（`dsh-base` / `dsh-web-app` / `agent-team-profile`，不走该门禁）
-**全部 active**。这排除了「我的判定模型与宿主不一致」的可能。
+**同层验证**：把该兼容性检查运行一次本机 desktop profile 的全部 19 个 bundle，判定与运行中的挂载 状态**逐一吻合**——5 个 `DENIED` 的 bundle（本插件、`@changfenhuang/dsh-genui`、 `dsh-better-reasoning-effort`、`dsh-free-search`、`dsh-rewind-plugin`）**全部不在挂载行里**， 11 个 `OK` 加 3 个内建（`dsh-base` / `dsh-web-app` / `agent-team-profile`，不走该兼容性检查） **全部 active**。
+
+这排除了「我的判定模型与宿主不一致」的可能。
 
 ---
 
 ## 3. 契约层面：**无破坏**
 
-门禁只是版本范围问题；真正的 API 面几乎没动。
+兼容性检查只是版本范围问题；真正的 API 面几乎没动。
 
 ### 3.1 机械差分（0.1.7-rc.2 → 0.2.0-rc.1）
 
@@ -114,33 +115,28 @@ dsh-atomic-write        withFileLock / writeFileAtomic                          
 ```
 
 **运行时值级**：从 `app.asar` 提取全部 `@deepseek-ai` 包（290 个）后直接 import，
-插件消费的每个符号均存在；对 12 个可加载的包做导出名集合比对，**移除 0 个**，
+插件调用的每个符号均存在；对 12 个可加载的包做导出名集合比对，**移除 0 个**，
 仅 `dsh-llm` 新增 `ACCOUNT_QUOTA_EXCEEDED_CODE`、`projectToolUpdates`
 （第 13 个 `ui-primitives` 因浏览器端 `react` 依赖在此环境不可加载，改用源码级静态比对，见下条）。
 
-**全量类型面**：13 个包的 `.d.ts` 导出符号全量比对 → 仅 `dsh-client-ui-primitives` 少 3 个
-（`OnboardingSurface`、`CODE_HIGHLIGHT_EXTENSIONS`、`languageForPath`）。经 grep 确认
-**本插件对这三个符号零引用**，且该包在插件里只作 `dsh.client.inject` 声明、**源码从不 import**
-（`lib/client.js` 内 `require` 只有 `react` / `react/jsx-runtime`；源码级静态比对亦确认
-仅新增 `pointerModality`、无移除）。
+**全量类型面**：13 个包的 `.d.ts` 导出符号全量比对 → 仅 `dsh-client-ui-primitives` 少 3 个 （`OnboardingSurface`、`CODE_HIGHLIGHT_EXTENSIONS`、`languageForPath`）。
+
+经 grep 确认 **本插件对这三个符号零引用**，且该包在插件里只作 `dsh.client.inject` 声明、**源码从不 import** （`lib/client.js` 内 `require` 只有 `react` / `react/jsx-runtime`；源码级静态比对亦确认 仅新增 `pointerModality`、无移除）。
 
 ### 3.4 端到端类型验证（最强的一条）
 
-把 `src/` + `tests/` 复制到隔离目录，将 14 个 `@deepseek-ai` 依赖（13 个从 npm 取 0.2.0-rc.1
-实包 + `cordis` 4.0.4 / `schemastery` 3.18.4，后两者版本线与 DSH 独立且与运行时一致）
-整体替换，用插件自己的 `tsconfig` 跑真实 tsc。
-`--listFiles` 确认 host 半侧实际解析到 7 个 0.2.0-rc.1 包、client 半侧 5 个，
-且 `@earendil-works/pi-ai` 0.85.1 与运行时逐字一致：
+把 `src/` + `tests/` 复制到隔离目录，将 14 个 `@deepseek-ai` 依赖（13 个从 npm 取 0.2.0-rc.1 实包 + `cordis` 4.0.4 / `schemastery` 3.18.4，后两者版本线与 DSH 独立且与运行时一致） 整体替换，用插件自己的 `tsconfig` 跑真实 tsc。
+
+`--listFiles` 确认 host 半侧实际解析到 7 个 0.2.0-rc.1 包、client 半侧 5 个， 且 `@earendil-works/pi-ai` 0.85.1 与运行时逐字一致：
 
 ```
 tsc -p tsconfig.json        (host half)   EXIT 0
 tsc -p tsconfig.client.json (client half) EXIT 0
 ```
 
-**对 0.2.0-rc.1 类型整体零错误。** 插件自身的 `check` 流水线在 0.1.7-rc.1 上同样通过
-（typecheck 两半 OK、测试 345/345、build 成功）。重跑 build 后 `lib/` 三个产物字节数与
-改动前完全一致（`87514` / `84015` / `172771`），即构建可复现、本次核对未改变任何产物
-（`lib/` 在 `.gitignore` 内，`git status` 干净）。
+**对 0.2.0-rc.1 类型整体零错误。** 插件自身的 `check` 流水线在 0.1.7-rc.1 上同样通过 （typecheck 两半 OK、测试 345/345、build 成功）。
+
+重新运行 build 后 `lib/` 三个产物字节数与 改动前完全一致（`87514` / `84015` / `172771`），即构建可复现、本次核对未改变任何产物 （`lib/` 在 `.gitignore` 内，`git status` 干净）。
 
 ---
 
@@ -151,7 +147,7 @@ tsc -p tsconfig.client.json (client half) EXIT 0
 `package.json` 中 8 条范围（L79–L86）由 `>=0.1.7-rc.1 <0.2.0-0` 改为 `>=0.1.7-rc.1 <0.3.0-0`。
 devDependencies 一并升到 0.2.0-rc.1，让开发树与用户运行时一致。
 
-用**同一个 shipped 门禁**复核该改法：
+用**同一个 shipped 兼容性检查**复核该改法：
 
 | 运行时 | 改前 | 改后 |
 |---|---|---|
@@ -165,18 +161,18 @@ devDependencies 一并升到 0.2.0-rc.1，让开发树与用户运行时一致�
 ### 方案 B（应急，不改包）：授予精确版本豁免
 
 profile 的 `compatibility.json` 写入 `{"dsh-connect-trae@2.3.1": ["0.2.0-rc.1"]}` 即可挂载。
-已用 shipped 代码验证 `exempted: true` 时 `loadProfileDirectory` 不再抛错。
-代价：豁免是**精确到版本**的，插件或 DSH 任一升级都不继承，每次升级都要重授；
-且这只清门禁、不解决范围本身写错。**建议作为临时手段，最终仍应走方案 A。**
+
+已用 shipped 代码验证 `exempted: true` 时 `loadProfileDirectory` 不再抛错。 代价：豁免是**精确到版本**的，插件或 DSH 任一升级都不继承，每次升级都要重授； 且这只清兼容性检查、不解决范围本身写错。
+
+**建议作为临时手段，最终仍应走方案 A。**
 
 本机现状：`~/.dsh/profiles/desktop/compatibility.json` **不存在**（即当前无任何豁免）。
 
 ### 方案 A 的回归缺口（建议一并补）
 
-插件已有 `tests/dsh-017-compat.spec.ts` 钉住 0.1.7 的三处**静默**契约变化，但全仓
-**没有任何测试覆盖 `peerDependencies` 范围本身**（grep `peerDependencies` / `semver` 零命中）。
-这正是本次失败的形状：范围写错不会让任何断言变红，只会在真实宿主上表现为「插件整体消失」，
-CI 全绿。
+插件已有 `tests/dsh-017-compat.spec.ts` 通过测试约束 0.1.7 的三处**静默**契约变化，但全仓 **没有任何测试覆盖 `peerDependencies` 范围本身**（grep `peerDependencies` / `semver` 零命中）。
+
+这正是本次失败的形状：范围写错不会让任何断言变红，只会在真实宿主上表现为「插件整体消失」， CI 全部通过。
 
 建议新增一条测试：读 `package.json` 的 peer 范围，用 semver（需显式加为 devDependency，
 当前仅作为传递依赖存在于 `.pnpm/semver@7.8.5`）断言**当前开发树版本**与**下一线预发布版本**

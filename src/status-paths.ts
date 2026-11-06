@@ -1,6 +1,6 @@
 /**
  * Node-free constants and types shared by the Host and browser halves.
- * Mirrors the `dsh-workbuddy-connect` status-route pattern so the plugin card
+ * Mirrors the `dsh-connect-workbuddy` status-route pattern so the plugin card
  * stays consistent with that project's external presentation.
  */
 import type { TraeEdition } from './paths.ts'
@@ -25,11 +25,9 @@ export const TRAE_ACCOUNTS_REFRESH_PATH = '/plugins/dsh-connect-trae/accounts/re
  * General balance of EVERY account in a region, for the composer panel's table.
  *
  * Separate from the usage route on purpose: the usage document backs the
- * 5-minute readout, and multiplying its upstream reads by the account count
- * would charge a healthy account for something it never looks at — the same
- * principle that keeps `creditAlternatives` firing only when a balance hits
- * zero. This one is paid when the panel is actually opened, which is the only
- * place the table is shown.
+ * 5-minute readout. Fetching all account balances on every refresh would add
+ * unnecessary upstream reads. The account table fetches these read-only
+ * balances when opened; these requests do not consume model credits.
  */
 export const TRAE_ACCOUNT_CREDITS_PATH = '/plugins/dsh-connect-trae/account-credits'
 /**
@@ -37,13 +35,14 @@ export const TRAE_ACCOUNT_CREDITS_PATH = '/plugins/dsh-connect-trae/account-cred
  *
  * Each row of the account table reads its OWN state through this route — a CN
  * row carries its check-in state and balance, an ai row its subscription.
- * POST with the accountId in the body: one upstream read per account, paid
- * only when the table is actually shown.
+ * GET with accountId in the query. Each displayed row reads its own account
+ * state; the Host may perform multiple upstream reads for that state. These
+ * reads do not consume model credits.
  */
 export const TRAE_ACCOUNT_STATUS_PATH = '/plugins/dsh-connect-trae/account-status'
 /**
- * Plugin-owned daily check-in claim endpoint. POST, loopback-only, and the only
- * route in this plugin that changes upstream account state. The accountId in
+ * Plugin-owned daily check-in claim endpoint. POST, loopback-only. Claiming
+ * changes the upstream reward state. The accountId in
  * the body names WHICH account to claim for, so the button can sit in each
  * account row.
  */
@@ -56,12 +55,11 @@ export const TRAE_CHECKIN_PATH = '/plugins/dsh-connect-trae/checkin'
  *   装了两个插件的用户面对的是同一套交互。
  *
  * `?action=checkin` and `?action=test` run over the whole member set; `remove`
- * addresses ONE account (the body carries `accountId`) and is the only way a
- * measurement of an account the user no longer wants can leave the store — a
- * deleted member otherwise keeps its row in the file forever, and a re-added
- * member would silently inherit an old exclusion.
+ * addresses one account named by accountId and clears its pool measurements.
+ * Account deletion also clears these measurements, so re-importing does not
+ * inherit a removed account's old exclusion.
  *
- * POST + loopback-only because both batches SPEND something: check-in sends a
+ * POST + loopback-only because both batches perform upstream actions: check-in sends a
  * claim, and a test is a real chat call. A page that is not the Host's own
  * loopback must not be able to trigger either.
  */
@@ -398,10 +396,10 @@ export interface TraeWebPoolRemoveAnswer {
 }
 
 /**
- * The answer to `?action=delete`: what the Host could remove from its own
- * credential copy, and whether the account is STILL signed in to the Trae app
- * (a desktop login the plugin deliberately does not touch). The card renders
- * `stillSignedIn` as "sign out in Trae", never as a deletion that failed.
+ * The answer to ?action=delete reports removal of the plugin-owned credential
+ * copy and attempts to remove matching desktop logins. stillSignedIn indicates
+ * that a detected login remains, for example because its app was running or
+ * the file update failed. The card reports the remaining action to the user.
  */
 export interface TraeWebPoolDeleteAnswer {
   accountId: string
@@ -420,8 +418,8 @@ export interface TraeWebPoolDeleteAnswer {
    */
   stillSignedIn: boolean
   /**
-   * Trae apps whose own login was erased, so the account is really gone from this
-   * machine. The app must be restarted for it to notice.
+   * Trae apps whose detected login record was erased. This does not establish
+   * that no other credential copies exist on the machine.
    */
   signedOutApps?: TraeEdition[]
   /**
@@ -482,9 +480,9 @@ export interface TraePoolPreferences {
    * minimal one-word probe.
    *
    * Exists because a verdict earned by a one-word request says nothing about the
-   * long turn the user is about to send: an upstream that refuses large requests
-   * answers the small one happily. Padding the probe therefore buys a truthful
-   * "works at my size" answer at the cost of spending real credit per test.
+   * long turn the user is about to send. Padding tests a larger request at the
+   * cost of real credit, but one successful probe does not guarantee that other
+   * content of a similar size will succeed.
    */
   probeInputTokens?: number
 }
@@ -495,9 +493,9 @@ export interface TraePoolPreferences {
  *
  * One route with an `action` query parameter (`export` | `preview` | `import`),
  * mirroring the sibling `dsh-connect-workbuddy` plugin's transfer route so the
- * two cards behave the same way for a user who has both installed. The vault
- * document never leaves the Host: the browser receives parsed answers, and a
- * preview carries display fields only — never token material.
+ * two cards behave consistently for users with both installed. Export sends
+ * selected credential records, including tokens, to the browser for download.
+ * Preview sends only display fields and token-presence flags.
  */
 export const TRAE_TRANSFER_PATH = '/plugins/dsh-connect-trae/transfer'
 /** The transfer endpoint's steps. */
@@ -817,15 +815,11 @@ export interface TraeWebAccount {
   source: 'desktop' | 'dsh' | 'cli'
   tokenExpiresAtMs: number
   /**
-   * When this account's REFRESH token expires, when the credential carries one.
+   * Refresh-token expiry reported by the credential, when available.
    *
-   * The access token above is renewed automatically — the plugin refreshes it
-   * five minutes before it lapses — so by itself it answers "when does this
-   * need attention", which is "never, while the refresh token lives". The
-   * refresh token is the real horizon: once IT expires the automatic renewal
-   * stops working and the user must sign in to Trae again. Before this field the
-   * card could only say "auto-renewal", which stays true right up to the moment
-   * it silently stops being true.
+   * The plugin attempts access-token refresh near expiry. A future refresh-token
+   * expiry does not guarantee renewal: revocation, network errors or upstream
+   * refusal can require the user to sign in earlier.
    */
   refreshExpiresAtMs?: number
   selected: boolean
@@ -1086,8 +1080,8 @@ function regionSlotOf(value: unknown, panel: TraePanel): Record<string, unknown>
  * Whether one region's provider is switched on. Opt-out semantics: only an
  * explicit `false` disables it, so a config written before this switch existed
  * (and the pre-region-split flat fields, which never carry `enabled`) keep both
- * providers running exactly as before. The Host reads the same rule through
- * `regionStateOf`, so card and Host can never disagree about a region's state.
+ * consumer providers enabled. Enterprise defaults to disabled. The Host reads
+ * the corresponding rule through regionStateOf; tests check their consistency.
  *
  * `value` may be the whole settings section or the `regions` map (see
  * {@link regionsMapOf}).
@@ -1127,23 +1121,13 @@ export function nextRegionEnabled(
 }
 
 /**
- * The two seats this region's credit readout can occupy.
+ * Placement of this panel's credit readout.
  *
- * `composer` is the composer row (`conversation.input.right`, rendered just before
- * the model picker); `stats` is
- * the ambient dock below the composer card (`conversation.composer.dock`),
- * beside the shell's own round/step/token pills.
- *
- * WHY THE SEAT IS A CHOICE AT ALL (learned from dsh-connect-workbuddy issue
- * #62): the composer tool row is a LIST seat, so it is shared not only with the
- * shell's own controls but with any other plugin that registers there — and a
- * list seat cannot promise that every occupant is visible. The report behind
- * that issue is exactly that: with a third-party plugin installed the readout
- * stopped appearing. A fixed seat therefore lets one plugin's presence decide
- * another's, so the seat belongs to the user.
- *
- * Named as a union rather than a boolean because a third seat is plausible and
- * a `showAtTop: boolean` would have to be MIGRATED rather than extended.
+ * composer registers in conversation.input.right. Connector bundles use a shared
+ * temporary order registry; if a preferred order is occupied, the later claim
+ * takes the next lower order and renders farther left. This registry coordinates
+ * participating bundles only, not arbitrary third-party slot registrations.
+ * stats registers in conversation.composer.dock below the composer card.
  */
 export type TraeCreditPosition = 'composer' | 'stats'
 
@@ -1436,8 +1420,7 @@ export type TraeWebUsage =
     /**
      * When the BOUND account's refresh token expires (absent when the credential
      * carries none). See {@link TraeWebAccount.refreshExpiresAtMs} — this is the
-     * horizon that actually matters, because the access token above renews
-     * itself until this one lapses.
+     * reported renewal horizon, not a guarantee that refresh will succeed.
      */
     refreshExpiresAtMs?: number
     /** Which per-region model directory and selection this account owns. */
@@ -1464,11 +1447,9 @@ export type TraeWebUsage =
     creditsError?: string
     /**
      * Set when this panel has no readable balance by design, rather than by
-     * failure. Only `enterprise` does: a tenant's spend is not reported by any
-     * endpoint the plugin can reach (every tenant quota path answers 404), so
-     * the figure exists solely in the enterprise console. The card must say so
-     * instead of rendering the consumer packs, which belong to the personal
-     * balance and would be read as the tenant's.
+     * failure. Enterprise has no supported balance reader in this plugin;
+     * the tested tenant quota paths returned 404. The card directs users to
+     * the enterprise console instead of presenting personal credit as tenant credit.
      */
     creditsUnavailable?: 'enterprise'
     /**

@@ -7,3 +7,4 @@ coverage/
 .npmrc
 .DS_Store
 .pnpm-store/
+.lcl/work/

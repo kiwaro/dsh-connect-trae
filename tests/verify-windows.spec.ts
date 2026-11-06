@@ -168,3 +168,50 @@ describe('Windows verification: the script actually runs', () => {
     expect(run.code).not.toBe(-1)
   })
 })
+
+it('isolates each diagnostic candidate and removes credential scratch copies', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'trae-script-isolation-')); cleanup.push(root)
+  await mkdir(join(root, 'lib'), { recursive: true })
+  await mkdir(join(root, 'scripts'), { recursive: true })
+  // Model the store's real mirror-on-accounts semantics. A shared ownPath
+  // would cause missing.json to return the account from present.json.
+  await writeFile(join(root, 'lib', 'index.js'), `
+    import { existsSync, writeFileSync } from 'node:fs'
+    export const maskUserPath = p => String(p)
+    export const describeNameShape = () => 'redacted'
+    export const describeIdShape = () => 'redacted'
+    export const traeStorageCandidates = () => [
+      {path:'present.json', edition:'cn', source:'desktop'},
+      {path:'missing.json', edition:'cn', source:'desktop'},
+    ]
+    export class TraeCredentialStore {
+      constructor(options) { this.options = options }
+      async accounts() {
+        const {storagePath, ownPath} = this.options
+        if (storagePath === 'present.json') writeFileSync(ownPath, '{}')
+        return existsSync(ownPath) ? [{accountName:'private', edition:'cn', region:'cn'}] : []
+      }
+      async diagnose() { return {failures:[{path:this.options.storagePath,reason:'missing'}]} }
+    }
+    export const resolveTraeIdentity = async () => ({})
+    export const readTraeCliIdentity = async () => ({})
+    export const identityHeaders = () => ({})
+  `)
+  const script = await readFile(new URL('../scripts/verify-windows.mjs', import.meta.url), 'utf8')
+  const copied = join(root, 'scripts', 'verify-windows.mjs')
+  await writeFile(copied, script)
+  const result = await new Promise<{ stdout: string; stderr: string }>(resolve => {
+    const child = spawn(process.execPath, [copied], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''; let stderr = ''
+    child.stdout.on('data', chunk => { stdout += String(chunk) })
+    child.stderr.on('data', chunk => { stderr += String(chunk) })
+    child.on('close', () => resolve({ stdout, stderr }))
+  })
+  expect(result.stderr).toBe('')
+  expect(result.stdout).toMatch(/已解出[^\n]*present\.json/)
+  expect(result.stdout).not.toMatch(/已解出[^\n]*missing\.json/)
+  expect(result.stdout).toMatch(/missing\s+\[cn\] missing\.json/)
+  expect(result.stdout).not.toContain('private')
+  const { readdir } = await import('node:fs/promises')
+  expect((await readdir(root)).sort()).toEqual(['lib', 'scripts'])
+})

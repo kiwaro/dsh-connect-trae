@@ -1,5 +1,7 @@
 # issue #27 回复草稿
 
+> 2026-11-06 全文复核：历史诊断或回复草稿，版本、测试数与环境均限于原记录日期；发布和对外回复步骤不是本轮指令。核对报告实际对应#34，升级宿主并不保证更换所解析的pi-ai副本。
+
 > 用途：回复 <https://github.com/dingminhua/dsh-connect-trae/issues/27>
 > （Gaudi-XIX：DSH 0.2.0-rc.2 + 插件 3.0.0，`Doubao-Seed-Evolving` 新会话 105ms 必现
 > `Cannot read properties of undefined (reading 'length')`）
@@ -7,7 +9,7 @@
 > **状态：3.4.2 已发布**（registry `dist-tags.latest` = `3.4.2`，
 > GitHub Release [v3.4.2](https://github.com/dingminhua/dsh-connect-trae/releases/tag/v3.4.2)，
 > npm `gitHead` = tag `v3.4.2` = `c3c37da`）。
-> `pnpm run check` 全绿（typecheck + 594 测试 + build），
+> `pnpm run check` 全部通过（typecheck + 594 测试 + build），
 > 发布后逐文件核验与 tag 一致（线上 tarball shasum 与 publish 日志完全相等）。
 >
 > ⚠️ 该 issue 已由维护者在 2026-10-12T16:18Z 以 `completed` 关闭，**未留说明**。
@@ -42,12 +44,9 @@
 | 系统提示 | 顶层 `systemPrompt` | **只**挂在那条 system 消息上 |
 | 工具声明 | 顶层 `tools` | **只**挂在那条 system 消息的 `toolsAdded` 上 |
 
-你的宿主是 **0.2.0-rc.2**，那一版的 `dsh-llm-pi-ai` 依赖 `^0.87.1`（新代），
-入口处会做一次 `normalizeContext()`，于是插件收到的是**归一化 transcript**。
-而插件当时解析到的是**旧代**（你贴的解析结果是 `0.82.1`，来自同 profile 里另一个插件的硬依赖），
-它的 token 估算**没有 `role === 'system'` 分支**——
-它 `for (const block of message.content)` 迭代一个**字符串**，逐字符拿到 `block`，
-再读 `block.name.length` → `TypeError: Cannot read properties of undefined (reading 'length')`。
+你的宿主是 **0.2.0-rc.2**，那一版的 `dsh-llm-pi-ai` 依赖 `^0.87.1`（新代）， 入口处会做一次 `normalizeContext()`，于是插件收到的是**归一化 transcript**。
+
+而插件当时解析到的是**旧代**（你贴的解析结果是 `0.82.1`，来自同 profile 里另一个插件的硬依赖）， 它的 token 估算**没有 `role === 'system'` 分支**—— 它 `for (const block of message.content)` 迭代一个**字符串**，逐字符拿到 `block`， 再读 `block.name.length` → `TypeError: Cannot read properties of undefined (reading 'length')`。
 
 这条链路上有个细节正好解释了你观察到的全部现象：
 
@@ -87,15 +86,12 @@
 - **旧宿主 + 新库**：不崩，但新代 api 只读那条 system 消息，顶层字段被**静默忽略**——
   系统提示与**全部工具声明**丢失（模型永远不会产生 toolCall）。这类更隐蔽，同样已修。
 
-另外有个**你还没遇到、但同样会中招**的点值得知道：**升级 DSH 解决不了这个问题**，方向甚至是反的。
-0.2.0-rc.2 已经是你那时的最新宿主，而「新宿主」这一侧只会继续往前
-（0.2.0-rc.2 起 `^0.87.1`，0.2.1-alpha.2 已到 `^1.0.2`），
-所以**继续升级只会让你更牢地留在崩溃那一侧**。能让 `^0.82.1` 消失的是插件侧的适配层——
-也就是这次这个修复。
+另外有个**你还没遇到、但同样会中招**的点值得知道：**升级 DSH 解决不了这个问题**，方向甚至是反的。 0.2.0-rc.2 已经是你那时的最新宿主，而「新宿主」这一侧只会继续往前 （0.2.0-rc.2 起 `^0.87.1`，0.2.1-alpha.2 已到 `^1.0.2`）， 所以**继续升级只会让你更牢地留在崩溃那一侧**。
 
-还有一个容易踩的坑，顺便记在这里：**代际分界线是 `0.86`，不是 `0.87`**。
-`dist/utils/transcript.js`、`normalizeContext`、估算器的 system 分支、
-以及「不再读顶层字段」这四件事**同时**出现在 0.86.0。
+能让 `^0.82.1` 消失的是插件侧的适配层—— 也就是这次这个修复。
+
+还有一个容易踩的坑，顺便记在这里：**代际分界线是 `0.86`，不是 `0.87`**。 `dist/utils/transcript.js`、`normalizeContext`、估算器的 system 分支、 以及「不再读顶层字段」这四件事**同时**出现在 0.86.0。
+
 按 `0.87` 划分会把 0.86.x 误判成旧代而错误折返，反而丢掉提示与工具。
 
 ## 期间怎么办

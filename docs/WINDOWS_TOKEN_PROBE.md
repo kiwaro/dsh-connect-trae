@@ -1,5 +1,7 @@
 # Windows 环境排查备忘：Trae 登录探测
 
+> 2026-11-06 全文复核：已按当前CN/SG桌面支持范围修正；09-26真机计数仍保留为历史样本。不要公开完整key列表中携带的设备ID，也不要把目录命中当成上游认证成功。
+
 > **这份文档是给在 Windows 机器上执行排查的人或 AI 看的。**
 >
 > **状态更新（2026-09-26）**：已有一台真机跑通验证——Windows 10.0.22621 装
@@ -29,8 +31,7 @@ node scripts/verify-windows.mjs
 4. 给出**全部通过 / 几项未通过**的结论。
 
 **它不会打印 token、refreshToken、密文原文、真实账号名、设备号或你的 Windows
-用户名**（用户名替换为 `<user>`，目录名保留——那正是要查的东西）。因此输出可以
-直接贴进 issue，无需自己删改。
+用户名**（用户名替换为 `<user>`，目录名保留——那正是要查的东西）。分享前仍应检查自定义路径或异常文本是否包含个人信息。
 
 脚本报「全部通过」即说明：这台机器上的 Trae 登录文件，插件确实读得到。
 
@@ -49,12 +50,10 @@ node 版本不符）时使用。
 | --- | --- | --- |
 | Trae 中国版 | `cn` | ✅ 使用 |
 | TRAE SOLO 中国版 | `solo` | ✅ 使用 |
-| Trae 国际版 | `sg` | ❌ **主动忽略** |
-| TRAE SOLO 国际版 | `solo-sg` | ❌ **主动忽略** |
+| Trae 国际版 | `sg` | ✅ 支持SG桌面凭据；US另行拒绝 |
+| TRAE SOLO 国际版 | `solo-sg` | ✅ 支持SG桌面凭据；US另行拒绝 |
 
-**如果你装的是国际版，不用往下查了** —— 插件在
-`src/auth.ts` 的 `candidates()` 里主动过滤掉了 `sg` / `solo-sg`，
-这个插件只对接中国区服务。
+当前支持CN和SG桌面登录；国际CLI仍拒绝，US凭据会显示不支持。国际桌面数据目录包括Trae与TRAE SOLO，完整候选以src/paths.ts为准。
 
 ## 第二步：确认数据目录名（本次排查的核心）
 
@@ -74,10 +73,9 @@ node 版本不符）时使用。
 > Electron 应用（VS Code 系）的用户数据固定放 `%APPDATA%`，
 > 无论你把程序装在 C 盘还是 D 盘。请不要去 `Program Files` 里找。
 
-**为什么列出两种拼写**：Trae 是 VS Code 系 Electron 应用，其每用户数据目录由安装器
-注册的产品名决定。macOS 包 `product.json` 里的 `win32DirName` 是 `Trae CN` /
-`TRAE SOLO CN`，而同一产品族在 Linux 用的是小写 `applicationName`（`trae-cn` /
-`trae-solo-cn`）。
+**为什么列出两种拼写**：Trae 是 VS Code 系 Electron 应用，其每用户数据目录由安装器 注册的产品名决定。
+
+macOS 包 `product.json` 里的 `win32DirName` 是 `Trae CN` / `TRAE SOLO CN`，而同一产品族在 Linux 用的是小写 `applicationName`（`trae-cn` / `trae-solo-cn`）。
 
 **真机进度**：`TRAE SOLO CN` 这个拼写**已在真机确认**（2026-09-26，见文首状态更新），
 说明 `win32DirName` 作依据是对的。`Trae CN` / `trae-cn`（中国版）**仍未经真机确认**。
@@ -93,7 +91,7 @@ node 版本不符）时使用。
 
 回车，然后**列出该目录下所有名字里带 `Trae` 或 `TRAE` 的文件夹**。
 
-也可以在 PowerShell 里跑（这条命令不会输出 token，只列目录名，可以放心贴出来）：
+也可以在 PowerShell 里跑（这条命令不会输出 token，只列目录路径；分享前删除Windows用户名）：
 
 ```powershell
 Get-ChildItem -Path $env:APPDATA -Directory |
@@ -124,14 +122,14 @@ foreach ($p in $paths) {
 $p = "$env:APPDATA\Trae CN\User\globalStorage\storage.json"  # 换成实际路径
 $json = Get-Content $p -Raw | ConvertFrom-Json
 
-# 只看 key 列表，不打印 value
-$json.PSObject.Properties.Name
+# 只输出字段数量，不打印设备标识或 value
+@($json.PSObject.Properties).Count
 
 # 确认关键 key 是否存在（输出 True/False，安全）
-$json.PSObject.Properties.Name -contains 'iCubeAuthInfo://icube.cloudide'
+($json.PSObject.Properties.Name -contains 'iCubeAuthInfo://icube.cloudide')
 ```
 
-预期输出应该包含 `iCubeAuthInfo://icube.cloudide`。
+第二项预期输出为 True，表示登录字段存在。
 
 顺便确认这几个 key 是否存在（插件会用到）：
 
@@ -140,7 +138,7 @@ $keys = $json.PSObject.Properties.Name
 'telemetry.machineId     : ' + ($keys -contains 'telemetry.machineId')
 'telemetry.devDeviceId   : ' + ($keys -contains 'telemetry.devDeviceId')
 'iCubeLastVersion        : ' + ($keys -contains 'iCubeLastVersion')
-'icube-dc (device center): ' + (($keys | Where-Object { $_ -like 'iCubeAuthInfo://icube-dc:*' }) -join ', ')
+'icube-dc (device center) exists: ' + (@($keys | Where-Object { $_ -like 'iCubeAuthInfo://icube-dc:*' }).Count -gt 0)
 ```
 
 ## 第五步：验证加密 header（关键，且安全）
@@ -168,7 +166,9 @@ $v = (Get-Content $p -Raw | ConvertFrom-Json).'iCubeAuthInfo://icube.cloudide'
 "starts with '{' (plaintext): " + $v.StartsWith('{')
 
 # 取 base64 解码后的前 6 个字节
+if ($v.StartsWith('{')) { 'plaintext JSON; skip base64 header'; return }
 $bytes = [System.Convert]::FromBase64String($v)
+if ($bytes.Length -lt 6) { 'header too short'; return }
 'length: ' + $bytes.Length
 'header: ' + (($bytes[0..5] | ForEach-Object { $_.ToString('X2') }) -join ' ')
 ```
@@ -214,11 +214,10 @@ $bytes = [System.Convert]::FromBase64String($v)
   **已处理**：现为 `Windows <release>`，`x-device-type` 也发 `windows`。
   **且已在真机确认**：实测发出 `x-device-type: windows`、`x-os-version: Windows 10.0.22621`。
 - `src/paths.ts` 现在为 Windows 探测**多个目录拼写**（`Trae CN` 与 `trae-cn`、
-  `TRAE SOLO CN` 与 `trae-solo-cn`）。依据是 `product.json` 的 `win32DirName`
-  字段（macOS 包实测：`Trae CN` / `TRAE SOLO CN`），另一个是 VS Code 系在 Linux
-  上的 `applicationName` 拼写。
-  **真机进度**：`TRAE SOLO CN` 已在真机确认命中（2026-09-26），即 `win32DirName`
-  作依据是对的；`Trae CN` / `trae-cn` **仍未经真机确认**（那台机器没装中国版）。
+  `TRAE SOLO CN` 与 `trae-solo-cn`）。依据是 `product.json` 的 `win32DirName` 字段（macOS 包实测：`Trae CN` / `TRAE SOLO CN`），另一个是 VS Code 系在 Linux 上的 `applicationName` 拼写。
+
+  **真机进度**：`TRAE SOLO CN` 已在真机确认命中（2026-09-26），即 `win32DirName` 作依据是对的；`Trae CN` / `trae-cn` **仍未经真机确认**（那台机器没装中国版）。
+
   多候选的意义在于：猜错只多一次失败的 `readFile`，漏猜则用户直接看不到登录。
 - 机器 ID 是从数据目录里的 `telemetry.machineId` 或 `<数据目录>/machineid` 读的，
   这个推导在 Windows 上是成立的。**真机实测**：`x-device-id` 为 16 位纯数字，

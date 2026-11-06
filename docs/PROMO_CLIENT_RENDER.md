@@ -1,5 +1,7 @@
 # Trae 官方客户端怎么渲染活动优惠（以及我们为什么只画一枚）
 
+> 2026-11-06 全文复核：本机安装包、日志和截图的2026-10-23研究。类型定义证明配置能力；配置体未解出，具体tag键与活动路由的对应关系属于推测，不能冒称抓包原文。
+
 2026-10-23 取证。起因：同一个 `deepseek-v4.1-flash`，插件在模型选择器里挂「闲时 5 折」，
 Trae 自己的选择器挂「会员 5 折」，而它的详情栏又把「闲时折扣」和「会员专享 5 折」并排列出、
 数字一模一样。看上去像两边算法差得很远，实际是**同一份数据被两套渲染模型解释**。
@@ -11,12 +13,11 @@ Trae 自己的选择器挂「会员 5 折」，而它的详情栏又把「闲时
 - 走插件自己的凭据拉一次 `POST /api/ide/v1/batch_get_detail_param`（IDE 选择器用的那份名册）
   与 `GET https://solo.trae.cn/api/remote/v1/models`（插件目录）
 
-## 0. 一句话
+## 0. 概要
 
-**官方不"判定折扣"，它渲染配置。** 服务端下发一棵 `featureOrder + features` 渲染树，
-客户端逐条匹配路由、跑 Jexl 分支，产出「行上的一枚 tag」和「提示框里的若干 section」。
-判定与文案都在配置里，所以同一个活动可以对会员、非会员、不同活动单独定制；
-我们这边是「subKey → 单一 kind → 一枚徽标」，一句话概括就是**官方画的是活动，我们画的是判决**。
+**官方依据服务端渲染配置执行条件判断并渲染折扣。** 服务端下发一棵 `featureOrder + features` 渲染树， 客户端逐条匹配路由、跑 Jexl 分支，产出「行上的一枚 tag」和「提示框里的若干 section」。
+
+判定与文案都在配置里，所以同一个活动可以对会员、非会员、不同活动单独定制； 我们这边是「subKey → 单一 kind → 一枚徽标」，两者的区别是**官方画的是活动，我们画的是判决**。
 
 ## 1. 渲染树（`@byted-solo/commercial-config-sdk`）
 
@@ -41,9 +42,8 @@ interface ModelFeatureRenderRootConfig {
 | `branches[]` | 按 `when` 选一层 patch（render / restriction / control） |
 | `timeProjection` | 时段投影：`schedule.type='weekly_windows'`、时区**只允许** `Asia/Shanghai`/`UTC`、窗口是一段 Jexl；`active`/`inactive`/`fallback` 各给一条 `consumptionRate` 的 Jexl |
 
-内置渲染器（`MODEL_TOOLTIP_BUILTIN_RENDERERS`）：
-`max_mode_switch`、`reasoning_effort_internal_selector`、`reasoning_effort_selector`、
-`context_window_selector`、`model_load`、`model_feedback`、`available_features`。
+内置渲染器（`MODEL_TOOLTIP_BUILTIN_RENDERERS`）： `max_mode_switch`、`reasoning_effort_internal_selector`、`reasoning_effort_selector`、 `context_window_selector`、`model_load`、`model_feedback`、`available_features`。
+
 截图二右栏那些「图片理解 / 思考强度 / 更大上下文」就是这一层，和优惠无关。
 
 解析入口是 `dist/index.cjs` 的 `resolveModelFeatureRenders()`，顺序：
@@ -56,9 +56,9 @@ interface ModelFeatureRenderRootConfig {
 4. 选第一个匹配的 branch，把 `base.render` 与 branch 的 `render` 合并；
 5. 每个命中的 feature 都产出一份 `{tag, tooltip.sections, timeProjection}`，按顺序叠加。
 
-时段判定不靠上游的 `current`：`resolveWeeklyWindowState()` 自己算——ISO 周几 + 当日分钟，
-`start` 含 `end` 不含，并给出 `nextBoundaryMs`；倍率由 `active`/`inactive`/`fallback` 三条
-Jexl 取。这与我们 `src/promo.ts` 的窗口算法**结论一致、来源不同**（我们信 `current` 优先）。
+时段判定不靠上游的 `current`：`resolveWeeklyWindowState()` 自己算——ISO 周几 + 当日分钟， `start` 含 `end` 不含，并给出 `nextBoundaryMs`；倍率由 `active`/`inactive`/`fallback` 三条 Jexl 取。
+
+这与我们 `src/promo.ts` 的窗口算法**结论一致、来源不同**（我们信 `current` 优先）。
 
 ## 2. 现场证据（2026-10-23，CN 账号）
 
@@ -104,7 +104,7 @@ IDE 名册那一行（同一时刻）：
 
 ## 3. 两个 5 折是同一降价的两种资格路径
 
-本地 i18n 表（`@byted-icube/solo-lite/dist/6645.b1c7b531.mjs`）把文案模型写得很直白：
+本地 i18n 表（`@byted-icube/solo-lite/dist/6645.b1c7b531.mjs`）把文案模型给出了以下文案：
 
 | key | 中文 |
 |---|---|
@@ -128,7 +128,7 @@ IDE 名册那一行（同一时刻）：
 ## 4. 为什么行上是「会员 5 折」，我们是「闲时 5 折」
 
 行上那枚胶囊是配置里的一条 `tag`（单条 CopyConfig）。对
-`off_peak_member_discount_18_9` 这条路由，配置给的是 `member.tag` =「会员 {fold} 折」——
+`off_peak_member_discount_18_9` 这条路由，根据渲染结果与i18n键推测，配置选用了`member.tag`「会员 {fold} 折」；未直接解出配置体，不能确认具体键——
 **它描述的是活动的招牌价，不是此刻这个人付的价**，所以免费用户也看得到。
 
 插件这边 `kindOf()`（`src/promo.ts`）只看 `subKey` 的 `off_peak` 半截，`member` 那半直接丢，

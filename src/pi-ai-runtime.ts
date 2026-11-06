@@ -20,8 +20,7 @@
  *
  * The mismatch is reachable in BOTH directions, because DSH itself spans both
  * generations (`dsh-llm-pi-ai` ≤0.2.0-rc.1 declares `^0.85.1`; 0.2.0-rc.2 and
- * later declare `^0.87.1`, 0.2.1-alpha.2 declares `^1.0.2`, and 0.2.1-rc.1 —
- * the current desktop host — declares **`^1.1.0`**, which also stopped reading
+ * later declare `^0.87.1`, 0.2.1-alpha.2 declares `^1.0.2`, and 0.2.1-rc.1, inspected during that investigation, declares **`^1.1.0`**, which also stopped reading
  * the top-level fields entirely), while this plugin accepts the whole range
  * (`>=0.1.7-rc.1 <0.3.0-0`). Whichever side is newer, the other one is wrong:
  *
@@ -58,8 +57,9 @@
  * fooled that way.
  *
  * The version is therefore the primary signal, and it also keeps the gate
- * forward-compatible for free: a future 2.x needs no change here, whereas a
- * file-name check alone would have to know about it.
+ * usable without relying only on file names. Versions with major >= 1 are
+ * currently classified as modern; an incompatible future major would require
+ * this assumption to be revisited.
  *
  * @module dsh-connect-trae/pi-ai-runtime
  */

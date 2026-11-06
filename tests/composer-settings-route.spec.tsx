@@ -314,8 +314,8 @@ describe('the restored pill kept its shape', () => {
     expect(en['composer.openSettings']).toBe('Settings')
     expect(zh['composer.openSettingsHint']).toBe('打开本插件的设置页')
     expect(en['composer.openSettingsHint']).toBe('Open this plugin\'s settings page')
-    expect(zh['composer.openSettingsFailed']).toBe('这个宿主没有通向插件设置页的入口')
-    expect(en['composer.openSettingsFailed']).toBe('This host has no route to the plugin settings page')
+    expect(zh['composer.openSettingsFailed']).toBe('DSH 未提供可用的插件设置入口')
+    expect(en['composer.openSettingsFailed']).toBe('DSH did not provide an available plugin settings entry')
   })
 
   it('styles the restored class and keeps the old refresh rule out', () => {

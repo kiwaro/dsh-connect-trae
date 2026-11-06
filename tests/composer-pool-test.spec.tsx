@@ -402,7 +402,7 @@ describe('the test button is the header\'s GHOST control, not a second pill', ()
     // that has to move, and the comment says how it was derived.
     const rule = /\.dsm-trae-composer-panel\{([^}]*)\}/.exec(COMPOSER_POINTS_CSS)?.[1]
     expect(rule).toBeDefined()
-    expect(rule).toContain('width:min(264px,calc(100vw - 24px))')
+    expect(rule).toContain('width:min(360px,calc(100vw - 24px))')
   })
 
   it('gives the outcome NOTE a quieter rule than the error line', () => {
@@ -424,7 +424,7 @@ describe('the new copy exists in both dictionaries', () => {
     expect(zh['composer.test']).toBe('刷新')
     expect(en['composer.test']).toBe('Refresh')
     expect(zh['composer.testHint']).toMatch(/勾选/)
-    expect(en['composer.testHint']).toMatch(/checked into/)
+    expect(en['composer.testHint']).toMatch(/selected.*saved pool/)
     // Long labels do not wrap in this header; they push the settings pill out.
     // "Refresh" fits (measured), so this bound guards against someone later
     // writing "Refresh pool" here.

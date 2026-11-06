@@ -1,68 +1,18 @@
 /**
- * Trae's own model promotions ("活动优惠"), parsed and judged — never invented.
+ * 解析 Trae 模型目录中的优惠规则，并在渲染时判断徽标。
+ * 数据来自 Remote 模型行的 features 和 wire 模型行的 display_contact_config；
+ * mergeTraeModelSources 优先采用 wire 数据，再回退到 Remote 数据。
  *
- * Trae publishes a discount RULE next to the model, not a badge: the same
- * `activity_discount` document arrives in two places, and this module is the
- * only thing that reads it.
+ * 优先使用 data.current 给出的优惠；current 为 none 时，才按模型声明的时区
+ * 和 off_peak.time_windows 判断闲时优惠。current 是上游快照，可能随缓存滞后，
+ * 因此徽标不能保证代表服务端此刻的最终计费。普通低价也不能单独作为促销依据。
  *
- *  - `features` on a Remote `/api/remote/v1/models` row (a JSON *string*);
- *  - `display_contact_config` on a `get_detail_param` wire row (also a JSON
- *    string, next to the post-discount `consumption_rate`).
+ * member 只用于比较会员价，不单独决定是否显示徽标。会员价与闲时价是同一活动
+ * 的不同适用条件，不能叠乘；只有会员价低于当前徽标价格时，才额外展示会员价。
+ * 2026-10-23 的国内账号实测中，两条分支均为 0.12 → 0.06。
  *
- * The wire roster is the richer of the two (54 rows / 8 carrying a discount
- * here vs the Remote directory's 4), so `mergeTraeModelSources` takes the wire
- * value first and falls back to the Remote one — the same precedence the credit
- * multiplier already uses.
- *
- * ## Why the verdict is taken at render time, not at parse time
- *
- * A parsed discount is a *rule*, not a fact about right now. `off_peak` carries
- * weekday + minute windows in a NAMED time zone (`time_zone`), e.g. 00:00–09:00
- * on weekdays — if we froze "闲时 5 折" into the badge while parsing, the badge
- * would still be there at noon the next day. So the parser keeps the rule whole
- * and {@link selectTraePromoBadge} answers "is this model discounted *at this
- * instant*, and by how much" when the card paints.
- *
- * ## Precedence (deliberately timid)
- *
- *  1. `data.current` — upstream's own verdict. `discount_type: "none"` means
- *     "not in a promotion right now"; anything else with a lower rate than the
- *     before-rate means the discount is live. Trusting upstream first is what
- *     keeps a cached/lagging server clock from making us argue with the vendor.
- *  2. only when `current` says "none", evaluate `off_peak.time_windows` against
- *     the local clock in the model's OWN declared zone.
- *  3. otherwise NO badge. We never infer one from `creditMultiplier < 1`: that
- *     figure is also the plain price of a cheap model, and painting a promotion
- *     on a model that simply costs little is the kind of lie this plugin avoids.
- *
- * Only `current` and `off_peak` can produce a badge. `data.member` is a
- * subscription-price comparison with no "running now" flag of its own, so it is
- * parsed (the hover line quotes it) but never decides that a badge exists.
- *
- * ## The member branch is a SECOND PATH, not a second discount
- *
- * `off_peak_member_discount_18_9` is one campaign with two entitlement paths to
- * the same price: members pay 0.06 all day, free users pay 0.06 only inside the
- * off-peak windows (measured 2026-10-23 on a live CN account: `member` and
- * `off_peak` both read `0.12 → 0.06, discount 50`). The branches are NOT
- * cumulative, so quoting `member` beside a live 0.06 as "another 5 折" would
- * claim a 0.03 that upstream never sells. The hover therefore carries the
- * member price only when it is genuinely LOWER than the rate the badge already
- * shows — {@link TraePromoBadge.memberRate} is that comparison, and it is absent
- * whenever the two paths land on the same number.
- *
- * ## What this module does NOT have
- *
- * Trae publishes no label, no colour and no hover sentence — unlike WorkBuddy's
- * `badge.label / badge.color / hover.text` (see docs/PROMO_BADGE.md).
- * The wording therefore is plugin copy keyed by {@link TraePromoKind}, and the
- * colours are plugin CSS: neither claims to be the vendor's words.
- *
- * ## Where it shows
- *
- * The international (`ai`) gateway serves subscription models with no
- * `consumption_rate` at all, hence no `activity_discount`: the same code path
- * simply finds nothing. This is data absence, not a region check.
+ * 徽标文字和颜色由插件提供，依据 TraePromoKind 选择。本模块未测得国际目录
+ * 提供对应优惠数据；是否显示取决于目录实际内容，不按地区硬编码。
  */
 
 /** Which kind of promotion a badge reports. Derived from upstream's `subKey`. */

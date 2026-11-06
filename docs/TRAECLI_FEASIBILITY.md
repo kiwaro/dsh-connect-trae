@@ -1,5 +1,7 @@
 # TraeCLI（trae-cli）实测取证
 
+> 2026-11-06 全文复核：仅评估2026-09-16的TraeCLI0.120.52样本。未登录不能证明所有账号无模型；调用CLI运行agent与复用底层模型协议应分开。当前不引入CLI代理路线，先前4模型永久不可用的建议已不适用。
+
 > 日期：2026-09-16
 > 目的：验证「让 DSH 直接调用 Trae CLI」这条路能否让插件拿到 IDE 独占的 4 个模型
 > （`deepseek-v4.1-flash` / `glm-5.3-flash` / `kimi-k2.8-preview` / `qwen3.8-flash`）。
@@ -178,13 +180,12 @@ CLI 自己的 agent 配置项（`--help` 可见）：
 
 | 路径 | 阻塞点 | 状态 |
 |---|---|---|
-| `create_agent_task` | 业务错误 `4001 config item is empty for config opt`（需客户端注册 config） | 已否决 |
-| `/api/ide/v1/agents/runs` | `5003 agent running quota limit is exceeded`（账号级配额） | 已否决 |
+| `create_agent_task` | 业务错误 `4001 config item is empty for config opt`，配置来源未确认 | 当次未成功 |
+| `/api/ide/v1/agents/runs` | `5003 agent running quota limit is exceeded`，配额归属未确认 | 当次未成功 |
 | 本地 Hub Bridge / Aha IPC | 私有协议，要求 IDE 同机常驻 | 已否决 |
 | **TraeCLI** | 自带 agent + 交互式 SSO 登录 + keyring 凭证 | **本次否决** |
 
-四条路径全部走不通，且否决原因**互相独立**（协议 / 配额 / 同机 / 登录态与 agent 归属）。
-这不是「还没找到正确调用方式」，而是**上游没有开放可复用的模型出口**。
+本轮没有通过四条路径验证出可复用的模型出口。失败涉及配置、配额、进程依赖和登录态，现有证据不足以证明原因互相独立，或永久排除这些路线。
 
 ---
 
@@ -192,11 +193,11 @@ CLI 自己的 agent 配置项（`--help` 可见）：
 
 1. **不再投入** CLI 路径，也不建议引导用户安装 TraeCLI。
 2. 4 个 IDE 独占模型（`deepseek-v4.1-flash`、`glm-5.3-flash`、
-   `kimi-k2.8-preview`、`qwen3.8-flash`）**在插件中标记为不可用**，
+   `kimi-k2.8-preview`、`qwen3.8-flash`）**当时未验证可调用；不能将该次结论当成永久不可用**，
    不进入模型目录、不提供选择项。
 3. 插件继续走**已验证可用**的通道矩阵：
    - SOLO 通道（14 模型，含 `glm-5.3`，工具调用已实测）
-   - Trae Code 通道
+   - TraeCode任务通道仍未接入
    - 区域：`cn` / `ai` 双套存储
 4. 用户若确实要用这 4 个模型，**走 Trae IDE 本体**，而非 DSH 插件。
 

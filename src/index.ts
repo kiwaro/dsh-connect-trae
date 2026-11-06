@@ -1,24 +1,15 @@
+import type { TraePoolPreferences } from './status-paths.ts'
+import { Config, settingsNamespaceOf, regionStateOf, regionEnabled, thinkingEffortsOf, sidebarPanelEnabled } from './plugin-config.ts'
+export { Config, TRAE_SETTINGS_NS, settingsNamespaceOf, regionStateOf, regionEnabled, creditPosition, thinkingEffortsOf, sidebarPanelEnabled, asVolatile } from './plugin-config.ts'
+export type { TraeRegionState } from './plugin-config.ts'
 /**
- * `dsh-connect-trae` — the Host half: one bundle, three providers, no
- * plugin-to-plugin interoperation.
+ * Trae 插件的 DSH 服务端入口，注册三个供应商及对应设置、用量和工具接口。
  *
- * SCOPE BOUNDARY (deliberate; see README 「与其它插件的关系」):
- *
- *   This plugin owns its own accounts, credentials, model directory, account
- *   pool and settings namespace, and it talks to exactly two parties: the DSH
- *   Host (providers, settings, the usage route) and the Trae upstream. It never
- *   reads or writes another plugin's files or state, never schedules work
- *   across plugins, and never lets one plugin's failure borrow another's
- *   account, credit or channel. Two connector plugins installed side by side
- *   coexist because each only acts on its own provider — non-interference, not
- *   collaboration.
- *
- *   Lessons from sibling plugins (`dsh-connect-workbuddy`) are quoted in
- *   comments and pinned in tests; that is compile-time learning, which is a
- *   different thing from the runtime interoperation this module refuses.
+ * 账号、凭据、目录、计费和请求调度由本插件独立管理。客户端与 WorkBuddy
+ * 仅共享输入框工具栏的临时排序占位表，使后加载的读数能避让已占用的位置。
+ * 该表不包含账号或计费数据；跨插件显示协调见 client/composer-order.ts。
  */
 import type { Context } from '@deepseek-ai/cordis'
-import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-settings'
 import type { AdapterRegistrationHandle, DirectoryRegistrationHandle } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-attachment'
@@ -41,7 +32,6 @@ import { configuredAccountsOf, drawImagePanelsOf, unwrapVolatile, unwrapVolatile
 import type { TraeAdapter } from './adapter.ts'
 import { isTraeAccountId, traeAccountId, TraeCredentialStore } from './auth.ts'
 import { piAiRuntimeInfo } from './pi-ai-runtime.ts'
-import type { TraeActivityDiscount } from './promo.ts'
 import { applyImageSelection, deriveCatalog, discoveredCatalog, FALLBACK_CONTEXT_WINDOW, FALLBACK_TRAE_MODELS, fallbackModelsFor, mergeTraeModelSources, sanitizeCatalog, servedContextWindow, TraeCatalog, traeInputModalities, traeModelDisplayName, withChatCallableFunctions, type TraeModelInfo } from './catalog.ts'
 import { refreshTraeCredential, type TraeRefreshDevice } from './refresh.ts'
 import { readTraeIdentity, resolveTraeIdentity, type TraeIdentity } from './identity.ts'
@@ -65,7 +55,6 @@ import { TraeDelegatingUpstreamClient } from './delegating-upstream.ts'
 import { MAX_PROBE_INPUT_TOKENS, probeBody, probeModelsSequentially, probeOneModel } from './model-probe.ts'
 import { TraeUsageClient } from './usage.ts'
 import { registerTraeUsageRoute, toCheckin, toCredits, type TraePoolCheckinState, type TraePoolDeps } from './web-status.ts'
-import type { TraePoolPreferences } from './status-paths.ts'
 import { billableMembers, effectiveMembersOf, pickAccount, poolKeyOfPanel, rankPool, resolveTargetModel } from './account-pool.ts'
 import type { TraePoolCredits, TraePoolMember, TraePoolOutcome, TraePoolProbe } from './account-pool.ts'
 import { checkinAllAccounts, probeUpdatesOf, testAllAccounts, type TraePoolRunnerDeps } from './account-pool-run.ts'
@@ -174,7 +163,6 @@ export {
   type TraeWebUsage,
   configuredAccountsOf,
 } from './status-paths.ts'
-import type { TraeCreditPosition } from './status-paths.ts'
 export { createTraeShim, type TraeShim } from './shim.ts'
 export { UnconfiguredTraeUpstreamClient, type TraeChatResult, type TraeUpstreamClient } from './upstream.ts'
 export { classifyProbeError, classifyProbeResult, MAX_PROBE_INPUT_TOKENS, probeBody, probeModelsSequentially, probeOneModel, TRAE_PROBE_TIMEOUT_MS, type TraeProbeResult, type TraeProbeVerdict } from './model-probe.ts'
@@ -189,477 +177,13 @@ import {
 
 export const name = 'dsh-connect-trae'
 export const inject = ['llm']
-/**
- * Settings namespace, as a plain lowercase literal. DSH 0.1.2 removed the
- * `settingsNamespace` brand constructor from the npm package, and every
- * consumer of this constant takes it as a kebab string — so no branding is
- * needed. It is the FALLBACK namespace; the namespace the host actually serves
- * comes from {@link settingsNamespaceOf} (0.1.7 keys settings by the Loader
- * entry id, which a profile patch may mount as `dsh-connect-trae` or
- * `include:dsh-connect-trae`).
- */
-export const TRAE_SETTINGS_NS = 'trae'
-
-/**
- * The namespace the HOST actually serves this plugin under.
- *
- * On DSH 0.1.7 `SettingsForms.describe()` keys every namespace by the Loader
- * entry id, and the harness looks a provider's namespace up by EXACT match —
- * advertising `trae` while the host serves `include:dsh-connect-trae` made the
- * provider read as "not configured": its configure affordance and model
- * discovery both silently went dead.
- *
- * `ctx.fiber.entry` is added by the Loader, not by Cordis itself, so it is not
- * in Cordis's public types and is absent on hosts that mount a plugin without a
- * Loader entry (a test harness, or `ctx.plugin()` called directly). Hence the
- * probe plus the documented fallback, mirroring the first-party plugins:
- * `const settingsNs = ctx.fiber.entry?.options.id ?? NS`.
- */
-export function settingsNamespaceOf(ctx: unknown): string {
-  const id = (ctx as { fiber?: { entry?: { options?: { id?: unknown } } } })?.fiber?.entry?.options?.id
-  return typeof id === 'string' && id !== '' ? id : TRAE_SETTINGS_NS
-}
-
-/** One region's saved model state: its own directory and the user's selection within it. */
-export interface TraeRegionState {
-  /**
-   * Whether this region's provider is switched on. Opt-out: only an explicit
-   * `false` disables it, so a config predating this switch keeps both providers
-   * running. A disabled region is fully withdrawn from the harness — its
-   * adapter route and its configurable-provider entry both hold zero routes, so
-   * it disappears from DSH's model picker instead of lingering as an
-   * unselectable row (see `syncRegionRegistration`).
-   */
-  enabled?: boolean
-  /** The last-refreshed raw directory for this region; what the card displays. */
-  lastCatalog?: TraeModelInfo[]
-  /** The user's selection in this region, as model ids (= Trae name). */
-  enabledModelIds?: string[]
-  /** Models the user explicitly enabled for image input in this region. */
-  imageModelIds?: string[]
-  /**
-   * Whether the model may call trae_draw_image for this panel. Opt-IN:
-   * image generation spends real credits, so an absent value is never consent
-   * (the same rule workbuddy's imageToolEnabled follows). Declared in the
-   * schema below — a field missing from the schema is dropped on every save.
-   */
-  drawImageEnabled?: boolean
-  /** Local DSH context budget per model in this region. */
-  contextBudgets?: Record<string, number>
-  /**
-   * The user's own thinking-level choice per model, for this panel (model id ->
-   * DSH level).
-   *
-   * OPT-IN by nature: a missing key means "use whatever this model's own
-   * default is" (`reasoning.defaultEffort`, which Trae's directory publishes),
-   * i.e. the behaviour the plugin had before this field existed. Choosing a
-   * level here overrides that for good, and it is what the kernel materialises
-   * into every request that names no level — see `src/default-effort.ts`.
-   *
-   * A key can go STALE: a directory refresh may withdraw a tier, and a level the
-   * model no longer offers is then ignored rather than sent (sending it would be
-   * rejected with `UNSUPPORTED_REASONING_EFFORT`).
-   */
-  thinkingEfforts?: Record<string, string>
-  /**
-   * WHERE this region's credit readout sits (learned from dsh-connect-workbuddy
-   * issue #62).
-   *
-   * Two seats, because the first one is not always available:
-   *
-   *   - `composer` — the composer row (`conversation.input.right`), shared
-   *     with the shell's own controls. It is the closer, more glanceable seat,
-   *     and it is the default so nothing moves for anyone who does not choose.
-   *   - `stats` — the ambient dock below the composer card
-   *     (`conversation.composer.dock`), where the shell renders its own
-   *     round/step/token pills. That row is a LIST seat whose shipped occupant
-   *     registers separately, so a third-party plugin that ALSO parks something
-   *     in the composer row cannot crowd this readout out of existence.
-   *
-   * The report behind this (workbuddy #62) was exactly that: with another
-   * plugin installed, the readout vanished from the composer row. Making the
-   * seat a choice is what keeps one plugin's presence from deciding another's.
-   * Trae already lost this readout once to a shared seat — see the sibling
-   * plugin's note about the sidebar foot, where this line was clipped to "Tr"
-   * beside dsh-connect-workbuddy's rows — so the setting applies here too.
-   */
-  creditPosition?: TraeCreditPosition
-  /**
-   * This region's account pool (issue #44), as the card saves it.
-   *
-   * Read through {@link regionStateOf} and written by the card's pool section.
-   * `enabled` absent means OFF: an account pool decides where money is spent, so
-   * it is opt-in and a config written before it existed must keep billing the
-   * account the user picked.
-   */
-  pool?: TraePoolPreferences
-}
-
-export interface Config {
-  authFile?: string
-  edition?: 'auto' | 'cn' | 'sg' | 'solo' | 'solo-sg'
-  /**
-   * @deprecated Legacy single-slot account selector from before the dual
-   * provider split. It is attributed to whichever region the account actually
-   * belongs to (resolved once at startup from the local account scan); new
-   * writes go to {@link Config.accounts}.
-   */
-  accountId?: string
-  /**
-   * Per-region account selections, keyed `cn` | `ai`. Each region's tab writes
-   * its own slot; tokens remain outside settings.
-   */
-  accounts?: Partial<Record<TraePanel, string>>
-  /**
-   * Show the credit readout in the composer tool row: `Trae CN · <n>`, rendered
-   * ONLY while the session's selected model belongs to this plugin, clickable
-   * for the account/balances panel.
-   *
-   * This field first gated the sidebar credit line (issue #26, contributed by
-   * JiewiW); when that line was removed in 2.13.0 the composer readout replaced
-   * it and rendered unconditionally; 2.13.3 restores the switch, because the
-   * user went looking for it and a readout inside the SHARED composer row
-   * deserves the same opt-in the sidebar line had. The field is REUSED so an
-   * existing `true` keeps the readout on across the upgrade.
-   *
-   * OFF by default. The card's checkbox is the only writer, so exactly one path
-   * can change it. Declared volatile alongside `accounts`/`regions` so the
-   * settings form can both read and write it.
-   */
-  showPointsInMainUi?: boolean
-  /**
-   * Show this plugin's own row in the DSH sidebar (`sidebar.panellist`), which
-   * opens the usage card as a full `main` page.
-   *
-   * OFF by default, for exactly the reason the sibling
-   * `dsh-connect-workbuddy` row is off by default (its PR #188 /
-   * `Config.sidebarPanel`): the sidebar's global rows are the host's own pages,
-   * the row claims a seat every installed bundle shares, and the Plugins page
-   * already reaches this same card. A row nobody asked for re-arranges a
-   * surface the plugin does not own.
-   *
-   * The card's checkbox is the only writer (see `panel-switch.ts` on the
-   * browser side, and `sidebarPanelEnabled` on the status document, which is
-   * where the entry seeds the switch at page load).
-   */
-  sidebarPanel?: boolean
-  /**
-   * Per-region model state, keyed `cn` | `ai`. The CN and international apps
-   * expose different rosters, so each keeps its own directory and selection
-   * and switching accounts never drops the other region's picks.
-   */
-  regions?: Partial<Record<TraePanel, TraeRegionState>>
-  /**
-   * @deprecated Legacy single-slot fields from before the region split. They
-   * predate international support and are read as the CN region's state when
-   * `regions.cn` is absent; new writes go to `regions`.
-   */
-  lastCatalog?: TraeModelInfo[]
-  /** @deprecated See {@link Config.lastCatalog}. */
-  enabledModelIds?: string[]
-  /** @deprecated See {@link Config.lastCatalog}. */
-  contextBudgets?: Record<string, number>
-  /** @deprecated See {@link Config.lastCatalog}. */
-  imageModelIds?: string[]
-  /** @deprecated Legacy generated runtime catalog; kept for backwards compatibility. */
-  models?: TraeModelInfo[]
-}
-
-/**
- * One panel's saved state. A config written before the region split has only
- * the flat fields: those were always captured from the CN endpoint (the
- * plugin had no international support), so they are read as the CN state and
- * only when no explicit CN slot exists. The ai region never inherits them —
- * that inheritance is exactly the bug where a stale CN directory would be
- * intersected with the international catalog and silently drop the user's
- * picks (the same failure workbuddy fixed with its region split).
- *
- * Keyed by PANEL (`cn` | `enterprise` | `ai`), because each panel carries its
- * own switch, account binding and model selection. `enterprise` has no legacy
- * equivalent: it starts from an EMPTY state (its own directory, its own model
- * picks) and never inherits CN's, so switching it on cannot silently activate
- * a model list the user never chose for the tenant pool.
- */
-export function regionStateOf(config: Config, panel: TraePanel): TraeRegionState {
-  // Unwrap first: on DSH 0.1.7 a volatile-marked field arrives as a `{get(): T}`
-  // live reference, so `config.regions?.[region]` would read `undefined` and
-  // every region would silently fall back to its defaults ("settings written
-  // but not read back").
-  const regions = unwrapVolatile(config.regions)
-  const stored = unwrapVolatile(regions?.[panel])
-  if (stored !== undefined) return stored
-  if (panel !== 'cn') return {}
-  return {
-    ...config.lastCatalog === undefined ? {} : { lastCatalog: config.lastCatalog },
-    ...config.enabledModelIds === undefined ? {} : { enabledModelIds: config.enabledModelIds },
-    ...config.imageModelIds === undefined ? {} : { imageModelIds: config.imageModelIds },
-    ...config.contextBudgets === undefined ? {} : { contextBudgets: config.contextBudgets },
-  }
-}
-
-/**
- * Whether one panel's provider is switched on (issue #11). Opt-out semantics:
- * only an explicit `false` disables it, so every config written before this
- * switch existed — including the pre-region-split flat fields, which never
- * carry `enabled` — keeps both providers running exactly as before. The card
- * reads the same rule through `regionEnabledOf`, so the two halves can never
- * disagree about a region's state.
- *
- * The ENTERPRISE panel is the one deliberate exception: it defaults OFF. A
- * consumer-only account (`tenant 7o2d894p7dr0o4`) cannot use that pool at all,
- * so opting every existing user into a second CN provider would put a route in
- * their model picker that fails on first use. It is switched on from its card
- * tab, by someone whose account actually belongs to a tenant.
- */
-export function regionEnabled(config: Config, panel: TraePanel): boolean {
-  const stored = regionStateOf(config, panel).enabled
-  if (stored !== undefined) return stored !== false
-  return panel !== 'enterprise'
-}
-
-/**
- * WHERE one region's credit readout sits (learned from workbuddy #62).
- *
- * A local reader rather than a bare schema default, so a config written before
- * the setting existed reads as `composer` — the seat that was the only one, so
- * an upgrade moves nothing on screen — and so a hand-edited value the schema
- * does not know falls back to a seat that renders rather than to nowhere.
- *
- * Shared with the browser half by construction: the card renders the Host's
- * answer for this field, so the control cannot disagree with the readout.
- */
-export function creditPosition(config: Config, region: TraeRegion): TraeCreditPosition {
-  return regionStateOf(config, region).creditPosition === 'stats' ? 'stats' : 'composer'
-}
-
-/**
- * The user's thinking-level choices for one panel (model id -> DSH level).
- *
- * Read through `regionStateOf` so the region split, the legacy CN fallback and
- * the volatile unwrap all apply exactly once, in one place. Values are filtered
- * to non-empty strings: an empty string is not a level, and passing one on would
- * make the model report a default the kernel cannot name.
- *
- * A saved level is NOT validated against the model's current tier list here —
- * that belongs where the tiers are known (`default-effort.ts`
- * `defaultEffortFor`), which is also where a withdrawn tier is dropped instead
- * of being sent.
- */
-export function thinkingEffortsOf(config: Config, region: TraePanel): Record<string, string> {
-  const raw = regionStateOf(config, region).thinkingEfforts
-  if (raw === undefined || raw === null || typeof raw !== 'object') return {}
-  const out: Record<string, string> = {}
-  for (const [id, level] of Object.entries(raw)) {
-    if (typeof level === 'string' && level !== '') out[id] = level
-  }
-  return out
-}
-
-/**
- * Whether the OPTIONAL sidebar row is switched on (`Config.sidebarPanel`).
- *
- * `=== true` on purpose, exactly like the sibling workbuddy reader: the row
- * claims a GLOBAL sidebar seat every installed bundle shares, so an absent,
- * unreadable or hand-edited value must read as "the user did not ask for this",
- * never as consent. Only an explicit boolean `true` turns the row on.
- *
- * Read through `unwrapVolatile` because the field is volatile on 0.1.7: the
- * live `{get(): T}` reference would otherwise be a truthy non-boolean and every
- * config would look switched on.
- */
-export function sidebarPanelEnabled(config: Config): boolean {
-  return unwrapVolatile(config.sidebarPanel) === true
-}
-
-/**
- * Mark a schema's field as volatile.
- *
- * `volatile()` exists from schemastery 3.18.3; since 2.3.0 the peer range
- * requires `>=3.18.4`, so it is always present on a supported host. The probe
- * is kept as a safety net for a consumer that resolves an older schemastery
- * anyway (where the helper must degrade to identity — hand-writing
- * `meta.volatile = true` would bypass schemastery's own `validateVolatileSchema`
- * checks) and to keep both arms deterministically testable.
- *
- * Without the marker, 0.1.7's settings write gate REJECTS every write with
- * `Plugin entry "trae" has no volatile fields` while the scope's `set()` still
- * resolves — so the card would look like it saved and silently revert.
- */
-export function asVolatile<S>(schema: S): S {
-  if (typeof (schema as { volatile?: () => S }).volatile === 'function') {
-    return (schema as { volatile: () => S }).volatile()
-  }
-  return schema
-}
-
-const modelConfig = z.object({
-  id: z.string().required(),
-  name: z.string().required(),
-  contextWindow: z.number().step(1).min(1),
-  maxTokens: z.number().step(1).min(1),
-  input: z.array(z.union(['text', 'image'])),
-  // Declared so the multiplier survives future hosts whose settings schema
-  // might strip unknown fields; it feeds the DSH-facing display name.
-  creditMultiplier: z.number(),
-  // The directory function this model must be called through (Trae's roster is
-  // split across SOLO-mode functions; glm-5.3 answers only solo_work_remote).
-  // Persisted so a saved directory keeps working after a restart.
-  wireFunction: z.string(),
-  // The gateway's own `config_name` when it differs from the display id.
-  //
-  // Declared for the same reason as `wireFunction`, and it was the missing half
-  // of that invariant: the DSH settings channel rebuilds the document through
-  // THIS schema, so a field absent here is dropped on every save. The gateways
-  // are case-sensitive (`deepseek-v4.1-flash` is the Remote directory id while
-  // `DeepSeek-V4.1-Flash` is the `config_name`), so losing this mapping turned
-  // every save into "this model answers 4001 until the next discovery". Absent
-  // on rows saved before this field existed; the bridge then falls back to the
-  // discovered row's own id.
-  wireConfigName: z.string(),
-  // Trae's own image capability flag. Persisted for the same reason as
-  // `wireFunction`: the runtime catalog is re-derived from `lastCatalog` on
-  // every save and every restart, so a flag dropped here would switch "auto
-  // image input" back off the moment the user saved anything, and again after a
-  // restart (issue #16). Absent on rows saved before this field existed, which
-  // reads as "not capable" rather than "assume capable".
-  multimodal: z.boolean(),
-  // Upstream's promotion rule for this row (src/promo.ts).
-  //
-  // Declared with `z.any()` on purpose: it is an upstream document whose shape
-  // is upstream's to change, and re-deriving it through a nested schema would
-  // silently drop whichever branch a future promotion adds. It rides in
-  // `lastCatalog` for the same reason every other field does — the settings
-  // channel rebuilds this document on every save, so a field absent here
-  // disappears the moment the user ticks a checkbox, and the badge would then
-  // wait for the next live refresh to come back.
-  activityDiscount: z.any<TraeActivityDiscount>(),
-})
-
-/**
- * One panel's saved state. Panels are keyed `cn | enterprise | ai` — see
- * {@link TraePanel}; `enterprise` is a second CN provider with its own switch,
- * account binding and model selection.
- */
-const regionStateConfig = z.object({
-  // Enterprise defaults OFF: a consumer-only account cannot use that pool, so
-  // opting every existing user into it would put a failing route in their model
-  // picker. Everything else keeps opt-out semantics (`false` withdraws it).
-  enabled: z.boolean().description('Whether this panel\'s provider is offered to DSH (false withdraws it entirely)'),
-  lastCatalog: z.array(modelConfig).default([]),
-  enabledModelIds: z.array(z.string()).default([]),
-  imageModelIds: z.array(z.string()).default([]),
-  // Opt-IN gate for the trae_draw_image tool. Declared here because an
-  // undeclared field is dropped on every save of the settings form.
-  drawImageEnabled: z.boolean().default(false).description('Allow the model to generate images with trae_draw_image on this panel (consumes credits; default off)'),
-  contextBudgets: z.dict(z.number().step(1).min(1)).default({}),
-  // The user's thinking-level choice per model (model id -> DSH level).
-  //
-  // Declared for TYPE enforcement, not retention: this schemastery keeps keys it
-  // does not recognise (measured), so an undeclared map would survive a save
-  // untouched. What the declaration buys is a refusal — a level that is not a
-  // string is rejected at write time instead of being filtered out silently by
-  // `thinkingEffortsOf`, which would leave the picker showing a choice nobody
-  // made. The retention risk the neighbouring fields describe is real but comes
-  // from readers that rebuild the slot field-by-field, not from this schema.
-  //
-  // Defaults to `{}` (no overrides) rather than a materialised tier list: the
-  // absence of a key is the statement "this model uses its own default", and
-  // writing a tier here would freeze today's upstream default into the config.
-  thinkingEfforts: z.dict(z.string()).default({}).description('每个模型的思考强度（模型 id → 档位）。留空 = 跟随该模型自己的默认档。'),
-  // WHERE this region's credit readout sits (learned from workbuddy #62).
-  // Defaults to `composer` because that is the seat that already existed, so an
-  // upgrade moves nothing on screen; `stats` is what a user reaches for when
-  // another plugin occupies the composer row. Declared in the schema so the DSH
-  // settings form can read it, and read back through `regionCreditPositionOf`
-  // rather than from a schema default alone — a profile written before this
-  // field existed must still read as `composer`.
-  creditPosition: z.union([z.const('composer'), z.const('stats')]).default('composer').description('积分读数显示位置："composer" = 输入框工具栏（默认），"stats" = 输入框下方（与「轮次 / 步数 / token」统计同一行）。装了别的插件后读数不显示时改成 stats。'),
-  // Account pool (issue #44): which accounts this panel may bill, which model a
-  // test probes, and whether the pool routes at all. Declared HERE because the
-  // settings channel rebuilds the document through this schema, and a field
-  // absent here is dropped on every save — the failure that once reset
-  // `wireConfigName` and turned every save into a 4001.
-  //
-  // DEFAULTS ARE DECLARED, not merely documented, so this slot reads the same
-  // everywhere it is read: the settings form's initial values, `regionStateOf()`
-  // output, and the draft the card compares against. Without them schemastery
-  // materialises `pool` as `{ memberAccountIds: [] }` and DROPS `enabled` /
-  // `targetModelId`, which would surface on the settings form as an
-  // uninitialised control instead of the OFF/auto the code actually means.
-  //
-  // `probeInputTokens` is deliberately ABSENT (unlike the WorkBuddy pool): that
-  // knob sizes a probe against a measured context threshold, while Trae's probe
-  // is a fixed minimal chat — offering a size selector here would promise a
-  // measurement the probe does not make.
-  pool: z.object({
-    enabled: z.boolean().default(false).description('账号池：打开后本面板由池中可用账号轮流计费（关闭时按下面的绑定账号）'),
-    targetModelId: z.string().default('').description('账号池测速使用的模型 id（留空 = 自动选择免费模型）'),
-    memberAccountIds: z.array(z.string()).default([]).description('加入本面板账号池的账号 id（显式勾选，默认为空）'),
-    // 0 = the historical one-word probe. A larger value pads the probe request so
-    // a size-based refusal shows up in the test instead of in the user's real turn.
-    probeInputTokens: z.number().default(0).description('账号池测试请求填充的 token 量（0 = 最小请求，不填充）'),
-  }).default({}),
-})
-
-const accountSelectionConfig = z.object({
-  cn: z.string().description('Selected domestic (CN) account id (never a token)'),
-  ai: z.string().description('Selected international account id (never a token)'),
-  // The enterprise panel draws on the SAME cn credentials but keeps its own
-  // binding: pointing the consumer tab at a personal account must not move the
-  // tenant tab. Absent means "this region's default", exactly like the others.
-  enterprise: z.string().description('Selected account id for the CN enterprise pool (never a token)'),
-})
-
-export const Config: z<Config> = z.object({
-  authFile: asVolatile(z.string().description('Optional Trae storage.json path override')),
-  edition: asVolatile(z.union(['auto', 'cn', 'sg', 'solo', 'solo-sg']).default('auto').description('Trae edition hint')),
-  accountId: z.string().description('Deprecated: pre-split account selector, attributed to its own region'),
-  // The cast is required because `asVolatile` returns `z<T>` with `T` inferred
-  // from the wrapped schema, which is narrower than the optional
-  // `Partial<Record<TraeRegion, string>>` the Config interface declares. The
-  // schema is unchanged either way — this only restores the assignment.
-  // GATES the composer-row credit readout, restored as a real switch in 2.13.3
-  // after the user looked for it in settings. History: it first gated the
-  // sidebar credit line (issue #26), was retired when that line was removed in
-  // 2.13.0 (the composer readout replaced it and rendered unconditionally), and
-  // is back because a readout inside the SHARED composer row deserves the same
-  // opt-in the sidebar line had. The same field is REUSED on purpose: a user
-  // who already enabled the old switch keeps the readout after the upgrade
-  // instead of finding it silently off.
-  // OFF by default, matching the stated preference for the sidebar line: a row
-  // inside the shared composer toolbar is something to ask for, not to impose.
-  showPointsInMainUi: asVolatile(z.boolean().default(false).description('在输入框工具栏显示积分读数「Trae CN · <数值>」（仅当选中的模型属于本插件时出现，可点击查看账号与积分明细）')),
-  // The opt-in sidebar row (see `Config.sidebarPanel`). Volatile for the same
-  // reason as the block above: the card's checkbox writes it, and a full plugin
-  // reload — which disposes both provider stacks and drops in-flight requests —
-  // would be a wildly disproportionate price for adding one nav row.
-  //
-  // OFF by default: the row claims a GLOBAL sidebar seat every installed bundle
-  // shares, and the Plugins page already reaches this card.
-  sidebarPanel: asVolatile(
-    z.boolean()
-      .default(false)
-      .description('在 DSH 侧边栏显示「Trae」面板：点开是这张卡片的整页版。默认关闭——这一行占的是所有插件共用的全局侧边栏座位，而「插件」页本来就能看到同样的内容。点一下即生效，不用保存。'),
-  ) as unknown as z<boolean>,
-  accounts: asVolatile(accountSelectionConfig.description('Per-panel account selections, keyed cn | enterprise | ai')) as z<Partial<Record<TraePanel, string>>>,
-  regions: asVolatile(z.dict(regionStateConfig).default({}).description('Per-panel model directory and selection, keyed cn | enterprise | ai')),
-  lastCatalog: z.array(modelConfig).description('Deprecated: pre-region-split CN model directory') as z<TraeModelInfo[]>,
-  enabledModelIds: z.array(z.string()).default([]).description('Deprecated: pre-region-split CN selection'),
-  contextBudgets: z.dict(z.number().step(1).min(1)).default({}).description('Deprecated: pre-region-split CN context budgets'),
-  imageModelIds: z.array(z.string()).default([]).description('Deprecated: pre-region-split CN image opt-in'),
-  models: z.array(modelConfig).description('Legacy generated Trae model list') as z<TraeModelInfo[]>,
-})
-
 /** Every region, in card tab order. */
 const REGION_KEYS: readonly TraeRegion[] = ['cn', 'ai']
 
 /**
- * How long a measured check-in state stays usable (issue #77).
- *
- * The upstream rewards ONE check-in per device per day, so a figure measured
- * minutes ago cannot have changed; re-reading it is a pure upstream round-trip.
- * Ten minutes matches the sibling plugin's cache and is comfortably shorter than
- * a day, so a genuine second check-in still shows up on the next poll after it.
+ * Cache check-in reads for ten minutes to reduce repeated requests (issue #77).
+ * A claim from another app, window or device can change state during that time;
+ * cached state is a recent observation, not a guarantee of the current state.
  */
 const CHECKIN_CACHE_MS = 10 * 60_000
 
@@ -671,10 +195,9 @@ const CHECKIN_CACHE_MS = 10 * 60_000
  * body) — both would exclude a healthy account for good over something that is
  * not about the account at all.
  *
- * `credential-rejected` is the one permanent entry, and deliberately so: a 401
- * from the chat gateway means the stored token cannot be refreshed into one that
- * works, and the honest recovery is a re-login (which the card offers), not a
- * silent retry every half hour.
+ * Authentication failures map to credential-rejected, which has no timed
+ * cooldown. This is the pool exclusion policy; a 401 alone does not prove that
+ * token refresh or a later request cannot succeed. The user can sign in or retest.
  */
 const POOL_OUTCOME_BY_KIND: Readonly<Record<TraeUpstreamErrorKind, TraePoolOutcome>> = {
   authentication: 'credential-rejected',
@@ -790,12 +313,10 @@ export function apply(ctx: Context, config: Config): void {
    * Per-region wire state. Each region's discovery owns its own maps: the CN
    * and international rosters overlap (and spell some ids differently), so a
    * shared map would let one region's answer filter the other region's
-   * catalog. Display keys (lowercased id AND name) of every model known to be
-   * callable via `llm_utils_chat` are recorded by that region's discovery; a
-   * model whose id and name are both absent is a dead config_name (Remote
-   * advertises it, `get_detail_param` has no match, e.g. `Doubao-Seed-Code` /
-   * `glm-5.3`) and must never be served — even from a stale saved
-   * `lastCatalog` / `models` / `enabledModelIds` that still lists it.
+   * catalog. Discovery records lowercased display IDs and names per panel.
+   * After a successful discovery, saved rows absent from this set are filtered.
+   * Absence means this discovery did not retain the row, not that the model is
+   * permanently unavailable. Before discovery succeeds, saved rows are kept.
    */
   const wireState = {} as Record<TraePanel, {
     callableKeys: Set<string>
@@ -844,7 +365,7 @@ export function apply(ctx: Context, config: Config): void {
   // user's selection and context budgets. Legacy `models` and pre-budget
   // `lastCatalog` rows are sanitized, so saved `@1m` variants cannot return.
   // Dead config_names are dropped against the live wire map, so a stale save
-  // cannot resurrect `Doubao-Seed-Code` / `glm-5.3`. An empty selection serves
+  // cannot restore a row excluded by this discovery. An empty selection serves
   // the whole directory, so a never-configured plugin still exposes models.
   // Built-in last resort. It is this plugin's own static list, never a row
   // Remote advertised, so it must NOT be run through `dropDeadModels`: the
@@ -1252,16 +773,16 @@ export function apply(ctx: Context, config: Config): void {
       usageClient,
       /**
        * Credit balance of one named account, WITHOUT rebinding the store
-       * (issue #25). The card asks this only after it saw the bound account
-       * come back empty, so it can point at a login that still works.
+       * (issue #25). Used for exhausted-account alternatives and the composer
+       * account table; it can read any named local account without selecting it.
        *
        * A throwaway client is used on purpose: the shared `usageClient` reads
        * `store.resolve()`, which is bound to the selected account, and calling
        * `selectAccount` to look at a neighbour would both race concurrent chat
        * requests and persist a switch the user never made. The credential is
-       * resolved (not merely looked up) so an account whose short-lived access
-       * token lapsed overnight still answers: its refresh token is good for
-       * months, and reporting `—` for a recoverable account is a lie.
+       * resolved rather than merely looked up, allowing refresh of an expired
+       * access token when possible. Refresh can still fail or be refused; callers
+       * then keep the account row without a measured balance.
        */
       creditsOfAccount: async (accountId: string) => {
         const credential = await store.resolveCredentialOf(accountId)
@@ -1271,11 +792,10 @@ export function apply(ctx: Context, config: Config): void {
       },
       accountStateOf: async (accountId: string) => {
         const state: TraeWebAccountState = { id: accountId }
-        // The BOUND account's stored token is normally expired and `resolve()`
-        // refreshes it on read, so its row reads through the SHARED client. Any
-        // other account goes through a throwaway client so the binding (and
-        // every in-flight chat request sharing it) is never disturbed — the
-        // same rule `traeAccountCredits` already follows.
+        // Use the shared client when this account matches the current binding;
+        // otherwise resolve a client for the named account without rebinding.
+        // The shared client follows the binding at read time, so a concurrent
+        // account switch can change which credential that branch resolves.
         const selectedCredential = await store.current()
         const bound = selectedCredential !== undefined && traeAccountId(selectedCredential) === accountId
         const client = bound
@@ -1518,17 +1038,11 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   /**
-   * Today's check-in state per account, measured by the LAST full read.
-   *
-   * Issue #77: the check-in column used to be an upstream call per account with
-   * no memory at all, so every open of the card paid for every member twice (the
-   * pool's own membership pass plus one `checkinStatus()` each). The first-paint
-   * document may not wait for any of that, and re-measuring what was measured
-   * minutes ago buys nothing: a check-in happens at most once per device per day.
-   *
-   * Entries older than {@link CHECKIN_CACHE_MS} are treated as absent rather than
-   * as stale truth, so a document never claims "already checked in" off yesterday's
-   * measurement. A cold cache means "not read", which the card renders as unknown.
+   * Cache of each account's last measured check-in state for fast first paint.
+   * Entries expire after CHECKIN_CACHE_MS. Within that window another caller
+   * can claim a reward, and a Beijing-day boundary can make a cached result stale;
+   * expiry limits age but does not establish that the observation is from today.
+   * A missing entry is rendered as unknown rather than as not checked in.
    */
   const checkinStateCache: Record<TraePanel, Record<string, { state: TraePoolCheckinState; atMs: number }>> = {
     cn: {},
@@ -1675,8 +1189,8 @@ export function apply(ctx: Context, config: Config): void {
    * when the pool is off (issue #44).
    *
    * Returns the account it chose. Both the chat path and the card's usage read go
-   * through here, so "currently serving" on screen and the next real request
-   * cannot disagree — one rule, one answer.
+   * through here and use the same ranking rule. They remain separate reads;
+   * changed balances or probe results can change the next request's selection.
    *
    * When EVERY member is excluded the rotation is cleared rather than pointed at
    * an excluded account: the bound account then serves, which is the user's own
@@ -1965,9 +1479,8 @@ export function apply(ctx: Context, config: Config): void {
     // throwaway client so the store's selection (and every in-flight chat
     // request using it) is left alone (issue #25).
     creditsOfAccount: (panel, accountId) => stacks[panel].creditsOfAccount(accountId),
-    // Delete ONE account's plugin-owned credential copy (never Trae's own login);
-    // the store reports whether the account is still signed in to the app, which
-    // the card echoes as a sign-out hint rather than a failed deletion.
+    // Delete the named plugin copy and attempt to remove matching desktop
+    // logins. The result separately reports remaining logins and blocked apps.
     deleteAccountOf: (panel, accountId) => stacks[panel].store.deleteAccount(accountId),
     // Name the file that holds this panel's copies, so "the plugin keeps a real
     // copy" is verifiable instead of a claim in a sentence.

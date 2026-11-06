@@ -1,28 +1,30 @@
 # issue #46 诊断与修复：插件的模型表**系统性排除**了「带日期的快照配置」
 
+> 2026-11-06 全文复核：文档合并了初次方案与后续修正。1017未在本机样本出现，不能由Kimi等其他日期配置推定它的底层ID。v4.4.1更正同名去重，#52随后加入官方可见性过滤；前段规则不代表当前全部行为。
+
 > issue：<https://github.com/dingminhua/dsh-connect-trae/issues/46>
 > （yuantao313：「模型列表不对齐，无法获取DeepseekV4.1 Flash 1017模型ID · 插件中无法获取Trae的1017模型，只能使用正式版」，
 > 截图两张：Trae IDE 内置模型下拉里有 `DeepSeek-V4.1-Flash-1017`，插件卡片里只有 `DeepSeek-V4.1-Flash`）
 > 诊断时间：2026-10-22　方法：本机 CN 实时凭据跑「IDE 全量 roster（22 function）+ SOLO wire roster（5 function）
-> + Remote 目录（7 function）+ `mergeTraeModelSources` 全链路探针」（`scripts/probe-issue46-*.mjs`，只读、零额度）
+> + Remote 目录（7 function）+ `mergeTraeModelSources` 全链路探针」（`scripts/probe-issue46-*.mjs`，只读、不发送计费模型请求）
 > + Trae CN 安装包与本机 IDE 日志检索
-> 状态：**已修复**（A/B/C 三处，973 个测试全绿，见 §5）
+> 状态：**已修复**（A/B/C 三处，973个测试为该次记录，见后续实施说明）
 
 ---
 
-## 0. 一句话结论
+## 0. 结论
 
 | 项 | 结论 | 证据强度 |
 |---|---|---|
 | 上游有 `DeepSeek-V4.1-Flash-1017` 这个 id 吗 | **本机账号没有**。IDE 全量 roster（22 个 function，1.87 MB 原始 JSON）、SOLO wire roster（5 个 function）、Remote 目录（7 个 function）三份原始响应里 `1017` 出现 **0 次**；Trae CN 安装包全文检索命中 0 次；本机 IDE 日志检索命中 0 次 | 实测（2026-10-22，本机 CN 账号） |
-| 那 IDE 菜单里的「1017」是什么 | **是另一份真实的 config_name，不是显示别名**。上游**确实**发布带日期的独立 config_name：`kimi-k2-0905`、`seed-code-pro-0430`、`search_agent_qwen_fast-0710`；且 `kimi-k2` 与 `kimi-k2-0905` 是**两个不同的 id**（能力不同：dev 116000 vs dev 200000/max 200000）。所以 IDE 能同时列出 `…-1017` 和 `…` 两行 | 实测（逐行 dump 上游 `config_name`） |
+| 那 IDE 菜单里的「1017」是什么 | **未能确认其对应的config_name；其他带日期的模型存在独立config_name**。上游**确实**发布带日期的独立 config_name：`kimi-k2-0905`、`seed-code-pro-0430`、`search_agent_qwen_fast-0710`；且 `kimi-k2` 与 `kimi-k2-0905` 是**两个不同的 id**（能力不同：dev 116000 vs dev 200000/max 200000）。所以 IDE 能同时列出 `…-1017` 和 `…` 两行 | 实测（逐行 dump 上游 `config_name`） |
 | 那为什么插件看不到？ | **因为插件的模型表（Remote 骨架）系统性排除所有带日期的 config_name** —— 实测骨架里带日期的行**为 0**，而 wire 名单里有 3 行。合并层只遍历骨架，于是这些快照全被丢弃 | 实测 |
 | 「模型列表不对齐」是真的吗 | **是真的**。根因有两个：(1) 骨架不是完整的名单（且漏问了几个 function）；(2) 两侧的**显示名**取自不同接口，且上游对同一个 id **按 function 发布不同的显示名** | 实测 + 代码链 |
 | 修复效果 | 目录 33 → **42 行**（+9）：新出现 7 个此前被丢的用户可识别模型（`glm-4.6`、`glm-4.7`、`glm-5-turbo`、`minimax-m2`、`minimax-m2.1`、`qwen3-coder`、`seed-code-pro-0430`）与 2 个此前没问到的（`kimi-k2` → `Kimi-K2-0905`、`doubao_1_8` → `Doubao-Seed-1.8`） | 实测（修复后探针） |
 
 ---
 
-## 1. 先把「1017」这件事钉死
+## 1. 先把「1017」这件事明确约束
 
 报告人的截图里，Trae IDE 的「内置模型」下拉有一项 `DeepSeek-V4.1-Flash-1017`，插件卡片里只有
 `DeepSeek-V4.1-Flash`。实测三份上游目录里根本没有 `1017`：
@@ -34,10 +36,10 @@
 | Remote 目录 | `GET /api/remote/v1/models?functions=…` | 7 个 | 97 356 B | **0** |
 
 全量 IDE roster 共 **102 个唯一 config_name**，逐条 dump 后与 `1017` 相关的：**没有**。
-Trae CN 安装包（`libai_agent.dylib`、`libharness.dylib`、`@byted-icube/*`）全文检索命中 0 次；
-本机 IDE 日志检索 `*-1017` 命中 0 次，日志里真实的 `model_config_name` 只有 `deepseek-v4.1-flash`。
 
-### 「1017」属于哪一类？—— **独立 config_name，不是别名**
+Trae CN 安装包（`libai_agent.dylib`、`libharness.dylib`、`@byted-icube/*`）全文检索命中 0 次； 本机 IDE 日志检索 `*-1017` 命中 0 次，日志里真实的 `model_config_name` 只有 `deepseek-v4.1-flash`。
+
+### 「1017」属于哪一类？—— **尚未取得1017的独立config_name证据**
 
 上游**确实**发布带日期的 config_name，而且它们与无日期的同族模型**并存**：
 
@@ -49,7 +51,7 @@ Trae CN 安装包（`libai_agent.dylib`、`libharness.dylib`、`@byted-icube/*`�
 | `search_agent_qwen_fast-0710` | （空） | `solo_agent` | — |
 
 **同一个显示名挂在两个不同的 id 上** —— 所以 IDE 能同时列出 `DeepSeek-V4.1-Flash-1017` 和
-`DeepSeek-V4.1-Flash` 两行，它们本来就是**两个条目**，不是同一模型的两种叫法。
+`DeepSeek-V4.1-Flash` 两行，截图证明选择器有两个显示条目，但没有证明它们背后的config_name是否不同。
 
 > 这一点纠正了本仓库早先的一版判断（曾写成「`-1017` 只是显示名的后缀，背后是同一个模型」）。
 > 正确的表述是：**上游按版本发布独立的 config_name**，而插件的模型表恰好漏掉了这一整类。
@@ -147,19 +149,15 @@ IDE 全量 roster 里，**102 个 id 中有 10 个在不同 function 下带不�
 | wire（`get_detail_param`，插件读的是聊天 function） | **32 / 81** |
 | Remote 骨架 | **3 / 33** |
 
-原因是 wire 名单是**按 function 分片**的，插件的 wire client 读的是**聊天 function**，
-于是常常落在「某个聊天 function 发布的名字」上，而不是 IDE 选择器渲染的那个名字。
-**所以修法改为：显示名仍以骨架为准**（它与 IDE 只差 3 行，wire 差 32 行），
-并在 `mergeTraeModelSources` 的注释与 `tests/catalog.spec.ts` 里把这个**被否掉的结论**钉住，
-避免日后有人凭「听起来合理」再改回去。
+原因是 wire 名单是**按 function 分片**的，插件的 wire client 读的是**聊天 function**， 于是常常落在「某个聊天 function 发布的名字」上，而不是 IDE 选择器渲染的那个名字。
+
+**所以修法改为：显示名仍以骨架为准**（它与 IDE 只差 3 行，wire 差 32 行）， 并在 `mergeTraeModelSources` 的注释与 `tests/catalog.spec.ts` 里把这个**被否掉的结论**通过测试约束， 避免日后有人凭「听起来合理」再改回去。
 
 ### 顺带修掉的一个真 bug
 
-上游对同一个 config 在不同 function 下发布不同名字，而插件的 wire client 是
-**先到先得（first wins）**：先列到该 config 的 function 拥有这一行**及其 function**
-（function 决定可调用性，必须由拥有者决定），但**那个 function 不一定知道名字**。
-实测 `doubao-for-auto` 在 `chat_v3` 下名字为空、在 `solo_coder` 下是 `Seed-Code` ——
-于是这行在插件里显示成了 config id 本身。
+上游对同一个 config 在不同 function 下发布不同名字，而插件的 wire client 是 **先到先得（first wins）**：先列到该 config 的 function 拥有这一行**及其 function** （function 决定可调用性，必须由拥有者决定），但**那个 function 不一定知道名字**。
+
+实测 `doubao-for-auto` 在 `chat_v3` 下名字为空、在 `solo_coder` 下是 `Seed-Code` —— 于是这行在插件里显示成了 config id 本身。
 
 修法：**行归拥有者，名字取最"充实"的那一份** —— 拥有者没有真名字时，
 另一个 function 发布的真名字可以补上（`src/solo.ts` `collectModels`）。
@@ -242,7 +240,7 @@ wire 名单行数  : 81
 
 - **取证在维护者本机的 CN 账号上完成。** 名单按账号/套餐裁剪，报告人的账号可能有**不同的名单**
   —— 特别是**报告人账号上很可能真的有 `deepseek-v4.1-flash-1017` 这一行**（本机没有），
-  而它正好落在「骨架排除、wire 有」这一类里，**修复后应当会出现**。
+  若它属于「骨架排除、wire有」且符合提升规则，修复才可能补出，尚需报告人确认。
   这需要报告人升级后确认。
 - **新提升的 7 个模型未逐个实测可调用性**（调用会产生额度消耗）。
   按 #19 的原则，缺的是「证据」而不是「行」，但「能否真的调用」仍需实测。
@@ -291,7 +289,7 @@ const nextSlot = {
 ```
 
 而这个写入会**整体替换**该 panel 的 slot —— 于是 `pool` 被静默丢弃。所以:
-**开账号池 → 保存模型列表 → 池被关掉 → 重开显示「未保存」**。
+**开账号池 → 保存模型列表 → 池被关掉 → 重新打开后显示「未保存」**。
 
 **顺带发现 `creditPosition` 也被同样冲掉** —— 保存模型列表会把积分读数的座位重置回 `composer`。
 
@@ -300,8 +298,8 @@ const nextSlot = {
 新增 `nextRegionDirectory()`(`src/status-paths.ts`):展开旧 slot,再用目录字段覆盖。
 卡片改用它。回归测试在 `tests/issue46-regressions.spec.ts`。
 
-> 这与 #42 记录的 `wireConfigName` 丢失是**同一类缺陷**:整块替换 slot 时,
-> 保存方不知道的字段就消失了。#42 丢的是 `wireConfigName`(导致每次保存都 4001),
+> 这与 #42 记录的 `maxTokens` 丢失是**同一类缺陷**:整块替换 slot 时,
+> 保存方不知道的字段就消失了。#42 丢的是 `maxTokens`（导致最大输出元数据缺失）,
 > 这次丢的是 `pool` 与 `creditPosition`。**教训:整块替换 slot 的写入,必须显式列出它拥有的字段,
 > 其余一律继承。**
 
@@ -373,5 +371,8 @@ fix A 多问 function 带出来的 `doubao_1_8`（`Doubao-Seed-1.8`）**实测 4
 1. **「名字相同」不能推出「是同一个模型」。** 要判断重复，比的是能力，不是字面。
 2. **修一个「被丢弃」类缺陷时，要检查自己新加的过滤条件会不会产生同一个症状。**
    4.4.0 把「骨架丢行」换成了「去重丢行」，报告人看到的还是一样。
-3. **实测能推翻单测。** 46 个单测全绿也看不出 `kimi-k2-0905` 少了一行 —— 因为
+3. **实测能推翻单测。** 46 个单测全部通过也看不出 `kimi-k2-0905` 少了一行 —— 因为
    单测只能验证「我写的规则按我写的执行」，验证不了「这个规则对不对」。
+
+
+后续证据：CHANGELOG 4.5.1 记录租户目录已出现 1017，真实 bridge 请求分别路由到 `deepseek-v4.1-flash-economic-ark` 与 `deepseek-v4.1-flash-ark`。本篇初次未采样的限制不应延伸为此后一直未取证；该后续实验也不保证所有账号具有相同目录。

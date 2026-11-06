@@ -1,5 +1,11 @@
 # dsh-connect-trae 第一阶段实施方案
 
+## 适用阶段
+
+本文记录 2026-08-28 的第一阶段方案和当时验收结果。下文的 10 个测试文件、32 项测试与 503 占位上游均属于该阶段；当前实现已经接入 `TraeSoloUpstreamClient`，并按区域注册供应商。
+
+初期目录树用于解释设计职责，后续拆分见 [模块拆分记录](MODULE-SPLIT-PLAN.md)。当前操作与验证结果以 README、[文档检查记录](DOCUMENT-SYNC-AUDIT.md) 及对应源码为准。
+
 ## 目标
 
 先建立一个符合 DSH 扩展契约、安全边界清晰、可离线验证的 Trae Provider 骨架。第一阶段不承诺未经验证的多端点、多 edition 和完整工具调用，而是先打通最小可靠链路。
@@ -63,7 +69,7 @@ src/
 验收：
 
 - 用合成 fixture 覆盖格式、路径、损坏内容和并发刷新。
-- 本机只运行脱敏 doctor，输出 edition、文件是否存在、到期状态，不输出 token/uid/account。
+- 本机只运行脱敏诊断命令，报告版本与文件存在状态，并说明凭据是否到期；隐藏令牌和账号原值。
 
 ## 阶段 C：安全 shim 与 adapter
 
@@ -98,7 +104,7 @@ src/
 - 离线测试全部通过。
 - 用户知情可能消耗 Trae 额度。
 - 只调用一个已经确认的 endpoint。
-- 使用极短提示并记录秘密脱敏后的状态、HTTP code、事件类型和耗时。
+- 使用极短提示。请求结束后记录脱敏状态与 HTTP 状态码，并注明事件类型和耗时。
 
 链路：
 
@@ -127,14 +133,14 @@ adapter.stream
 - 依赖模型遵循 `<tool_call>` 文本约定的“伪原生”工具支持。
 - UI 卡片的复杂额度展示。
 
-## 当前实施状态（2026-08-28）
+## 2026-08-28 实施状态
 
 阶段 A、阶段 B 和阶段 C 的安全骨架已完成：
 
 - 已建立 TypeScript、Vitest、tsdown 和 pnpm 工程配置。
 - 已创建 `trae` PiAiAdapter，并在 shim ready 后注册 DSH adapter、configurable provider 和 settings namespace。
 - 已建立保守静态模型目录；其上下文参数仅作为骨架占位，真实协议验证后必须校准。
-- 已实现 `127.0.0.1:0` 随机端口、进程内随机 bearer、Host/Origin/Content-Type 校验、JSON 校验、body 上限和连接关闭时 abort signal。
+- 已实现 `127.0.0.1:0` 随机端口和进程内随机凭据。请求校验覆盖 `Host`、`Origin`、`Content-Type` 与 JSON 格式，并限制请求体大小；连接关闭时取消上游请求。
 - 真实 Trae upstream 当前由 `UnconfiguredTraeUpstreamClient` 明确返回 HTTP 503，避免在协议尚未验证时误发请求。
 - 已实现 macOS、Windows、Linux 的四 edition 路径候选，macOS 路径与本机实际安装一致。
 - 已实现按内容识别明文 JSON 或 tc 加密、AES-CBC 解密和 SHA-512 完整性校验。
@@ -144,7 +150,7 @@ adapter.stream
 - 已实现增量 SSE decoder，覆盖 chunk 边界、CRLF、多行 data、data-only、queue/output/reasoning/done、无尾部空行和未知事件。
 - 通过历史日志确认 CN 主聊天候选为 `/api/agent/v3/create_agent_task`，标题任务为 `/api/agent/v3/llm_utils_chat`，CUE agent 则是 `/api/cue_agent/v3/create_agent_task`；三者不再作为同构回退。
 - 已实现不会发网的 CN 请求草案纯函数，并对 SG 系列设置合约拒绝。
-- 已添加模型目录、路径、解密、凭据存储、稳定身份、SSE、Agent协议草案、Raw Chat离线模型、shim安全和真实Cordis/LLM provider注册测试。
+- 已添加模型目录和认证相关测试，覆盖路径探测、解密、凭据存储与设备身份。协议测试覆盖流式解析、Agent 协议草案和 Raw Chat 离线模型；集成测试验证本地服务安全及供应商注册。
 - `pnpm run check` 已通过：TypeScript检查、10个测试文件共32个测试、tsdown构建全部成功。
 - 使用构建产物对本机四套 Trae 文件做脱敏解析验证：四套均成功识别 access/refresh/host/expiry 的存在性；未输出任何秘密值。
 - 使用构建产物脱敏验证 CN persisted identity：machine ID为64字符、device ID为15字符、平台为darwin，与历史官方请求形态一致。

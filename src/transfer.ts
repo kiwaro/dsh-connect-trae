@@ -1,21 +1,15 @@
 /**
- * Account transfer: the export / import file format shared with sibling
- * credential managers for the same upstream (dsh-connect-workbuddy ships the
- * identical contract so export files interoperate).
+ * Trae 账号导入与导出。文件使用 JSON 数组，每项保存一条凭据记录。
+ * 顶层字段格式与 WorkBuddy 的导出文件相近，但凭据仍须属于 Trae 且区域可识别；
+ * 文件结构兼容不代表两个产品的登录凭据可以互换。
  *
- * 参考：通行实现 —— 文件是一个 JSON 数组，每项为一条凭据记录，顶层字段
- *   snake_case（`access_token` / `refresh_token` / `uid` / `nickname` /
- *   `email` / `domain` / `expiresAt`(ms) / `refreshExpiresAt`(ms) /
- *   `auth_raw`），导入按 account id 去重（同 id 覆盖），缺 `access_token`
- *   的记录跳过；预览只回脱敏字段（含 `hasToken` 布尔量），不回明文。解析
- *   函数不依赖文件系统，便于无 UI 环境单测；落库由 Host 侧的 store 完成。
+ * 导入按账号标识去重，同一标识覆盖已有记录，缺少 access_token 的记录跳过。
+ * 预览只返回账号信息和 hasToken，不返回 Token 明文。解析不访问文件系统，
+ * 凭据保存由调用方的存储模块完成。
  *
- * 互通 / 单位边界：`expiresAt` 一族按契约是**毫秒**。workbuddy 的 vault 文档
- *   存的是秒，需要在导出/导入边界换算；trae 的 `TraeCredential.expiresAtMs`
- *   （见 auth.ts 的 `timeToMs`）**本身就是毫秒**，所以这里**不做任何
- *   乘除**——刻意与 workbuddy 不同，读者对比两文件时不要误以为换算被漏掉了。
- *   导出时 `auth_raw` 直接携带原始认证文档（桌面 storage 文档或 `{auth,
- *   account}` 双键块），供写入桌面认证文件的工具原样消费。
+ * expiresAt 与 refreshExpiresAt 使用毫秒。TraeCredential.expiresAtMs 已在
+ * auth.ts 中换算为毫秒，此处直接保存；WorkBuddy 的内部秒值需要另做换算。
+ * auth_raw 保留原始认证文档，供需要原文的导入工具使用。
  *
  * @module dsh-connect-trae/transfer
  */

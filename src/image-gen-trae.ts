@@ -20,7 +20,7 @@
  *     回来的是另一个 uri、耗时 27 秒、零像素（等于多扣一张）。曾为它写下的
  *     traeImageFetchUrl / computeTraeIdeSign / traeImageSignFields 与签名盐已删除——
  *     取图跟 prompt 没有任何关系。
- *   - 真正的取图是两步、不再生成（同日实测，零成本）：POST
+ *   - 取图分两步，不再发起生成请求（同日实测未观察到额外积分消耗）：POST
  *     /api/ide/v1/get_resource_url { uri_list: [<tos key>] } →
  *     { url_map: { "<key>": "<byteimg 签名 URL>" } }，再直接 GET 那个签名 URL
  *     （不带任何 Trae 头）即得图片字节（实测 image/jpeg、1,155,578 字节、
@@ -65,7 +65,7 @@ export type TraeImageErrorCode =
   | 'NO_ROUTE'
   | 'UPSTREAM'
   | 'EMPTY_RESULT'
-  /** 图已经生成、积分已经扣了，但字节取不回来（解析签名 URL 或下载失败）。 */
+  /** 上游已返回生成结果，但解析签名 URL 或下载图片失败；生成请求可能已计费（解析签名 URL 或下载失败）。 */
   | 'IMAGE_UNAVAILABLE'
   | 'COOLDOWN'
 
@@ -104,7 +104,7 @@ export function isTraeImageSize(value: string): boolean {
   return pixels >= TRAE_IMAGE_MIN_PIXELS && pixels <= TRAE_IMAGE_MAX_PIXELS
 }
 
-/** 组一次文生图请求体；参数毛病全在这里拦下（INVALID_ARGS，不花积分）。 */
+/** 构造文生图请求体；参数不合法时在发送请求前抛出 INVALID_ARGS。 */
 export function buildTraeImageBody(input: TraeImageRequestInput): TraeImageRequestBody {
   const prompt = input.prompt.trim()
   if (prompt === '') throw new TraeImageError('trae image: prompt 必须是非空字符串。', 'INVALID_ARGS')
@@ -136,7 +136,7 @@ export interface TraeResourceUrlBody {
   uri_list: string[]
 }
 
-/** 组一次解析请求体；空 uri 在这里拦下（INVALID_ARGS，一分钱没花）。 */
+/** 构造资源地址解析请求体；uri 为空时在发送请求前抛出 INVALID_ARGS。 */
 export function buildTraeResourceUrlBody(uri: string): TraeResourceUrlBody {
   const key = typeof uri === 'string' ? uri.trim() : ''
   if (key === '') throw new TraeImageError('trae image: 解析图片地址需要非空的 uri。', 'INVALID_ARGS')
@@ -160,14 +160,14 @@ export function parseTraeResourceUrlMap(json: unknown): Record<string, string> {
 
 /**
  * 取该 uri 的签名下载地址。空表 = 服务端认不出这个 key，此时图片已经
- * 生成并计费，却拿不到字节——如实抛 IMAGE_UNAVAILABLE，别谎报成功。
+ * 生成，生成请求可能已计费，但无法下载图片，因此抛出 IMAGE_UNAVAILABLE。
  */
 export function signedTraeResourceUrl(json: unknown, uri: string): string {
   const map = parseTraeResourceUrlMap(json)
   const signed = map[uri] ?? map[uri.trim()]
   if (signed === undefined) {
     throw new TraeImageError(
-      'trae image: 图片已经生成、积分已经扣了，但服务端没给出可下载地址（url_map 里没有这个 key）：' + uri,
+      'trae image: 图片已生成，生成请求可能已计费，但服务端没给出可下载地址（url_map 里没有这个 key）：' + uri,
       'IMAGE_UNAVAILABLE',
     )
   }

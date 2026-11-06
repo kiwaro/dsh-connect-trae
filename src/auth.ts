@@ -1,5 +1,8 @@
+import { normalizeTraeCredential, isEnterpriseAccount, traeAccountId, TRAE_ACCOUNT_ID_RE } from './auth-parse.ts'
+export { normalizeTraeCredential, isEnterpriseAccount, traeAccountId, TRAE_ACCOUNT_ID_RE, isTraeAccountId } from './auth-parse.ts'
+import type { TraeCredential, TraeCredentialStoreOptions, TraeAccountChoice, TraeUnsupportedCredential, TraeCandidateFailure, TraeQuarantineNotice } from './auth-types.ts'
+export type { TraeCredential, TraeRefreshOutcome, TraeCredentialStoreOptions, TraeAccountChoice, TraeUnsupportedCredential, TraeCandidateFailure, TraeQuarantineNotice } from './auth-types.ts'
 import { copyFile, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
-import { createHash } from 'node:crypto'
 import { basename, dirname, join } from 'node:path'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
@@ -11,174 +14,9 @@ import {
   traeStorageValueType,
   TRAE_AUTH_STORAGE_KEY,
 } from './decrypt.ts'
-import { traeStorageCandidates, type TraeCredentialSource, type TraeEdition, type TraeStorageCandidate } from './paths.ts'
-import { assertSupportedRegion, isSupportedRegion, regionOfCredential, regionOfEdition, TraeUnsupportedRegionError, type TraeRegion, type TraeServiceRegion } from './region.ts'
+import { traeStorageCandidates, type TraeEdition, type TraeStorageCandidate } from './paths.ts'
+import { assertSupportedRegion, isSupportedRegion, regionOfCredential, regionOfEdition, TraeUnsupportedRegionError, type TraeRegion } from './region.ts'
 import { probeRunningTraeApps, type RunningProbe } from './trae-process.ts'
-
-export interface TraeCredential {
-  accessToken: string
-  refreshToken?: string
-  userId: string
-  accountName?: string
-  /**
-   * Trae tenant this account belongs to (`account.tenant_id`, e.g. `272193024`
-   * for a `tob_online` enterprise), absent for a personal account.
-   *
-   * This is what decides whether the ENTERPRISE pool can serve the account at
-   * all. The tenant gateway accepts any CN token for its DIRECTORY read — a
-   * personal account gets the full 49-model roster back — so "the roster
-   * loaded" proves nothing about billing rights. Its chat endpoint is what
-   * refuses: a personal account answers `4019` (risk control), a tenant account
-   * streams normally. Because the two are indistinguishable from the roster,
-   * the account list itself has to carry the flag.
-   */
-  tenantId?: string
-  host: string
-  /**
-   * Region claim from the decrypted storage document (`userRegion.region`,
-   * 'CN' | 'SG', possibly lowercase). Drives the routing bucket together with
-   * `host`; see `regionOfCredential`.
-   */
-  userRegion?: string
-  expiresAtMs: number
-  refreshExpiresAtMs?: number
-  edition: TraeEdition
-  source: 'desktop' | 'dsh' | 'cli'
-}
-
-export interface TraeRefreshOutcome {
-  accessToken: string
-  refreshToken?: string
-  expiresAtMs: number
-  refreshExpiresAtMs?: number
-  host?: string
-}
-
-export interface TraeCredentialStoreOptions {
-  storagePath?: string
-  edition?: TraeEdition | 'auto'
-  accountId?: string
-  ownPath?: string
-  /**
-   * Region this store serves. When set, only credentials whose own claim maps
-   * to this region are discovered, selected, or refreshed — the two regions'
-   * stores run side by side without seeing each other's accounts.
-   */
-  region?: TraeRegion
-  /**
-   * Only consider credentials that belong to a Trae tenant.
-   *
-   * The enterprise panel's store runs with this on: a personal account cannot
-   * bill that pool, and because the tenant gateway still serves it a directory,
-   * binding it here would fail only at the first chat (`4019`). With the flag
-   * set, an explicit binding to a personal account falls through to the preferred
-   * TENANT account instead of being silently honoured.
-   */
-  requireTenant?: boolean
-  /**
-   * Withhold TENANT (enterprise) accounts from this store's account list.
-   *
-   * Set on the consumer panels: an enterprise login belongs to the enterprise
-   * panel, and offering it here would let a tenant account be bound to the
-   * personal pool without the user ever seeing which pool they picked. A
-   * machine that has ONLY a tenant login still resolves it — an empty list must
-   * not turn a working install into "signed out" — so the filter is applied to
-   * the OFFERED list, never to the resolved credential.
-   */
-  hideTenantAccounts?: boolean
-  /** Legacy single-copy path read as a migration source; injectable for tests. */
-  legacyOwnPath?: string
-  refresh: (credential: TraeCredential) => Promise<TraeRefreshOutcome>
-  refreshMarginMs?: number
-  /**
-   * Which Trae desktop apps are running right now. Injectable so the deletion
-   * tests never depend on the machine they run on; defaults to the real probe.
-   */
-  runningApps?: RunningProbe
-}
-
-export interface TraeAccountChoice {
-  id: string
-  accountName: string
-  edition: TraeEdition
-  /**
-   * Whether this account may bill the CN ENTERPRISE pool.
-   *
-   * Derived from the credential's own tenant claim, because nothing else can
-   * tell: the tenant gateway answers a directory read for ANY CN token, so a
-   * personal account looks perfectly serviceable right up to its first chat,
-   * which it answers with `4019`. The enterprise panel filters its account list
-   * and its default binding on this flag.
-   */
-  enterprise: boolean
-  /** Routing bucket of this account (`cn` | `ai`), derived from its credential. */
-  region: TraeRegion
-  source: 'desktop' | 'dsh' | 'cli'
-  tokenExpiresAtMs: number
-  /**
-   * When this account's refresh token lapses, when the credential carries one.
-   * The access token above renews itself automatically until this expires; see
-   * the mirror field on `TraeWebAccount` in status-paths.ts for why the card
-   * needs it.
-   */
-  refreshExpiresAtMs?: number
-  selected: boolean
-}
-
-/**
- * A credential on this machine that names a region this build cannot serve yet
- * (issue #66: the US cluster).
- *
- * Reported so the card can explain a signed-out panel that a user knows is
- * signed in. It is never selectable and never billed: `readAll()` skips these,
- * so they cannot reach a gateway at all.
- */
-export interface TraeUnsupportedCredential {
-  region: Exclude<TraeServiceRegion, TraeRegion>
-  /** Display identity of the credential — never token material. */
-  accountName: string
-}
-
-/**
- * Why one candidate path did not yield an account. These are safe to surface:
- * they carry paths and error text, never token material.
- */
-export interface TraeCandidateFailure {
-  path: string
-  edition: TraeEdition
-  source: TraeCredentialSource
-  reason: 'missing' | 'unreadable' | 'invalid'
-  message?: string
-}
-
-/**
- * A plugin-owned copy that was found UNREADABLE and therefore moved aside.
- *
- * Since 4.4.6 a copy this build cannot parse is never merged over: it is
- * renamed to `<file>.corrupt-<stamp>` (bytes intact, recoverable) and the merge
- * restarts from a clean file. That trade — a quarantined copy instead of a
- * silently emptied one — is only fair if the USER can see it happened, because
- * the accounts the copy carried are, from that moment on, only in the
- * quarantine file.
- *
- * This notice is what makes that visible: the card's diagnostics panel shows
- * it, and so does the signed-out screen — which is exactly the state a user
- * lands in after the loss (issue #56).
- */
-export interface TraeQuarantineNotice {
-  /** The live path the copy had before it was moved aside. */
-  file: string
-  /** The quarantine copy's full path; its name carries the moment it was taken. */
-  quarantinedAs: string
-  /** Size of the quarantined copy in bytes (`0` when it could not be read). */
-  bytes: number
-  /**
-   * How many accounts the quarantined copy held, when it could still be read
-   * as JSON. A copy quarantined for being TORN cannot be counted, and this is
-   * then absent rather than guessed.
-   */
-  accounts?: number
-}
 
 /** Host used for CLI tokens, which carry no host claim of their own. */
 const CLI_DEFAULT_HOST = 'https://api.trae.cn'
@@ -201,9 +39,8 @@ const CLI_DEFAULT_HOST = 'https://api.trae.cn'
 /**
  * How long a FAILED per-account refresh is remembered.
  *
- * Long enough that a revoked refresh token costs one exchange per five minutes
- * instead of two per card poll, short enough that a transient network failure is
- * retried on the next screen the user opens.
+ * Suppresses repeated exchanges for five minutes. A transient network failure
+ * may remain cached when the user immediately opens another screen.
  */
 const REFRESH_RETRY_MS = 5 * 60_000
 
@@ -246,93 +83,6 @@ export function legacyTraeOwnAuthPath(): string {
  */
 export function traeDeletedAccountsPath(region?: TraeRegion): string {
   return join(resolveDshHome(), region === undefined ? '.trae-deleted.json' : `${TRAE_OWN_PREFIX}.deleted.${region}.json`)
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === 'string' && value !== '' ? value : undefined
-}
-
-function timeToMs(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value > 1e12 ? value : value * 1000
-  if (typeof value !== 'string' || value.trim() === '') return undefined
-  const numeric = Number(value)
-  if (Number.isFinite(numeric) && numeric > 0) return numeric > 1e12 ? numeric : numeric * 1000
-  const parsed = Date.parse(value)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
-
-/** Extract the `userRegion.region` string from either on-disk shape. */
-function userRegionOf(value: unknown): string | undefined {
-  const raw = typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)['region']
-    : value
-  return typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : undefined
-}
-
-export function normalizeTraeCredential(raw: unknown, edition: TraeEdition, source: TraeCredential['source']): TraeCredential | undefined {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
-  const value = raw as Record<string, unknown>
-  const accessToken = optionalString(value['token']) ?? optionalString(value['accessToken'])
-  if (accessToken === undefined) return undefined
-  const expiresAtMs = timeToMs(value['expiredAt'] ?? value['expiresAt']) ?? 0
-  const refreshExpiresAtMs = timeToMs(value['refreshExpiredAt'] ?? value['refreshExpiresAt'])
-  const refreshToken = optionalString(value['refreshToken'])
-  const userRegion = userRegionOf(value['userRegion'])
-  const account = typeof value['account'] === 'object' && value['account'] !== null && !Array.isArray(value['account'])
-    ? value['account'] as Record<string, unknown>
-    : undefined
-  const accountName = optionalString(account?.['username'])
-  // `tenant_id` is a number or a string depending on the client that wrote it.
-  const tenantId = optionalString(account?.['tenant_id']) ?? (typeof account?.['tenant_id'] === 'number' ? String(account['tenant_id']) : undefined)
-  return {
-    accessToken,
-    ...refreshToken === undefined ? {} : { refreshToken },
-    userId: optionalString(value['userId']) ?? '',
-    ...accountName === undefined ? {} : { accountName },
-    ...tenantId === undefined ? {} : { tenantId },
-    host: optionalString(value['host']) ?? '',
-    ...userRegion === undefined ? {} : { userRegion },
-    expiresAtMs,
-    ...refreshExpiresAtMs === undefined ? {} : { refreshExpiresAtMs },
-    edition,
-    source,
-  }
-}
-
-/**
- * Whether this account belongs to a Trae tenant, i.e. may bill the enterprise
- * pool.
- *
- * Evidence (2026-10-17, live): the tenant's own account carries
- * `account.tenant_id` / `tenant_name` and `scope: 'saas'`; the personal SOLO
- * account carries neither and reports `scope: 'marscode'`. Only the tenant one
- * streams on the enterprise gateway — the other answers `4019` risk control.
- */
-export function isEnterpriseAccount(credential: Pick<TraeCredential, 'tenantId'> | undefined): boolean {
-  return credential?.tenantId !== undefined && credential.tenantId.trim() !== ''
-}
-
-export function traeAccountId(credential: Pick<TraeCredential, 'edition' | 'userId' | 'accountName'>): string {
-  const stable = `${credential.edition}\0${credential.userId || credential.accountName || 'unknown'}`
-  return createHash('sha256').update(stable).digest('hex').slice(0, 24)
-}
-
-/**
- * The exact shape of an account id — sha256 hex sliced to 24 characters, which is
- * what {@link traeAccountId} emits and therefore the only string a request may
- * legitimately name.
- *
- * This regex is a traversal guard as much as a validator: an id becomes part of a
- * path (`$DSH_HOME/.trae-pool.<panel>.json` uses it as a key, and a credential
- * lookup receives it), so `../../etc/passwd` has to fail here rather than fail
- * somewhere closer to the filesystem. Exported so an HTTP route can answer a bad
- * id with 400 instead of letting an exception surface as a 500.
- */
-export const TRAE_ACCOUNT_ID_RE = /^[0-9a-f]{24}$/
-
-/** Whether a request-supplied value is a well-formed Trae account id. */
-export function isTraeAccountId(value: unknown): value is string {
-  return typeof value === 'string' && TRAE_ACCOUNT_ID_RE.test(value)
 }
 
 /** One stored credential, validated. Returns undefined for a malformed row. */
@@ -457,8 +207,8 @@ const TRAE_USERTAG_STORAGE_KEY = 'iCubeAuthInfo://usertag'
 /**
  * Rewrites one Trae `storage.json` so it no longer carries the given login.
  *
- * Everything else in the document is preserved byte-for-byte at the JSON level:
- * only the auth value is dropped and the usertag map loses this one user. Both
+ * Other parsed JSON values are retained, but serialization can change formatting.
+ * The auth value is dropped; a decodable usertag map loses this user. Both
  * the backup and the atomic write exist because this is the one operation in the
  * plugin that edits a file belonging to another application.
  */
@@ -856,12 +606,12 @@ export class TraeCredentialStore {
       region: assertSupportedRegion(regionOfCredential(credential)),
       // Every listed row is backed by a plugin copy (that is what `visible`
       // filters on), so the card names it as one: this store bills, refreshes,
-      // and deletes its copy, never the app's live login.
+      // and deletes its copy; deletion also attempts desktop sign-out.
       source: 'dsh' as const,
       tokenExpiresAtMs: credential.expiresAtMs,
       ...credential.refreshExpiresAtMs === undefined ? {} : { refreshExpiresAtMs: credential.refreshExpiresAtMs },
-      // Exactly one row reads as `selected`, and it is the SAME account
-      // `current()` bills. Deriving this flag any other way is how the card and
+      // The selected flag uses the same resolution rule as current().
+      // A later read may see a changed binding or credential list. Deriving this flag any other way is how the card and
       // the chat came to disagree.
       selected: inUseId !== undefined && traeAccountId(credential) === inUseId,
     }))
@@ -870,8 +620,8 @@ export class TraeCredentialStore {
   /**
    * The credential this store bills, given every credential it can see.
    *
-   * This is the ONE resolution rule, and it exists so that `current()` and
-   * `accounts()` cannot disagree: `current()` applies it to `readAll()`, and
+   * This shared resolution rule is used by both `current()` and
+   * `accounts()`. Separate reads can differ when credentials or bindings change: `current()` applies it to `readAll()`, and
    * `accounts()` applies the SAME verdict to decide which row reads as
    * `selected`. Deriving that flag independently is exactly how the two drifted
    * apart — and a card that marks a different account than the one the chat
@@ -1166,27 +916,6 @@ export class TraeCredentialStore {
   }
 
   /**
-   * Remove ONE account from the plugin-owned copy (per-region file, legacy
-   * single file), where this store can rewrite the shape it wrote.
-   *
-   * The desktop storage files are deliberately untouched: their credential is
-   * a Trae app login that only Trae can rewrite, so a plugin removing it would
-   * corrupt an application state it does not own. `deleteAccount` therefore
-   * only ever commits what this plugin persisted — the refreshed copy the
-   * store owns — and reports what it did.
-   *
-   * `stillSignedIn` is true when the SAME account id still resolves to a
-   * desktop storage copy, i.e. the account will keep appearing (from Trae's own
-   * login) even after the plugin's copy is gone. The card then shows the user
-   * where the account really lives instead of implying a deletion that did not
-   * take: the account is still signed in Trae, and Trae is the only writer that
-   * can remove it.
-   *
-   * @returns `{ deleted: boolean; stillSignedIn: boolean }` — `deleted` is
-   * whether a plugin-owned copy of this account was actually removed;
-   * `stillSignedIn` reports a TRAE-owned login that survives it.
-   */
-  /**
    * Erases this account's login from Trae's OWN storage files.
    *
    * Deleting only the plugin's copy of an account the app itself is signed in to
@@ -1242,30 +971,15 @@ export class TraeCredentialStore {
   }
 
   /**
-   * Delete this store's COPY of one account.
+   * Remove readable plugin copies of this account, record a mirror tombstone,
+   * and attempt to remove matching desktop logins. Running apps block desktop
+   * rewrites; an earlier plugin-copy removal may still have succeeded.
    *
-   * What the plugin shows and bills is the copy, so that is the first thing
-   * "delete" removes. The copy alone is not enough: the same login usually also
-   * lives in the app's own `storage.json`, and the app keeps reporting it, so
-   * the delete then erases that login too (see `deleteDesktopLogins`, which
-   * refuses while the app runs and leaves a backup beside every file it
-   * rewrites).
-   *
-   * The catch is the mirror: `accounts()` recreates a copy from any local login
-   * that lacks one, so deleting the copy of an account still signed in to Trae
-   * would resurrect it on the next poll. A TOMBSTONE records the deletion for
-   * exactly that id; the mirror skips it while the app still holds the login and
-   * drops the tombstone once it does not, so signing in again later mirrors it
-   * again. That is why `stillSignedIn` is reported: it explains that the account
-   * still lives in Trae even though the plugin no longer shows it.
-   *
-   * @returns `{ deleted, stillSignedIn, hadCopy, signedOutApps, blockedApps }` —
-   * `deleted` is "this machine no longer carries the account anywhere" (true
-   * even when there was never a copy, so a ghost member can be cleared);
-   * `stillSignedIn` answers "is it still a live Trae login here?"; `hadCopy` is
-   * "did a file actually change?"; `signedOutApps` names the apps whose login
-   * was erased; `blockedApps` names the apps that were running, in which case
-   * nothing was erased and `deleted` is false.
+   * deleted means no matching credential remains in the readable stores checked
+   * here. It does not cover unreadable files, backups, or other credential stores.
+   * stillSignedIn reports a discovered desktop login. hadCopy records either a
+   * plugin-copy change or a successful desktop sign-out, despite its legacy name.
+   * signedOutApps and blockedApps describe the desktop cleanup separately.
    */
   async deleteAccount(accountId: string): Promise<{
     deleted: boolean
@@ -1312,10 +1026,8 @@ export class TraeCredentialStore {
     const stillInOwn = (await this.readOwns()).some(credential => traeAccountId(credential) === accountId)
     const { credentials: discovered } = await this.readDesktopAll()
     const stillSignedIn = discovered.some(credential => traeAccountId(credential) === accountId)
-    // `deleted` means "this machine no longer carries the account anywhere":
-    // the plugin's copy is gone AND no app login survived. A blocked app is a
-    // non-delete — the file is unchanged, so claiming success would be a lie
-    // the user discovers on the next poll.
+    // Check the readable plugin and desktop stores after cleanup. A blocked
+    // desktop rewrite can leave a login even if its plugin copy was removed.
     const deleted = !stillInOwn && !stillSignedIn
     return {
       deleted,

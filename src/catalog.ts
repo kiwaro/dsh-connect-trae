@@ -373,7 +373,7 @@ function displayKey(name: string): string {
  * `reasoning_effort` i18n keys), and its remote config publishes the list per
  * model (`AI.agent.model.reasoning_effort_level_by_agent_model_v2`). The day
  * upstream starts advertising `max`, a user picking Max would have sent `high`
- * — no error, no log, and a cheaper answer than the one they asked for. A
+ * — no error or log explaining the changed effort. This does not establish a cost difference. A
  * dropped field lets the upstream apply its own default, which is at least the
  * model's real behaviour instead of a wrong claim about it.
  *
@@ -698,8 +698,9 @@ export function mergeTraeModelSources(
  * Demote a NON-chat `wireFunction` to "no function", keeping the row.
  *
  * A row pinned to an IDE/Remote-agent roster — `solo_agent`, `builder_v3` — is
- * not callable through `llm_utils_chat` by THAT function: asking answers
- * 4011/4001 (measured 2026-10-01, issue #19). Dropping the row is not the fix,
+ * not in this region's allowed chat-function list. Historical probes returned
+ * 4011/4001 (2026-10-01, issue #19), but 4011 alone is a rate-limit signal
+ * and does not prove the function is unsupported. Dropping the row is not the fix,
  * though, and was a regression: a model can carry a non-chat function for a
  * reason that says nothing about its chat availability. The directory lists
  * `gpt-5.5`, `gpt-5.6-*`, `gpt-6-astra`, `glm-5.2`, `kimi-k2.7-code`,
@@ -712,7 +713,7 @@ export function mergeTraeModelSources(
  *
  * Keeping the row with the function CLEARED preserves both facts: the model
  * stays visible (issue #19), and the bridge sends the region's DEFAULT chat
- * function instead of one that is guaranteed to refuse. That is the pre-change
+ * function instead of the unrecognized directory function. Success is not guaranteed. That is the pre-change
  * behaviour for these rows — a genuinely unreachable model still fails with a
  * readable upstream message rather than a silent absence.
  *
@@ -728,14 +729,14 @@ export function withChatCallableFunctions(rows: readonly TraeModelInfo[], chatFu
   })
 }
 
-/** Local DSH context budget per model; a value may only select an advertised window. */
+/** Local DSH context budget per model; choices include supported local intermediate limits. */
 export type TraeContextBudget = number
 
 /**
  * Apply the saved local budget. Trae advertises a dev window and a Max window
  * per model, and the card may also offer the 500K middle step (see
  * {@link contextBudgetOptions}), so a budget may only switch a model to a
- * window that model actually offers — never to a fabricated number, and never
+ * window allowed by contextBudgetOptions, including the local 500K step, and never
  * to something wider than its Max (a saved 500K for a model later refreshed
  * down to a 256K Max must fall back, not overflow). Everything else keeps the
  * dev window.

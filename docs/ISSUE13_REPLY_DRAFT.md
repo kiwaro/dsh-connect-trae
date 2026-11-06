@@ -1,5 +1,7 @@
 # issue #13 回复草稿（发布 2.2.0 之后再贴）
 
+> 2026-11-06 全文复核：历史诊断或回复草稿，版本、测试数与环境均限于原记录日期；发布和对外回复步骤不是本轮指令。核对0.1.5至0.1.7兼容说明，当前客户端使用能力检测，旧测试数保留。
+
 > 用途：回复 https://github.com/dingminhua/dsh-connect-trae/issues/13
 > （zuojinxin：`pending (waiting for service: settingsScope)`，DSH 0.1.7-rc.1 / Windows）
 >
@@ -7,9 +9,9 @@
 
 ---
 
-感谢这份报告——**根因定位完全正确，一行都没错**。`inject` 里的 `settingsScope`
-（你指的 `lib/client.js` 约 1220 行）和 `ctx.settingsScope.bind({ namespace: "trae" })`
-（约 1246 行）确实是问题所在，2.1.0 与 2.0.6 都是同一份代码。**v2.2.0 已修复并发布。**
+感谢这份报告——**根因定位完全正确，一行都没错**。`inject` 里的 `settingsScope` （你指的 `lib/client.js` 约 1220 行）和 `ctx.settingsScope.bind({ namespace: "trae" })` （约 1246 行）确实是问题所在，2.1.0 与 2.0.6 都是同一份代码。
+
+**v2.2.0 已修复并发布。**
 
 ## 你的诊断与我实测的一致
 
@@ -53,10 +55,9 @@
 第 2、3、4 条是我参照同作者的 `dsh-connect-workbuddy` 的实测记录核对的
 （那边已经用同一套适配跑通 0.1.7）；**第 5 条是我对照两条线 primitives 的实际导出发现的**。
 
-第 4 条值得单独说一句：0.1.7 的写入门要求插件把可写字段标为 volatile，否则**写入被直接拒绝**，
-但 `scope.set()` 的 promise 照样 resolve——所以是「看着保存成功、随后悄悄回滚」。
-现在加了 `asVolatile()`：运行时探测 `schema.volatile()`，有就调用、没有就退化为恒等 no-op
-（`volatile()` 自 schemastery 3.18.3 起才有，0.1.5 线锁在 3.18.2）。
+第 4 条值得单独说一句：0.1.7 的写入门要求插件把可写字段标为 volatile，否则**写入被直接拒绝**， 但 `scope.set()` 的 promise 照样 resolve——所以是「看着保存成功、随后悄悄回滚」。
+
+现在加了 `asVolatile()`：运行时探测 `schema.volatile()`，有就调用、没有就退化为恒等 no-op （`volatile()` 自 schemastery 3.18.3 起才有，0.1.5 线锁在 3.18.2）。
 
 顺带还修了两类静默失败：
 
@@ -91,10 +92,9 @@ npm install dsh-connect-trae@2.2.0
 新增的 `tests/client-activation.spec.tsx` 用真实 cordis `Context` **启动真实的客户端入口模块**，
 分别对 0.1.7 / 0.1.5 / 无设置面三种宿主形态断言 fiber 到达 `ACTIVE`。
 
-之所以专门写这个：仓库原有的 `client-fallback.spec.ts` 是**手工镜像**入口函数体的，
-验证的是「思路」而**从不执行真实的 `inject` 数组**——而恰恰是那个数组让你的 fiber 卡死，
-所以它一路绿灯。现在把 `inject` 改回含 `settingsScope`，这条测试立刻变红
-（fiber 停在 PENDING），精确复现了你报的现象。
+之所以专门写这个：仓库原有的 `client-fallback.spec.ts` 是**手工镜像**入口函数体的， 验证的是「思路」而**从不执行真实的 `inject` 数组**——而恰恰是那个数组让你的 fiber 卡死， 所以它一路绿灯。
+
+现在把 `inject` 改回含 `settingsScope`，这条测试立刻变红 （fiber 停在 PENDING），精确复现了你报的现象。
 
 测试总数 282 → 310，并在 schemastery 3.18.4（volatile 生效）与 3.18.2（no-op）下均通过。
 

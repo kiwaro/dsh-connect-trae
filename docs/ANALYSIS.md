@@ -1,6 +1,6 @@
 # WorkBuddy 与 Trae 接入分析日志
 
-> 本文是持续更新的研究记录。结论分为“代码已证实”和“待现场验证”，避免把推测写成事实。
+> 本文保存早期多轮研究过程，其中“当前”和“下一步”指各段记录时的状态。第一轮只有基础文档，后续已实现供应商注册和原生 SOLO 调用。`llm_utils_chat` 后来被证实可通过指定功能执行对话，见 [路线决策](SOLO_ROUTE_DECISION.md)。本文保留原始测试数量与测量值，此次没有重新执行历史请求。
 
 ## 1. 当前范围与版本
 
@@ -62,7 +62,7 @@ Cordis 加载插件
 
 ## 3. dsh-trae-api 已确认的问题与风险
 
-### 3.1 DSH 集成缺失（高优先级、已证实）
+### 3.1 DSH 集成缺失
 
 - `lib/index.js` 没有 `inject = ['llm']`。
 - 没有 `ctx.llm.registerAdapter()`。
@@ -95,7 +95,7 @@ Cordis 加载插件
 - 刷新互斥是布尔值：并发请求遇到刷新时，后续调用直接返回而不是等待同一个刷新 Promise。
 - 刷新失败只记录日志，调用方随后可能继续使用过期 token。
 
-### 3.5 Trae 请求身份不稳定（待现场验证，但代码风险明确）
+### 3.5 Trae 请求身份不稳定
 
 `src/trae-client.js` 每次请求都会随机生成新的 machine ID，再派生 device ID，同时硬编码 Windows、IDE 版本和版本码。若上游校验设备绑定、平台一致性或版本有效性，这会造成认证拒绝或风控。正确做法应优先读取 Trae 已持久化的真实设备标识，至少也应生成一次后稳定保存，而不是每次请求变化。
 
@@ -109,7 +109,7 @@ Cordis 加载插件
 
 不同语义端点通常需要不同请求结构和响应解析。当前实现没有 endpoint-specific adapter，因此所谓回退可能只是连续发送三个不兼容请求，并增加额度或风控风险。
 
-### 3.7 工具调用依赖提示词模拟，不是 Trae 原生结构化协议（高优先级、已证实）
+### 3.7 工具调用依赖提示词模拟
 
 - `toolsToSystemPrompt()` 把工具定义转成 `<tool_call>` 输出约定。
 - 历史 `tool_use/tool_result` 被扁平化成普通文本。
@@ -121,7 +121,7 @@ Cordis 加载插件
 
 ### 3.8 消息清洗可能破坏 DSH/Agent 语义（已证实）
 
-`cleanContent()` 使用宽泛正则删除 system-reminder、command 元信息、available tools 等内容。这可能删除 Harness/Claude Code 的安全约束、任务上下文或工具说明。目标 DSH provider 不应擅自清理宿主生成的系统内容，除非有可重复测试证明某个字段上游不接受。
+`cleanContent()` 使用宽泛正则删除 `system-reminder`、命令元信息及工具说明。这可能丢失 DSH 生成的安全约束与任务上下文。目标供应商应保留这些系统内容；需要调整具体字段时，先用可重复测试确认上游限制。
 
 ### 3.9 模型目录并非上游发现（已证实）
 
@@ -131,7 +131,7 @@ Cordis 加载插件
 
 - 默认 API key 是公开固定字符串 `trae-local-api`，对任何本机进程几乎不构成秘密。
 - 支持 `API_KEY=none` 完全关闭鉴权。
-- CORS 对 loopback origin 放行且使用 `Access-Control-Allow-Headers: *`，没有 WorkBuddy shim 的 Host、Origin、Content-Type、进程内随机 bearer 四重边界。
+- 跨域配置允许本机来源并使用 `Access-Control-Allow-Headers: *`，缺少 WorkBuddy 本地服务对请求来源、内容类型和进程内凭据的组合校验。
 - 新实现应使用每进程随机 secret，只让内部 adapter 知道；若保留对外 API，则必须作为独立、显式开启的功能设计。
 
 ### 3.11 流式取消和网络边界缺失（高风险、已证实）
@@ -163,7 +163,7 @@ src/index.ts
 src/auth.ts
   只读发现各 Trae edition 的 storage.json
   解密并规范化凭据
-  DSH_HOME 下保存插件自有刷新副本（原子、锁、0600）
+  DSH_HOME 下使用文件锁和原子写保存刷新副本，文件权限设为 0600
   稳定设备身份
 
 src/upstream.ts
@@ -219,7 +219,11 @@ src/catalog.ts
 
 ### 5.3 跨平台路径缺口
 
-`dsh-trae-api/src/trae-decrypt.js` 的路径函数只按 Windows `%APPDATA%` 组织目录；在 macOS 上会退回 `$HOME/AppData/Roaming/...`，与本机真实路径不符。虽然直接把正确目录传给 `decryptAuthData()` 可以成功，但 `initAuth()` 自动发现逻辑在 macOS 上无法依靠现有默认路径正确工作。这是本机可重复确认的失败根因之一。
+`dsh-trae-api/src/trae-decrypt.js` 的路径函数只按 Windows `%APPDATA%` 组织目录；在 macOS 上会退回 `$HOME/AppData/Roaming/...`，与本机真实路径不符。
+
+虽然直接把正确目录传给 `decryptAuthData()` 可以成功，但 `initAuth()` 自动发现逻辑在 macOS 上无法依靠现有默认路径正确工作。
+
+这是本机可重复确认的失败根因之一。
 
 ### 5.4 稳定设备身份取证
 
@@ -230,7 +234,9 @@ src/catalog.ts
 - `telemetry.sqmId`
 - `iCubeLastVersion`
 
-脱敏比较确认：每个 edition 的 `machineid` 文件均为稳定的 36 字节标识；`telemetry.devDeviceId` 也是 36 字符。新实现已改为优先读取 Trae 自己持久化的 `machineid` 和 `telemetry.devDeviceId`，不再像失败样本那样每次请求随机生成身份；只有缺失 device ID 时才从稳定 machine ID 确定性派生。
+脱敏比较确认：每个 edition 的 `machineid` 文件均为稳定的 36 字节标识；`telemetry.devDeviceId` 也是 36 字符。
+
+新实现已改为优先读取 Trae 自己持久化的 `machineid` 和 `telemetry.devDeviceId`，不再像失败样本那样每次请求随机生成身份；只有缺失 device ID 时才从稳定 machine ID 确定性派生。
 
 安装包 `product.json` 还确认本机 Trae CN：
 
@@ -283,7 +289,9 @@ src/catalog.ts
 - 真实设备类型为 `mac`，真实 machine ID 形态是64字符 telemetry hash；另一个 `x-device-id` 是账号/设备体系中的短数字标识，而不是失败项目随机生成的 SHA 截断值。
 - SSE 中确认出现 `progress_notice`；随后有 timing、thought/reasoning 与 first-token 记录。完整事件集合和 body 字段仍未在日志中完整暴露。
 
-这也修正了上一轮身份理解：Trae 根目录 `machineid` 是稳定身份来源之一，但主聊天 header 日志显示 `x-machine-id` 实际对应64字符的 `telemetry.machineId`。脱敏关系比较确认根目录36字符 `machineid` 与 `telemetry.machineId` 不相等，其 SHA-256 也不等于 telemetry 值；CN 与 SOLO CN 则共享同一个 telemetry machine/dev 值。实现已改为优先使用 `telemetry.machineId`，根目录 `machineid` 仅作缺失时兜底。
+这也修正了上一轮身份理解：主聊天日志中的 `x-machine-id` 对应 64 字符的 `telemetry.machineId`。实现已改为优先使用该值，根目录 `machineid` 仅在缺失时使用。
+
+脱敏比较确认，36 字符的 `machineid` 与 `telemetry.machineId` 不相等，其 SHA-256 也不同。当时 CN 与 SOLO CN 共享相同的 telemetry 设备值。
 
 `x-device-id` 的来源随后得到进一步确认：CN 与 SOLO CN 的 `storage.json` 都存在唯一的 `iCubeAuthInfo://icube-dc:<15位数字>` 键，键后缀与历史官方聊天日志中的 `x-device-id` 完全一致。键值本身仍是加密字符串，未被输出或写入文档。实现现已优先使用唯一 `icube-dc:<id>` 后缀作为 device ID，`telemetry.devDeviceId` 仅作兜底。
 
@@ -319,7 +327,7 @@ src/catalog.ts
 - function 与 config/model name
 - memory 开关
 - 已启用 skills
-- 大量历史/上下文（实际 body 约146KB）
+- 大量历史与上下文，请求体约 146KB
 
 这说明失败项目的 `{messages, model, function, stream, request_id, session_id}` 只可能是一个未经验证的简化猜测。当前 `buildTraeAgentTaskBody()` 仅作为差异测试草案，不能视为最小可用 schema。
 

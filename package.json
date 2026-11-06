@@ -1,7 +1,7 @@
 {
   "name": "dsh-connect-trae",
   "displayName": "DSH Connect Trae",
-  "description": "把本机登录的 Trae 模型接入 DeepSeek Harness：国内版与国际版双供应商并行，提供用量/积分概览与每日签到领取。",
+  "description": "把本机登录的 Trae 模型接入 DeepSeek Harness：国内版、企业版与国际版三供应商并行，提供用量/积分概览与每日签到领取。",
   "version": "4.9.0",
   "author": "dingminhua",
   "copyright": "Copyright (c) 2026 LaoDing",
@@ -33,6 +33,8 @@
   "files": [
     "lib",
     "icons",
+    "docs/MODULE-SPLIT-PLAN.md",
+    "docs/LOCAL-DEPLOYMENT.md",
     "docs/assets/dsh-connect-trae-usage-card.png",
     "docs/assets/dsh-connect-trae-sidebar-page.png",
     "scripts/verify-windows.mjs",
@@ -42,7 +44,9 @@
     "README.en.md",
     "CHANGELOG.md",
     "THIRD_PARTY_NOTICES.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/DOCUMENT-SYNC-AUDIT.md",
+    "docs/assets/dsh-connect-trae-composer-credits.png"
   ],
   "scripts": {
     "prepack": "npm run build",

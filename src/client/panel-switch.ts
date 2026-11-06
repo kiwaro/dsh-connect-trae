@@ -84,7 +84,7 @@ export function subscribeSidebarPanelWanted(listener: () => void): () => void {
  * Read the opt-in switch out of a settings snapshot.
  *
  * Only an explicit `true` is ON, matching the schema's `default(false)` and
- * every other switch this plugin owns: the row claims a GLOBAL sidebar seat
+ * the other opt-in capability switches: the row claims a GLOBAL sidebar seat
  * shared by every installed bundle, so an absent or malformed value must read
  * as "did not ask for this", never as consent.
  *

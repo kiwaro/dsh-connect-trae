@@ -21,7 +21,8 @@
 
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -141,7 +142,11 @@ console.log('\n[2] 插件能否从中解出账号（跑真代码的诊断路径�
 // reported "解出 1 个账号". Claiming Trae was found where none exists is the most
 // misleading output this script could produce, so each candidate is resolved
 // from its own path and nothing else.
-const OWN_SCRATCH = join(here, '..', '.verify-windows-unused.json')
+// accounts() mirrors a login into ownPath. Each candidate needs a separate
+// copy, otherwise a later missing path resolves an earlier candidate's login.
+const scratchRoot = mkdtempSync(join(tmpdir(), 'trae-windows-probe-'))
+process.once('exit', () => { rmSync(scratchRoot, { recursive: true, force: true }) })
+let candidateIndex = 0
 
 // Walk the candidates in the SAME order section [1] printed, so the report
 // explains every path that was tried. Going through the store per candidate —
@@ -164,7 +169,7 @@ for (const candidate of candidates) {
   const probe = new plugin.TraeCredentialStore({
     storagePath: candidate.path,
     edition: candidate.edition,
-    ownPath: OWN_SCRATCH,
+    ownPath: join(scratchRoot, `${candidateIndex++}.json`),
     refresh: async () => { throw new Error('verify-windows: refresh not needed') },
   })
   const found = await probe.accounts().catch(() => [])

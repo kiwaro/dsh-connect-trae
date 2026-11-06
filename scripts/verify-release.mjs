@@ -171,8 +171,8 @@ if (!tagExists) {
     `找不到 tag ${tag}。`,
     '',
     '核验的前提是「已发布的 tag 存在」。如果这个版本还没打 tag，请先按',
-    'RELEASING.md 第 4 步提交并打 tag；如果只想核查未发布的构建，用',
-    `  node ${relative(process.cwd(), fileURLToPath(import.meta.url))} --skip-npm`,
+    'RELEASING.md 核对发布步骤。--skip-npm 只跳过 registry 核验，仍要求 tag 存在。',
+    '本地未发布修改请执行类型检查、测试与构建，并核对实际部署文件的哈希。',
   ])
 }
 
