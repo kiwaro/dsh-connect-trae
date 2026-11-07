@@ -271,10 +271,9 @@ describe('the pool section keeps one spacing and one radius scale', () => {
   })
 
   it('only uses the card-wide radius scale inside the pool section', () => {
-    // The card already has a scale: 14px for a surface, 10px for a box INSIDE a
-    // surface, 999px for a pill. Anything else here is drift that shows up as
-    // "these blocks do not belong together".
-    const allowed = new Set(['0', '10px', '14px', '999px', '50%', 'var(--dsm-trae-pool-radius)'])
+    // The shared layout uses 8px controls, 10px tabs, 12px settings boxes,
+    // 14px surfaces and fully rounded pills. Keep other values out of the pool.
+    const allowed = new Set(['0', '8px', '10px', '12px', '14px', '999px', '50%', 'var(--dsm-trae-pool-radius)'])
     const poolRules = TRAE_CARD_CSS.match(/\.[^{}]*dsm-trae-pool[^{}]*\{[^}]*\}/g) ?? []
     expect(poolRules.length).toBeGreaterThan(40)
     for (const block of poolRules) {

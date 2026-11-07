@@ -1959,7 +1959,11 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
           )
         })}
       </div>
-      <p className="dsm-trae-tab-hint">{t('row.tabHint')}</p>
+      <div className="dsm-trae-region-summary">
+        <p className="dsm-trae-models-summary dsm-trae-tab-hint">{t('row.tabHint')}</p>
+        <p className="dsm-trae-models-summary">{t('row.tabCredentialHint')}</p>
+        <p className="dsm-trae-models-summary dsm-trae-free-quota-warn">{t('row.tabFreeQuotaWarn')}</p>
+      </div>
       {writeError === undefined
         ? null
         : <p className="dsm-trae-usage-error" role="alert">{t('row.settingsWriteFailed', { message: writeError })}</p>}
