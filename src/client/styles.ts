@@ -75,7 +75,7 @@ export const TRAE_CARD_CSS = `
  *
  * 下面两条原本是**无作用域**的：一条把供应商说明行视觉隐藏，一条把分栏条改成
  * sticky 并加一层底色。它们写的时候只想到设置面板那一列（564px、外壳自带滚动），
- * 但那两处 DOM 是**三个界面共用的**——卡片、整页、设置页画的是同一棵树。
+ * 卡片、整页和设置页共用这些 DOM，因此无作用域的规则会同时影响三个界面。
  *
  * 用 clip 而不是 display:none：display:none 会把它从无障碍树里摘掉，读屏用户
  * 就永远拿不到这条例外说明。视觉隐藏保留了它，且不占布局高度。
@@ -93,15 +93,15 @@ export const TRAE_CARD_CSS = `
  *
  * 但「不接管滚动」不等于「分栏条可以滚走」：账号池在折叠线以下，滚到那里时
  * 「模型 / 诊断」已经跟着滚出了视野，想切分栏只能先把整页滚回顶部。sticky 让它
- * 在任何滚动位置都留在顶部，代价只是 z-index 与一层不透明底色——否则滚上来的
- * 账号卡片会从字缝里透出来（外壳的 layer-2 正是这一列自己的底色）。
+ * 在滚动时留在顶部。分栏条需要设置 z-index 和不透明底色，以免下方的
+ * 账号卡片从文字之间透出。背景色使用这一列原有的 layer-2。
  *
  * top:-1px 而不是 0：分栏条自己的 border-bottom 画在盒子外侧，写成 0 会在它上方
  * 留一条 1px 的缝，滚动的行会从这条缝里露出来。 */
 .dsm-trae-panels{display:flex;align-items:stretch;gap:2px;margin:4px 0 0;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.24))}
 /* 分栏条只在设置面板里钉住（见上方 .dsm-trae-tab-hint 的长注释：这两条原本无
  * 作用域，在卡片上留下两个回归）。卡片与整页没有"外壳的滚动列"，那里的分栏条
- * 跟着内容正常滚走即可；sticky 在没有滚动祖先时不会生效，却会把底色带进来——
+ * 跟随内容滚动。没有滚动祖先时 sticky 不起作用，但背景色仍会生效，
  * 而底色取 layer-2，卡片本身是 layer-3，色差在卡片上就成了一条浅色带。 */
 .dsm-trae-section .dsm-trae-panels{position:sticky;top:-1px;z-index:2;background:var(--dsw-alias-bg-layer-2,#24262c)}
 .dsm-trae-panel-tab{appearance:none;font:inherit;cursor:pointer;border:0;background:transparent;padding:7px 11px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--dsw-alias-label-tertiary,#999);font-size:13px;font-weight:600;line-height:20px;white-space:nowrap;transition:color .15s,border-color .15s}
@@ -737,8 +737,8 @@ export const TRAE_CARD_CSS = `
  * ~144px，实测账号名列 = 76px。
  *
  * 一个阈值，不是两个。中间再插一档「稍微窄一点就少一列」是没有价值的分支：
- * 设置面板那一列正好落在中档里，用户会拿到一个表头对不上的 2×2 网格。表格没有
- * 「稍微窄」的形态值得保留——要么放得下这些列，要么放不下。
+ * 设置面板那一列正好落在中档里，会形成与表头不对应的 2×2 网格。
+ * 因此只根据这些列能否放下决定何时折行。
  *
  * 放不下的时候，每行变成一张**堆叠卡片**：同样是那五个事实，宽的时候从左往右
  * 读，现在从上往下读。这是让窄行可读而不只是能塞下的关键。
@@ -761,7 +761,7 @@ export const TRAE_CARD_CSS = `
    * 这一条是最容易漏掉的：.dsm-trae-pool-probe 只是个 min-width:0 的外层包装，
    * 真正竖排的是它内部的 .dsm-trae-pool-probe-cell（flex-direction:column）。
    * 只改外层包装的话，状态列仍然一句一行，被挤成「正常 / 测得 3 天前 / 来自测速 /
-   * upstream answered」四行——旁边只有 12px 间距，整行高度就被这一格撑到 100px
+   * upstream answered」四行。旁边只有 12px 间距，这一格会将整行高度撑到 100px
    * 以上，账号名也跟着被压窄（实测截成前几个字符「用户7」）。
    *
    * 改成横排并允许在自己内部换行：这四个事实读起来本来就是一句话
@@ -771,7 +771,7 @@ export const TRAE_CARD_CSS = `
   /* THE ACCOUNT CELL'S OWN GRID, collapsed the same way.
    *
    * 宽的时候它是个三行网格（名字 / 标签 / 探针时间），第一列固定给勾选框。
-   * 在窄列里这三行没有理由继续各占一行——它们本来就是一句话
+   * 窄列中将这三项改为同行显示，它们共同说明同一账号的状态
    * （「demo-usr · 已在池中 · 测试于 11/03, 06:35」），横排后名字与这两条短事实
    * 共享一行，只有真的放不下时才折行。勾选框仍然排在最前，并保持垂直居中对齐
    * 到第一行基线（align-self:baseline 会让它沉到行底）。 */
@@ -826,7 +826,7 @@ export const TRAE_CARD_CSS = `
 /* 页头两行：标题一行，简介一行（learned from workbuddy 5.19.0）。
  *
  * 原来是 18px/600 的大标题加一行 13px 说明，在 564px 的列里要占 70px。压到
- * 15px/22px 的标题加 12px/18px 的说明后是 60px，省下的 10px 直接给了账号池——
+ * 15px/22px 的标题加 12px/18px 的说明后是 60px，账号池因此增加 10px 可用空间。
  * 而面板本身已有一层标题栏，「设置」已经写在最上面，这里再喊一遍大标题是本插件
  * 自己的第二层标题，不是外壳的。
  *

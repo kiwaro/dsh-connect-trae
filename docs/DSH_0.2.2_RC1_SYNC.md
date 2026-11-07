@@ -71,7 +71,7 @@ src/adapter.ts(545,9): error TS2739: Type '{ … }' is missing the following pro
 
 ### 3.2 根因
 
-本插件**不走** `dsh-llm-pi-ai` 的配置解析（`resolveProfiles`）——它从实时 Trae 目录手工构造
+本插件从实时 Trae 目录构造配置，不使用 dsh-llm-pi-ai 的 resolveProfiles 解析。插件构造的
 `ResolvedPiAiProviderProfile` 直接交给 `PiAiAdapter`。宿主新增的默认值只发生在配置解析路径，
 所以：
 

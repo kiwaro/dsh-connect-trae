@@ -165,7 +165,7 @@ export class TraeImageClient {
     // 取图使用 2026-10-26 实测的接口，先把 tos key 换成
     // byteimg 签名地址（get_resource_url 的 {uri_list:[key]}），再直接 GET 那个
     // 地址拿字节（实测 image/jpeg、1,155,578 字节、头 ffd8ffe0）。
-    // 注意**不是**同路径那条 ?prompt=&image_size= 的 GET——那才是又一次生成
+    // 同路径的 ?prompt=&image_size= GET 会再次生成图片，因此下载时不能使用该请求
     // （回新 uri、27 秒、零像素、多扣一张），已彻底停用。
     const signed = await this.resolveSignedUrl(account, outcome.url, requestSignal)
     const image = await this.download(signed, requestSignal, outcome.url)
@@ -471,7 +471,7 @@ export function createTraeDrawImageTool(deps: TraeImageToolDeps): TraeToolDefini
         const hint = asNonEmptyString(record['hint']) ?? ''
         // 只有真落盘了才画 ![](...)：path 是相对会话工作目录的文件路径，DSH 的聊天
         // 按 session cwd 解析它、再过 api/file 鉴权路由取字节，所以能显示。
-        // url 是 tos 对象 key，拼进 markdown 只会得到碎图标——那种情况只给行内代码。
+        // url 是 tos 对象 key，无法作为图片链接显示，因此仅以行内代码展示。
         const lines = path === ''
           ? ['图片已生成，但字节没取回来（只有对象 key）：`' + url + '`']
           : ['![Trae 文生图](' + path + ')']

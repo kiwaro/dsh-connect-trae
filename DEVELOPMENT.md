@@ -103,7 +103,7 @@ DshProject/
 
 改动时的强制检查项：
 
-1. **新增路径解析必须带平台分支**，且 Windows 分支要用多候选拼写探测——目录名未在真机验证，猜错只多一次失败的 `readFile`，漏猜则用户直接看不到登录。
+1. **新增路径解析必须包含平台分支**。Windows 的目录拼写未经真机验证时，应保留多个候选并逐一探测；缺少正确候选会导致插件无法发现登录账号。
 2. **不得用仅大小写不同的重复候选**：Windows 文件系统不区分大小写，`trae cn` 与 `Trae CN` 是同一个目录。
 3. 新增外部程序或 POSIX 专有能力依赖时，先确认 Windows 行为，再提供失败时的替代处理，并在 README「Windows 说明」登记限制。例如新增 `sqlite3` 依赖前应核对 Windows 是否安装该程序。
 4. **CI 必须在 `windows-latest` 上通过**（`.github/workflows/ci.yml` 已配置 `ubuntu-latest` + `windows-latest` 双平台矩阵）。新增测试若只覆盖 POSIX 语义，等于没有验证 Windows。

@@ -1811,8 +1811,8 @@ export function apply(ctx: Context, config: Config): void {
   // 会话 cwd 解析它。宿主的 ToolExecution 不填 `cwd`（4.15.x 仍标 Reserved），
   // `agent.session.cwd` 这个字段不存在，`agent.session.header.cwd` 又只是创建时
   // 目录（/cd 之后就不对）。宿主的 dsh-tool-* 一律走
-  // `ctx.workingDirectory.ensure(exec.agent, exec.signal)`——它读 session
-  // projection `workingDirectory`（实时目录），并顺手确认目录还在——这里照抄。
+  // `ctx.workingDirectory.ensure(exec.agent, exec.signal)`。该调用读取 session
+  // projection 的 workingDirectory 实时目录，并确认目录仍存在。此处采用相同调用。
   //
   // 用 ctx.inject 等这个服务出现（它可能晚于本行），而不是采样一次：采不到就
   // 等于没有，图又会落到宿主进程 cwd 里。宿主不给这个服务时保持 undefined，

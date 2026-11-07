@@ -19,7 +19,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TraeUsageCard } from '../src/client/TraeUsageCard.tsx'
-import type { TraeSettingsKey } from '../src/client/locales.ts'
+import { zh, en, type TraeSettingsKey } from '../src/client/locales.ts'
+import { promoBadge } from '../src/client/trae-model-display.tsx'
 import { parseTraeActivityDiscount, type TraeActivityDiscount } from '../src/promo.ts'
 import { TRAE_USAGE_PATH, withTraeRegion } from '../src/status-paths.ts'
 import type { TraeWebModel } from '../src/status-paths.ts'
@@ -232,5 +233,29 @@ describe('TraeUsageCard promotion capsule', () => {
     expect(capsules).toHaveLength(1)
     // The upstream verdict outranks a locally computed window.
     expect(capsules[0]?.className).toContain('dsm-trae-model-promo-subsidy')
+  })
+})
+
+
+describe('优惠倍率说明', () => {
+  it('区分专属补贴倍率与会员条件，不标为每百万 token 的积分价格', () => {
+    const activityDiscount = rule({ enable: true, subKey: 'subsidy_member_discount', data: {
+      current: { discount_type: 'subsidy', before_consumption_rate: 0.12, consumption_rate: 0.06, discount: 50 },
+      member: { before_consumption_rate: 0.12, after_consumption_rate: 0.03, discount: 25 },
+    } })
+    for (const copy of [zh, en]) {
+      const translate = ((key: TraeSettingsKey, params?: Record<string, unknown>) =>
+        copy[key].replace(/\{(\w+)\}/g, (_m, name: string) => String(params?.[name] ?? ''))) as never
+      const { container, unmount } = render(<>{promoBadge(model('Seed-Code', { activityDiscount }), translate, new Date())}</>)
+      const chip = container.querySelector('span')!
+      const hint = chip.title
+      expect(hint).toContain('0.12')
+      expect(hint).toContain('0.06')
+      expect(hint).toContain('0.03')
+      expect(hint).not.toMatch(/百万|Mtoken/)
+      expect(chip.textContent).toMatch(/专属补贴|Subsidy/)
+      expect(hint).toMatch(/符合会员优惠条件|eligible members/)
+      unmount()
+    }
   })
 })

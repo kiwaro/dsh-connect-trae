@@ -18,7 +18,7 @@
 /** Which kind of promotion a badge reports. Derived from upstream's `subKey`. */
 export type TraePromoKind = 'limited' | 'subsidy' | 'offPeak'
 
-/** One price pair, as upstream published it. Rates are credits per Mtoken. */
+/** One price pair, as upstream published it. Rates are credit consumption multipliers, not token unit prices. */
 export interface TraePromoPrice {
   /** Undiscounted rate. */
   beforeRate?: number

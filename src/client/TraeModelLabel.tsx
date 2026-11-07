@@ -326,7 +326,7 @@ function PromoChip(props: { badge: TraePromoBadge, copy: Record<TraeSettingsKey,
         background: tone.background,
         // A menu row is one line wide: the chip may shrink, its text may not
         // wrap, and the ellipsis keeps a long "限时 5 折" from pushing the row.
-        maxWidth: '6em',
+        maxWidth: '10em',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
       }}

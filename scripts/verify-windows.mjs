@@ -1,17 +1,16 @@
 /**
- * Windows 真机验证脚本 —— 直接跑本插件的**构建产物**，不是重写一份逻辑。
+ * Windows 真机验证脚本，直接调用本插件的构建产物。
  *
  * 为什么必须跑真产物：本仓库的单元测试只能证明「代码在 Windows 上不崩」，
  * 因为 CI 的 windows-latest 上并没有装 Trae。真机验证要回答的是另一个问题：
- * 「这台机器上的 Trae 登录文件，插件到底读不读得到」——只有把真机上的真实
- * 文件交给真代码才成立。
+ * 本机 Trae 登录文件是否可由插件读取。该结论需要使用本机文件调用实际构建产物验证。
  *
  * 用法（在 Windows 上，装好插件或 clone 本仓后）：
  *
  *   node scripts/verify-windows.mjs
  *
  * 安全性：本脚本只输出**脱敏后的路径、形态描述与判定结果**。
- * 它不会打印 token、refreshToken、密文原文、真实账号名或设备号 —— 用户名
+ * 输出不包含 token、refreshToken、密文原文、真实账号名或设备号。用户名
  * 一律替换为 `<user>`，账号名与设备号只给长度/是否纯数字。可以放心把输出
  * 贴到公开 issue。
  *
@@ -208,7 +207,7 @@ for (const candidate of candidates) {
 check('解出至少一个账号', accounts.length > 0,
   accounts.length === 0
     ? (foundDesktop.length + foundCli.length > 0
-      ? '找到了登录文件但解不出账号 —— 多半是加密 header 变了，见下'
+      ? '已找到登录文件，但无法解密账号。请结合下方信息检查加密格式是否变化'
       : '没有任何登录文件，因而不可能解出账号（与上一项一致）')
     : `${accounts.map((a) => `${describeNameShape(a.accountName)} (${a.edition}/${a.region})`).join(', ')}  ← ${maskUserPath(hitPath.path)}`)
 
@@ -219,8 +218,8 @@ if (accounts.length > 0) {
   try {
     const { resolveTraeIdentity, readTraeCliIdentity, identityHeaders } = plugin
     // 桌面候选优先；没有则回退 CLI 候选（WSL2 / traecli 的常见形态）。
-    // 两条路都走 resolveTraeIdentity——它本来就把 CLI 兜底封装在内，这里只是
-    // 把它指向正确的候选，而不是自己重写一遍回退逻辑。
+    // 桌面候选使用 resolveTraeIdentity，只有 CLI 候选时使用 readTraeCliIdentity。
+    // 两种文件格式分别解析，避免将 CLI 文件误当作桌面 storage.json。
     const desktopCandidate = candidates.find((item) => existsSync(item.path) && item.source === 'desktop')
     const cliCandidate = candidates.find((item) => existsSync(item.path) && item.source === 'cli')
     const picked = desktopCandidate ?? cliCandidate
@@ -247,7 +246,7 @@ if (accounts.length > 0) {
       const deviceId = String(headers['x-device-id'] ?? '')
       const deviceShape = describeIdShape(deviceId)
       console.log(`    x-device-id   : ${deviceShape}`)
-      console.log(`    x-app-version : ${headers['x-app-version'] ?? (desktopCandidate === undefined ? '(未发送 —— CLI 候选未提供)' : '(未发送 —— product.json 没读到)')}`)
+      console.log(`    x-app-version : ${headers['x-app-version'] ?? (desktopCandidate === undefined ? '(CLI 候选未提供版本号，因此未发送)' : '(未读到 product.json 版本号，因此未发送)')}`)
       // 这两条断言的是「本机就是 Windows」。在别的平台上跑脚本时它们必然失败，
       // 那是预期结果而非缺陷，故补一句说明，避免读者误判成兼容性问题。
       const onWindows = process.platform === 'win32'
@@ -256,7 +255,7 @@ if (accounts.length > 0) {
       check('x-os-version 以 Windows 开头', String(headers['x-os-version']).startsWith('Windows'), `${String(headers['x-os-version'])}${platformNote}`)
       check('x-device-id 非空', deviceId !== '', deviceId === '' ? '设备号为空，签到与聊天都会受影响' : deviceShape)
       // 桌面版从 product.json 取 appVersion，CLI 从 ide_version.json 取。所以
-      // 「没读到」对 CLI 候选是另一件事，不能按桌面版的结论去报——否则 CLI
+      // 「没读到」对 CLI 候选是另一件事，须区分桌面版与 CLI 的错误说明，否则 CLI
       // 用户会被引去查一个根本不存在的 product.json。
       const appVersionNote = headers['x-app-version'] === undefined
         ? (desktopCandidate === undefined
@@ -267,7 +266,7 @@ if (accounts.length > 0) {
       // 签到都不受影响（已在上游验证过）。把它计入 failures 会让一份完全可用
       // 的机器报「未通过」，那正是最容易被误读成「Windows 不支持」的结果。
       if (headers['x-app-version'] === undefined) {
-        console.log(`    [INFO] 未发送 x-app-version — ${appVersionNote}`)
+        console.log(`    [INFO] 未发送 x-app-version：${appVersionNote}`)
       } else {
         check('读到了 x-app-version', true, appVersionNote)
       }
@@ -285,11 +284,10 @@ if (accounts.length > 0) {
 // 退出码反映「这台机器是否真的可用」，以便脚本能进自动化：
 //   0 = 全部通过
 //   1 = 有真实失败
-//   2 = 未通过，但失败全部来自「不是在 Windows 上跑」——不算机器的错
+//   2 = 存在失败且当前为非 Windows 平台，按不适用处理
 //
 // 区分 0/2 很重要：本脚本检查的是「Windows 上能不能读到 Trae」，所以在
-// macOS / Linux 上跑，失败是必然的——那里既没有 %APPDATA%\Trae CN，平台断言
-// 也不成立。一律返回 1 会让 CI 或批量巡检把这种预期失败当成真问题；一律返回 0
+// macOS / Linux 上运行时，Windows 路径及平台断言不适用。一律返回 1 会让 CI 或批量巡检把这种预期失败当成真问题；一律返回 0
 // 又让脚本无法用于判断。故非 Windows 主机上的失败统一记为「不适用」(2)。
 const platformOnly = failures > 0 && process.platform !== 'win32'
 

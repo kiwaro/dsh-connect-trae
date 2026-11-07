@@ -121,10 +121,7 @@ export function promoBadge(
     hints.push(t('row.promoHintWindow', { from: badge.fromClock, until: badge.untilClock, zone: badge.timeZone }))
   }
   if (badge.memberDiscountPercent !== undefined && badge.memberRate !== undefined) {
-    // Only reached when the member price is actually LOWER than the one above
-    // (`src/promo.ts` compares the two post-discount rates). Both phrasings are
-    // passed: zh spells "会员价 {rate} 积分/百万 token（{zhe} 折）", en says
-    // "({percent}% off)", and each uses the placeholders it names.
+    // 会员倍率低于当前倍率时才显示，说明适用条件，避免误认为当前账号已享受。
     hints.push(t('row.promoHintMember', {
       rate: String(badge.memberRate),
       zhe: promoZhe(badge.memberDiscountPercent),

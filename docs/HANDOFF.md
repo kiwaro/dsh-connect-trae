@@ -202,7 +202,7 @@ dsh plugin --profile desktop add /Users/<user>/DshProject/dsh-connect-trae
 
 待用户确认的步骤（涉及运行中DSH Desktop、desktop profile修改与Trae额度消耗）：
 
-- ② 以`link:`方式安装当前项目到desktop profile —— **已完成**（正式CLI安装，未重启、未对话）。
+- ② 以 link: 方式安装当前项目到 desktop profile：**已完成**（正式CLI安装，未重启、未对话）。
 - ③ 重启DSH Desktop（会中断当前运行中的应用）。
 - ④ 确认模型选择器出现Trae模型。
 - ⑤ 通过DSH选择`trae / DeepSeek-V4-Flash`完成短对话（消耗Trae额度）。

@@ -241,7 +241,7 @@ describe('the model label in the host picker', () => {
       await waitFor(() => {
         expect(container.querySelector('.dsm-trae-model-label-promo')).not.toBeNull()
       })
-      expect(container.querySelector('.dsm-trae-model-label-promo')?.textContent).toBe('5 折')
+      expect(container.querySelector('.dsm-trae-model-label-promo')?.textContent).toBe('专属补贴 5 折')
     } finally {
       Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true })
     }

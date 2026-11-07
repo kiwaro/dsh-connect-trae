@@ -1,7 +1,7 @@
 /**
  * Trae 文生图的纯逻辑层：请求体、响应解析、尺寸校验、取图地址解析、SSE 帧。
  *
- * 与 dsh-connect-workbuddy 的 image-gen.ts 同一分工——本文件只做纯函数与
+ * 本文件与 dsh-connect-workbuddy 的 image-gen.ts 分工一致，只提供纯函数与
  * 常量，不发网络请求；网络与工具注册在 image-tool.ts。
  *
  * 协议事实来自 2026-10-25 对 Trae CN 账号的活体探测（tests/live-probe*.spec.ts，
@@ -18,7 +18,7 @@
  *   - 同一路径的 GET（?prompt=<P>&image_size=<S> + x-ide-sign 头）**不是取图**，
  *     而是又一次生成：2026-10-26 决定性实测，同一 (prompt, size) 紧接着 GET，
  *     回来的是另一个 uri、耗时 27 秒、零像素（等于多扣一张）。曾为它写下的
- *     traeImageFetchUrl / computeTraeIdeSign / traeImageSignFields 与签名盐已删除——
+ *     traeImageFetchUrl / computeTraeIdeSign / traeImageSignFields 与签名盐已删除。
  *     取图跟 prompt 没有任何关系。
  *   - 取图分两步，不再发起生成请求（同日实测未观察到额外积分消耗）：POST
  *     /api/ide/v1/get_resource_url { uri_list: [<tos key>] } →
@@ -127,7 +127,7 @@ export function buildTraeImageBody(input: TraeImageRequestInput): TraeImageReque
  * uri → 可下载 URL 的解析端点。2026-10-26 活体确认：body 必须正是
  * `{ uri_list: [<tos key>] }`；其它所有形态（{uri}、{path}、{resource_uri}、
  * {uris:[…]}、{resources:[…]}、{scene:'report',uri}、GET ?uri=）都回
- * HTTP 200 + 空 url_map——不报错，只是什么都不给。
+ * HTTP 200，但 url_map 为空，无法取得下载地址。
  */
 export const TRAE_RESOURCE_URL_PATH = '/api/ide/v1/get_resource_url'
 
@@ -228,8 +228,8 @@ function findCredit(node: unknown, depth = 0): number | undefined {
  * 解析 tool_text_to_image 的扁平 JSON 应答。
  *
  * 实测形态：成功 {message:"success", uri:"…"}；失败 {code:3003, message:"…"}。
- * code 存在且非 0 → UPSTREAM（原样抛出 code/message——余额不足、风控、
- * Ark 参数错误全靠它浮出）；无 code 但 uri 缺失 → EMPTY_RESULT。
+ * code 存在且非 0 时抛出 UPSTREAM，并保留 code/message，以显示余额不足、风控和
+ * Ark 参数错误等原因。无 code 且缺少 uri 时，抛出 EMPTY_RESULT。
  */
 export function parseTraeImageResponse(json: unknown): TraeImageOutcome {
   const record = (json !== null && typeof json === 'object' ? json : {}) as Record<string, unknown>

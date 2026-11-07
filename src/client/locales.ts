@@ -293,11 +293,11 @@ export const en = {
   // label, so this wording is the plugin's own: it reports what upstream did
   // say — the ratio, and 限时 only where `limited_discount` says so.
   'row.promoLimited': 'Limited {percent}% off',
-  'row.promoSubsidy': '{percent}% off',
+  'row.promoSubsidy': 'Subsidy {percent}% off',
   'row.promoOffPeak': 'Off-peak {percent}% off',
-  'row.promoHintRate': 'was {before} credits/Mtoken, now {rate}',
+  'row.promoHintRate': 'Credit consumption multiplier: {before} before the promotion, {rate} now.',
   'row.promoHintWindow': 'off-peak hours {from}–{until} ({zone})',
-  'row.promoHintMember': 'subscription price is {rate} credits/Mtoken ({percent}% off)',
+  'row.promoHintMember': 'For eligible members, the credit consumption multiplier is {rate} ({percent}% off the original multiplier).',
   'row.modelEnabled': 'Enabled',
   'row.discard': 'Discard changes',
   'row.save': 'Save',
@@ -525,9 +525,7 @@ export const zh: Record<TraeSettingsKey, string> = {
   "row.tabSwitchHint": "关闭此开关后，插件会从模型列表中隐藏该区域的模型，并保留账号和设置。再次打开开关即可恢复。",
   "row.tabSwitchAria": "启用{region}模型",
   "row.tabOffNotice": "该区域已关闭，账号和设置已保留。勾选上方开关可恢复模型。",
-  // 分栏：卡片自己的顶层切分（账号 / 模型 / 诊断）。上面那排地区是「作用域」——
-  // 整张卡片讲的是哪个供应商——而这一排是同一份文档的分栏，所以文案说的是
-  // 「栏」，不是「供应商」。
+  // 区域页签选择供应商；下方分栏分别管理该供应商的账号、模型和诊断信息。
   "row.panelAria": "卡片分区",
   'row.panelAccounts': '账号',
   'row.panelModels': '模型',
@@ -551,8 +549,7 @@ export const zh: Record<TraeSettingsKey, string> = {
   'row.diagRawOff': '未检测',
   "row.diagFailures": "最近一次失败",
   "row.diagNoFailures": "没有报错。",
-  // 被隔离的账号副本：读不懂的副本文件被改名留存，而不是被抹掉。这一行
-  // 告诉用户「你记得的那个账号去哪了」——它只可能在那份留存文件里。
+  // 插件将无法读取的账号副本改名留存。诊断栏显示留存位置，便于用户排查账号缺失。
   'row.diagQuarantine': '损坏副本留存',
   'row.diagQuarantineNone': '无',
   'row.diagHint': "这里显示本面板最近一次刷新得到的状态，可用于问题反馈；分享前请隐去账号标识和本机路径中的个人信息。",
@@ -745,8 +742,8 @@ export const zh: Record<TraeSettingsKey, string> = {
   'row.expiryEarliest': '最早到期：{time}',
   'row.settingsDirty': '有未保存的修改',
   'row.modelsTestEmpty': '请先启用至少一个模型。',
-  // 整区上下文批量切换（issue #42 附带需求）：每行的单选照旧，这两个按钮一次作用于
-  // 整个面板的草稿——报告者数了 18 个 Max 模型要点 18 次，现在一次搞定。
+  // 批量上下文按钮修改当前面板的模型草稿，逐行选择仍然可用。
+  // issue #42 中有 18 个 Max 模型，批量操作可减少重复选择。
   'row.contextAllMid': '整区切到 500K',
   'row.contextAllMidHint': "将本面板中 Max 窗口不小于 500K 的模型设为 500K 上下文预算，其余模型保持原值；点击「保存」后生效。",
   'row.contextAllMax': '整区切到 Max',
@@ -761,14 +758,14 @@ export const zh: Record<TraeSettingsKey, string> = {
   'row.probeRateLimited': '被限流',
   'row.probeAuth': '登录凭据被拒',
   'row.probeUnknown': '本次未测出',
-  // 活动徽标（src/promo.ts）。Trae 只给「付款比例」，不给文案，所以这几个字是插件
-  // 自己的说法：只把上游给的事实说出来——比例，以及只有 `limited_discount` 才有的「限时」。
+  // 活动徽标根据 src/promo.ts 的付款比例生成。
+  // 仅在上游提供 limited_discount 时标注「限时」，避免推断活动期限。
   'row.promoLimited': '限时 {zhe} 折',
-  'row.promoSubsidy': '{zhe} 折',
+  'row.promoSubsidy': '专属补贴 {zhe} 折',
   'row.promoOffPeak': '闲时 {zhe} 折',
-  'row.promoHintRate': '原价 {before} 积分/百万 token，现价 {rate}',
+  'row.promoHintRate': '积分消耗倍率从 {before} 倍降至 {rate} 倍。',
   'row.promoHintWindow': '闲时时段 {from}–{until}（{zone}）',
-  'row.promoHintMember': '会员价 {rate} 积分/百万 token（{zhe} 折）',
+  'row.promoHintMember': '符合会员优惠条件时，积分消耗倍率为 {rate} 倍，相当于原倍率的 {zhe} 折。',
   'row.modelEnabled': '启用模型',
   'row.discard': '放弃修改',
   'row.save': '保存',
