@@ -1736,6 +1736,11 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
           Rendered only while signed in: a signed-out card is one screen
           of instructions, and a tab that hides the only thing it has to
           say would be worse than no tab. */}
+      <div className="dsm-trae-region-summary">
+        <p className="dsm-trae-models-summary dsm-trae-tab-hint">{t('row.tabHint')}</p>
+        <p className="dsm-trae-models-summary">{t('row.tabCredentialHint')}</p>
+        <p className="dsm-trae-models-summary dsm-trae-free-quota-warn">{t('row.tabFreeQuotaWarn')}</p>
+      </div>
       {signedIn
         ? <div className="dsm-trae-panels" role="tablist" aria-label={t('row.panelAria')}>
             <button
@@ -1791,9 +1796,6 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
            see or change. */
         hidden={signedIn && panel !== 'accounts'}
       >
-        <p className="dsm-trae-models-summary">{t('row.tabHint')}</p>
-        <p className="dsm-trae-models-summary">{t('row.tabCredentialHint')}</p>
-        <p className="dsm-trae-models-summary dsm-trae-free-quota-warn">{t('row.tabFreeQuotaWarn')}</p>
         <TraeAccountPanel
           t={t}
           settingsScope={settingsScope}
