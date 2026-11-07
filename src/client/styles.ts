@@ -895,7 +895,7 @@ export const TRAE_CARD_CSS = `
  * browser's default button box, and the panel, without `position: fixed`, had
  * its inline left/top ignored and rendered nowhere useful.
  *
- * `tests/composer-styles.spec.tsx` now asserts that every class this component
+ * `tests/composer-styles.spec.tsx` + seriesLayoutCss('trae') now asserts that every class this component
  * renders has a rule here, so a rule cannot go missing without a test failing.
  */
 export const COMPOSER_POINTS_CSS = `
@@ -1151,4 +1151,4 @@ export const COMPOSER_POINTS_CSS = `
   color:var(--dsw-alias-label-tertiary,GrayText);
 }
 .dsm-trae-expiry-detail{font-size:11px;line-height:16px;opacity:.85}
-` + seriesLayoutCss('trae')
+`
