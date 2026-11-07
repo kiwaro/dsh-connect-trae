@@ -5,6 +5,14 @@
  */
 
 export const en = {
+  "row.poolAutoCheckinDeviceHint": "Trae limits daily rewards per device, so some members may not receive a reward.",
+  "row.checkinStatusError": "Could not read today's check-in status: {message}",
+  "row.poolAutoCheckinDeviceDone": "Today: this device has reached its daily reward limit.",
+  "row.poolAutoCheckinRetry": "Today: {count} accounts checked in. Failed requests will retry automatically.",
+  "row.poolAutoCheckinProgress": "Today: {count} accounts checked in.",
+  "row.poolAutoCheckinWaiting": "Waiting for the next background check.",
+  "row.poolAutoCheckin": "Check in automatically each day",
+  "row.poolAutoCheckinHint": "Enable and save to claim daily rewards for selected domestic personal accounts while DSH is running. After a restart, the plugin checks today's progress before processing remaining accounts. Failed attempts retry automatically.",
   'row.title': 'Trae credits & models (dsh-connect-trae)',
   'row.desc': 'Use Trae models in DSH and see your remaining credits; the domestic and international sides are two independent providers, each with its own account — use both at the same time.',
   'row.expand': 'Expand',
@@ -492,6 +500,14 @@ export const en = {
 export type TraeSettingsKey = keyof typeof en
 
 export const zh: Record<TraeSettingsKey, string> = {
+  "row.poolAutoCheckinDeviceHint": "Trae 限制每台设备的每日奖励，部分成员可能无法领取。",
+  "row.checkinStatusError": "无法读取今日签到状态：{message}",
+  "row.poolAutoCheckinDeviceDone": "今日：本机的每日奖励领取次数已用完。",
+  "row.poolAutoCheckinRetry": "今日：{count} 个账号已签，失败的请求将自动重试。",
+  "row.poolAutoCheckinProgress": "今日：{count} 个账号已签。",
+  "row.poolAutoCheckinWaiting": "等待下一次后台检查。",
+  "row.poolAutoCheckin": "每天自动签到",
+  "row.poolAutoCheckinHint": "开启并保存后，插件在 DSH 运行期间每天为所选国内版个人账号领取签到奖励。重启后，插件先检查当天的签到进度，再处理尚未签到的账号。失败时自动重试。",
   'row.title': '接入使用Trae积分与模型（dsh-connect-trae）',
   'row.desc': '在 DSH 中使用 Trae 模型并随时查看剩余积分；国内版与国际版是两个独立供应商，各有自己的账号，可同时使用。',
   'row.expand': '展开',

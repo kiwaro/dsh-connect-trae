@@ -6,6 +6,8 @@
  */
 
 export const TRAE_CARD_CSS = `
+.dsm-trae-pool-auto-checkin{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.dsm-trae-pool-auto-checkin-status{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#999)}
 .dsm-plugin-card{border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-3,#202126);border-radius:12px;list-style:none;transition:border-color .16s,background .16s}
 .dsm-plugin-card:hover{border-color:var(--dsw-alias-label-dimmed,#777)}
 .dsm-plugin-card-open{background:var(--dsw-alias-bg-layer-2,#25262b);border-color:var(--dsw-alias-label-dimmed,#777)}

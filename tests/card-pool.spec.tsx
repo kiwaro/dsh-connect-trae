@@ -1194,3 +1194,19 @@ describe('the probe column says one thing', () => {
     expect(within(poolRow('AccA')).getByText('row.poolProbeSourceLive')).toBeTruthy()
   })
 })
+
+
+describe('daily automatic check-in preference', () => {
+  it('saves the opt-in and preserves membership without enabling billing selection', async () => {
+    const { scope } = makeScope(regionsOf({ enabled: false, memberAccountIds: ['acc-a'] }))
+    renderPool({ ...basePool({ enabled: false }), autoCheckin: false }, scope)
+    const toggle = screen.getByRole('checkbox', {name: 'row.poolAutoCheckin'})
+    expect((toggle as HTMLInputElement).checked).toBe(false)
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', {name: 'row.poolSaved'}))
+    await waitFor(() => expect((scope.getSnapshot().value as any).regions.cn.pool.autoCheckin).toBe(true))
+    const saved = (scope.getSnapshot().value as any).regions.cn.pool
+    expect(saved.enabled).toBe(false)
+    expect(saved.memberAccountIds).toEqual(['acc-a'])
+  })
+})
