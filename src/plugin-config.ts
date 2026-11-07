@@ -390,6 +390,7 @@ const regionStateConfig = z.object({
   // 测试输入大小由 probeInputTokens 保存。0 使用最小请求，较大值填充测试输入；
   // 短输入测试通过不能证明较长的真实请求也会被上游接受。
   pool: z.object({
+    autoCheckin: z.boolean().default(false).description('每日自动签到：保存后为国内个人账号池成员领取奖励，遵循本机每日领取限制。'),
     enabled: z.boolean().default(false).description('账号池：开启后按排序规则选择可用账号，符合换号条件时重试其他成员；关闭后使用绑定账号。'),
     targetModelId: z.string().default('').description('账号池测速使用的模型 id（留空 = 自动选择免费模型）'),
     memberAccountIds: z.array(z.string()).default([]).description('加入本面板账号池的账号 id（显式勾选，默认为空）'),

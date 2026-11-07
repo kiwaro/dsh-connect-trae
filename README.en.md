@@ -408,3 +408,9 @@ The open-source projects referenced for Trae integration (architecture/protocol 
 ## 15. License
 
 This project is licensed under the [MIT License](LICENSE). Copyright: **Copyright (c) 2026 LaoDing**.
+
+Under More settings → Icon style, choose Claude style line icons or the default icon. Claude style is the default. Changes take effect immediately and are saved separately for each plugin in the current browser.
+
+### Daily automatic check-in
+
+The domestic personal account pool offers automatic check-in, disabled by default. Enable and save to check in selected members while DSH runs. Progress survives restarts and failed attempts retry with backoff. This setting is independent of automatic billing selection. Trae limits daily rewards per device, so not every member can receive a reward. Global and enterprise panels do not offer automatic check-in.

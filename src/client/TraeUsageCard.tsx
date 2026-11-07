@@ -1,3 +1,4 @@
+import { updateStickyTabs } from './series-layout.ts'
 import { formatCapacity, modelChannelLabel, probeBadge, promoBadge } from './trae-model-display.tsx'
 import { writeSettingsField } from './trae-settings-write.ts'
 export { writeSettingsField, TraeSettingsWriteError } from './trae-settings-write.ts'
@@ -39,7 +40,7 @@ import { providerOfPanel, regionOfPanel, type TraePanel } from '../region.ts'
 import { contextBudgetOptions, TRAE_CONTEXT_BUDGET_MID } from '../context-budget.ts'
 import { defaultEffortFor } from '../default-effort.ts'
 import { filterTraeModels, groupTraeModels, orderTraeModels, scopeTraeModels, type TraeModelView } from '../model-order.ts'
-import { TRAE_PLUGIN_ICON } from './icon.ts'
+import { PluginIcon } from './plugin-icon.tsx'
 import { TRAE_CARD_CSS } from './styles.ts'
 import { BusyOverlay } from './BusyOverlay.tsx'
 import { TraeAccountPanel } from './TraeAccountPanel.tsx'
@@ -1791,6 +1792,8 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
         hidden={signedIn && panel !== 'accounts'}
       >
         <p className="dsm-trae-models-summary">{t('row.tabHint')}</p>
+        <p className="dsm-trae-models-summary">{t('row.tabCredentialHint')}</p>
+        <p className="dsm-trae-models-summary dsm-trae-free-quota-warn">{t('row.tabFreeQuotaWarn')}</p>
         <TraeAccountPanel
           t={t}
           settingsScope={settingsScope}
@@ -1845,6 +1848,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
       </div>
 
       <div className="dsm-trae-panel" role="tabpanel" id="dsm-trae-panel-capabilities" aria-labelledby="dsm-trae-tab-capabilities" hidden={signedIn && panel !== 'capabilities'}>
+        <p className="dsm-trae-panel-note">{t('row.panelCapabilitiesHint')}</p>
         <TraeAccountPanel preferencesOnly
           t={t}
           settingsScope={settingsScope}
@@ -2118,26 +2122,28 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
                                   or Max-mode field, so raising it does not make the
                                   upstream serve the wider window. The hint says so
                                   rather than letting the label imply otherwise. */}
-                              {contextBudgetOptions(model).map(option => {
-                                // Each radio is one selectable window. A model with no
-                                // Max window has a single option (its dev window), which
-                                // stays checked and disabled — the same read-only shape
-                                // the old two-radio markup produced.
+                              {(() => {
+                                const options = contextBudgetOptions(model)
                                 const selectable = model.maxContextWindow !== undefined
-                                const checked = (activeContextBudgets[model.id] ?? model.contextWindow) === option
+                                const current = activeContextBudgets[model.id] ?? model.contextWindow
                                 return (
-                                  <label key={option}>
-                                    <input
-                                      type="radio"
-                                      name={`context-${model.id}`}
-                                      checked={checked}
-                                      disabled={!selectable || settingsScope?.getSnapshot().writable !== true || saving}
-                                      onChange={() => { setContextBudget(model.id, option) }}
-                                    />
-                                    <span>{formatCapacity(option, t('row.modelUnknown'))}</span>
-                                  </label>
+                                  <select
+                                    className="dsm-trae-context-select"
+                                    aria-label={t('row.contextBudget')}
+                                    title={t('row.contextBudgetHint')}
+                                    value={current === undefined ? '' : String(current)}
+                                    disabled={!selectable || settingsScope?.getSnapshot().writable !== true || saving}
+                                    onChange={event => { setContextBudget(model.id, Number(event.currentTarget.value)) }}
+                                  >
+                                    {options.map(option => (
+                                      <option key={option} value={String(option)}>
+                                        {formatCapacity(option, t('row.modelUnknown'))}
+                                      </option>
+                                    ))}
+                                  </select>
                                 )
-                              })}
+                              })()}
+
                             </fieldset>
                             </div>
                           </div>
@@ -2490,7 +2496,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
                   <span>{t('row.pageBack')}</span>
                 </button>
               )}
-          <img className="dsm-trae-page-icon" src={TRAE_PLUGIN_ICON} alt="" />
+          <PluginIcon className="dsm-trae-page-icon" />
           <span className="dsm-trae-page-title">{title}</span>
           <span className="dsm-trae-page-desc">{t('row.desc')}</span>
         </div>
@@ -2522,7 +2528,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
 
   if (pageSurface) {
     return (
-      <div className="dsm-trae-page">
+      <div className="dsm-trae-page" ref={page => { if (page !== null) requestAnimationFrame(() => { updateStickyTabs(page) }) }} onScroll={event => { updateStickyTabs(event.currentTarget) }}>
         {pageHead}
         <div className="dsm-trae-page-body">{cardBody}</div>
         <BusyOverlay
@@ -2558,7 +2564,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
         aria-label={`${t(open ? 'row.collapse' : 'row.expand')}: ${title}`}
         onClick={() => { setCardOpen(!open) }}
       >
-        <img className="dsm-plugin-card-icon" src={TRAE_PLUGIN_ICON} alt="" />
+        <PluginIcon className="dsm-plugin-card-icon" />
         <span className="dsm-plugin-card-head">
           <span className="dsm-plugin-card-title">{title}</span>
           <span className="dsm-plugin-card-description">{t('row.desc')}</span>

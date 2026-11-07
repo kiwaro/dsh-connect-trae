@@ -38,7 +38,7 @@ import type { TraeCreditPosition } from '../status-paths.ts'
 import { TRAE_USAGE_PATH, withTraeRegion } from '../status-paths.ts'
 import { en, zh } from './locales.ts'
 import type { TraeSettingsKey } from './locales.ts'
-import { TRAE_PLUGIN_ICON } from './icon.ts'
+import { PluginIcon } from './plugin-icon.tsx'
 import {
   setSidebarPanelWanted, sidebarPanelWanted, subscribeSidebarPanelWanted,
 } from './panel-switch.ts'
@@ -487,53 +487,22 @@ export function apply(ctx: ClientContext): void {
 
     registerModelLabel()
 
-    /**
-     * The sidebar glyph for the optional panel row.
-     *
-     * The host renders `sidebar.panellist` registrants with `{ size, active }`
-     * inside a `currentColor`-themed glyph cell, so the brand mark is drawn as a
-     * small `<img>` — the PNG's own colours read as the plugin's identity, and
-     * the row's selection state is the host's to paint around it.
-     */
+    /** Sidebar icon follows the selected style and host foreground colour. */
     function TraePanelIcon(props: { size?: number }): JSX.Element {
       const edge = typeof props.size === 'number' && props.size > 0 ? props.size : 16
-      return h('img', {
+      return h(PluginIcon, {
         className: 'dsm-trae-panel-icon',
-        src: TRAE_PLUGIN_ICON,
-        alt: '',
-        width: edge,
-        height: edge,
-        'aria-hidden': 'true',
+        size: edge,
       })
     }
 
-    /**
-     * The nav glyph for the `settings.section` page.
-     *
-     * A separate component from {@link TraePanelIcon} even though it draws the
-     * same picture, because the two slots pass DIFFERENT owner props and a shared
-     * component would have to paper over that: `sidebar.panellist` sends
-     * `{ size, active }` on a row the shell paints, `settings.section.icon` sends
-     * `{ size, active }` inside the shell's own nav button, and the second one
-     * also has to survive `size` being absent (the shell always sends it, but a
-     * host line that renames the prop must degrade to the default rather than
-     * divide by `undefined`).
-     *
-     * `active` is applied as a slight opacity step instead of a colour: the
-     * brand PNG carries its own colours, and recolouring someone else's mark to
-     * show selection would misrepresent the product. The shell already paints
-     * the selected row.
-     */
+    /** Settings navigation uses the same saved icon preference as the sidebar. */
     function SettingsSectionIcon(props: { size?: number, active?: boolean }): JSX.Element {
       const edge = typeof props.size === 'number' && props.size > 0 ? props.size : 16
-      return h('img', {
+      return h(PluginIcon, {
         className: 'dsm-trae-section-icon',
-        src: TRAE_PLUGIN_ICON,
-        alt: '',
-        width: edge,
-        height: edge,
+        size: edge,
         style: { opacity: props.active === false ? 0.75 : 1 },
-        'aria-hidden': 'true',
       })
     }
 

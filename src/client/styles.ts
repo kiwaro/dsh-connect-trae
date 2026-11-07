@@ -1,9 +1,31 @@
+import { seriesLayoutCss } from './series-layout.ts'
+
 /**
  * Trae 插件卡片样式。基础卡片结构参考 dsh-subagent-default-model 的
  * SETTINGS_CSS，并使用 DSH 的颜色变量；各面板和账号表格由本插件维护。
  */
 
 export const TRAE_CARD_CSS = `
+
+.dsm-icon-preference{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;color:var(--dsw-alias-label-primary,#e6e6e6)}
+.dsm-icon-preference-copy{display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px;font-size:13px}
+.dsm-icon-preference-copy>span{font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary,#999)}
+.dsm-icon-choices{display:flex;flex-wrap:wrap;gap:6px}
+.dsm-icon-choices>button{appearance:none;display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:12px;line-height:20px;color:inherit;background:transparent;border:1px solid var(--dsw-alias-border-l2,#777);border-radius:8px;padding:7px 10px;cursor:pointer}
+.dsm-icon-choices>button[aria-checked="true"]{border-color:var(--dsw-alias-brand-primary,#cf795b);background:var(--dsw-alias-bg-layer-2,#25262b)}
+.dsm-icon-choices>button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#cf795b);outline-offset:2px}
+.dsm-icon-save-error{flex-basis:100%;margin:0;color:var(--dsw-alias-state-error-primary,#c33);font-size:12px}
+
+/* 插件详情页将图标、名称说明和操作按钮放在同一行，只影响本插件。 */
+[data-plugin-detail="dsh-connect-trae"][data-plugin-detail]{display:grid;grid-template-columns:48px minmax(0,1fr) auto;column-gap:16px;align-items:start}
+[data-plugin-detail="dsh-connect-trae"][data-plugin-detail]>[class*="_detailTop"],[data-plugin-detail="dsh-connect-trae"][data-plugin-detail] [class*="_detailHead"]{display:contents}
+[data-plugin-detail="dsh-connect-trae"][data-plugin-detail] [class*="_crumb"]:not([class*="_crumbIcon"]){grid-column:1/-1;grid-row:1;justify-self:start;margin-bottom:28px}
+[data-plugin-detail="dsh-connect-trae"][data-plugin-detail] [class*="_cardIcon"]{grid-column:1;grid-row:2;align-self:start}
+[data-plugin-detail="dsh-connect-trae"][data-plugin-detail]>[class*="_detailMain"]{grid-column:2;grid-row:2;margin-top:0;min-width:0}
+[data-plugin-detail="dsh-connect-trae"][data-plugin-detail] [class*="_detailActions"]{grid-column:3;grid-row:2;align-self:start}
+[data-plugin-detail="dsh-connect-trae"][data-plugin-detail]>[class*="_detailSections"]{grid-column:1/-1;min-width:0}
+@media(max-width:640px){[data-plugin-detail="dsh-connect-trae"][data-plugin-detail]{grid-template-columns:48px minmax(0,1fr)}[data-plugin-detail="dsh-connect-trae"][data-plugin-detail] [class*="_detailActions"]{grid-column:2;grid-row:3;justify-self:start;margin-top:12px}}
+
 .dsm-plugin-card{border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-3,#202126);border-radius:12px;list-style:none;transition:border-color .16s,background .16s}
 .dsm-plugin-card:hover{border-color:var(--dsw-alias-label-dimmed,#777)}
 .dsm-plugin-card-open{background:var(--dsw-alias-bg-layer-2,#25262b);border-color:var(--dsw-alias-label-dimmed,#777)}
@@ -57,7 +79,8 @@ export const TRAE_CARD_CSS = `
  * 用 clip 而不是 display:none：display:none 会把它从无障碍树里摘掉，读屏用户
  * 就永远拿不到这条例外说明。视觉隐藏保留了它，且不占布局高度。
  * 完整文案仍可通过芯片行的 title 悬停看到（见 TraeUsageCard 的 tabSwitchHint）。 */
-.dsm-trae-tab-hint{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+.dsm-trae-tab-hint{margin:0;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px}
+.dsm-trae-section .dsm-trae-tab-hint{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 /* 账号、模型、能力和诊断构成四个内容分栏；上方的芯片用于选择供应商。
  * 切换分栏时保留组件挂载，以保存草稿和账号池日志。hidden 属性隐藏非活动面板，
  * 文件末尾的 .dsm-trae-panel[hidden] 规则明确设置 display:none，避免布局规则覆盖。 */
@@ -444,6 +467,7 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-model-effort-select:disabled{opacity:.6;cursor:not-allowed}
 .dsm-trae-model-image{display:inline-flex;align-items:center;gap:4px;color:var(--dsw-alias-label-secondary,#c6c9d0);font-size:11px;line-height:16px;cursor:pointer}
 .dsm-trae-model-image input{margin:0;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
+.dsm-trae-context-select{width:96px;max-width:100%;font:inherit;padding:4px 8px;border:1px solid var(--dsw-alias-border-l2,#aaa);border-radius:6px;background:var(--dsw-alias-bg-layer-2,#fff);color:inherit}
 .dsm-trae-context-budget{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:none;margin:0;padding:0;border:0;color:var(--dsw-alias-label-secondary,#c6c9d0);font-size:11px;line-height:16px}
 .dsm-trae-context-budget label{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
 .dsm-trae-context-budget input{margin:0;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
@@ -691,7 +715,7 @@ export const TRAE_CARD_CSS = `
 /* "Every member is unusable" is the one case that IS the pool's fault, so it
    keeps the warn tone the base class sets. */
 .dsm-trae-pool-warning-unusable{border-color:var(--dsw-alias-state-warn-secondary,#fbbf24);background:var(--dsw-alias-state-warn-tertiary,#fef3c7);color:var(--dsw-alias-state-warn-primary,#b45309)}
-.dsm-trae-pool-save-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--dsw-alias-border-l2,#36373b);padding-top:12px;position:static;padding-bottom:8px;background:var(--dsw-alias-bg-layer-3,#2a2c33)}
+.dsm-trae-pool-save-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--dsw-alias-border-l2,#36373b);padding-top:12px;position:sticky;bottom:0;z-index:2;padding-bottom:8px;background:var(--dsw-alias-bg-layer-3,#2a2c33)}
 .dsm-trae-pool-save-buttons{display:flex;align-items:center;justify-content:flex-end;gap:8px}
 .dsm-trae-pool-save-row .dsm-btn{padding:5px 14px;font-size:13px;line-height:1.5}
 
@@ -777,13 +801,13 @@ export const TRAE_CARD_CSS = `
  * names are not a stable contract across DSH releases. */
 .dsm-trae-page{box-sizing:border-box;height:100%;display:flex;flex-direction:column;align-items:center;gap:20px;padding:28px clamp(24px,4vw,48px) 48px;overflow:auto;color:var(--dsw-alias-label-primary,#e6e6e6)}
 .dsm-trae-page>*{width:100%;max-width:860px}
-.dsm-trae-page-head{display:flex;flex-direction:column;gap:6px}
-.dsm-trae-page-back{appearance:none;font:inherit;cursor:pointer;border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-1,#17181b);color:var(--dsw-alias-label-secondary,#c7c7c7);border-radius:8px;padding:5px 12px;display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:13px;line-height:20px}
+.dsm-trae-page-head{display:grid;grid-template-columns:40px minmax(0,1fr);column-gap:12px;row-gap:6px;align-items:center}
+.dsm-trae-page-back{grid-column:1/-1;grid-row:1;justify-self:start;margin-bottom:14px;appearance:none;font:inherit;cursor:pointer;border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-1,#17181b);color:var(--dsw-alias-label-secondary,#c7c7c7);border-radius:8px;padding:5px 12px;display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:13px;line-height:20px}
 .dsm-trae-page-back:hover{color:var(--dsw-alias-label-primary,#e6e6e6);border-color:var(--dsw-alias-label-dimmed,#777)}
 .dsm-trae-page-back-caret{display:inline-block;width:7px;height:7px;border-left:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(45deg);margin-right:2px}
-.dsm-trae-page-icon{width:40px;height:40px;border-radius:9px;align-self:flex-start;margin-top:14px}
-.dsm-trae-page-title{margin:0;font-size:20px;font-weight:600;line-height:1.4}
-.dsm-trae-page-desc{margin:0;font-size:13px;line-height:1.5;color:var(--dsw-alias-label-tertiary,#999)}
+.dsm-trae-page-icon{grid-column:1;grid-row:2;width:40px;height:40px;border-radius:9px;align-self:center;margin:0}
+.dsm-trae-page-title{grid-column:2;grid-row:2;min-width:0;margin:0;font-size:20px;font-weight:600;line-height:1.4}
+.dsm-trae-page-desc{grid-column:2;grid-row:3;min-width:0;margin:0;font-size:13px;line-height:1.5;color:var(--dsw-alias-label-tertiary,#999)}
 .dsm-trae-page-body .dsm-trae-usage{padding:20px 20px 8px;border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-3,#202126);border-radius:12px}
 /* The settings.section page. The shell already owns the panel, the nav row and
  * the scrolling .options column (which brings its own 24px side padding), so
@@ -829,10 +853,10 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-tab-off-notice{color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px;margin:0 0 4px;padding:8px 10px;background:var(--dsw-alias-bg-layer-3,#2a2c33);border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:8px}
 .dsm-trae-models-summary{margin:2px 0 0;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px}
 .dsm-trae-models-head-actions .dsm-btn{white-space:nowrap}
-.dsm-trae-page-head{display:flex;flex-direction:column;gap:6px}
+.dsm-trae-page-head{display:grid;grid-template-columns:40px minmax(0,1fr);column-gap:12px;row-gap:6px;align-items:center}
 .dsm-trae-panel-icon{display:block;border-radius:4px;flex:none}
 
-`
+` + seriesLayoutCss('trae')
 
 
 /**

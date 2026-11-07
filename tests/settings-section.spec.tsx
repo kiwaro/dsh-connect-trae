@@ -252,7 +252,7 @@ describe('the section surface', () => {
     // and that sentence is the only place the "CN and enterprise share one
     // login" exception is stated. clip keeps it readable; the 1px box keeps it
     // out of the layout, which is where the 36px came from.
-    const body = /\.dsm-trae-tab-hint\{([^}]*)\}/.exec(TRAE_CARD_CSS)?.[1] ?? ''
+    const body = /\.dsm-trae-section \.dsm-trae-tab-hint\{([^}]*)\}/.exec(TRAE_CARD_CSS)?.[1] ?? ''
     expect(body).toContain('clip')
     expect(body).not.toContain('display:none')
     expect(body).not.toMatch(/opacity:\s*0/u)

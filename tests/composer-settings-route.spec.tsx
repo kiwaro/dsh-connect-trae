@@ -312,10 +312,10 @@ describe('the restored pill kept its shape', () => {
     // bundle is first-class here, not a translation bolted on afterwards.
     expect(zh['composer.openSettings']).toBe('设置')
     expect(en['composer.openSettings']).toBe('Settings')
-    expect(zh['composer.openSettingsHint']).toBe('打开本插件的设置页')
-    expect(en['composer.openSettingsHint']).toBe('Open this plugin\'s settings page')
-    expect(zh['composer.openSettingsFailed']).toBe('DSH 未提供可用的插件设置入口')
-    expect(en['composer.openSettingsFailed']).toBe('DSH did not provide an available plugin settings entry')
+    expect(zh['composer.openSettingsHint']).toBe('打开本插件的设置页（账号、模型、各项开关）')
+    expect(en['composer.openSettingsHint']).toBe('Open this plugin\'s settings page (accounts, models, switches)')
+    expect(zh['composer.openSettingsFailed']).toBe('插件设置入口不可用')
+    expect(en['composer.openSettingsFailed']).toBe('This host offers no route to the plugin settings page')
   })
 
   it('styles the restored class and keeps the old refresh rule out', () => {

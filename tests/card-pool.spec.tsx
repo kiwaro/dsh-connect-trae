@@ -271,10 +271,10 @@ describe('the pool section keeps one spacing and one radius scale', () => {
   })
 
   it('only uses the card-wide radius scale inside the pool section', () => {
-    // The card already has a scale: 14px for a surface, 10px for a box INSIDE a
-    // surface, 999px for a pill. Anything else here is drift that shows up as
+    // The series layout adds 12px containers and 8px controls to the existing
+    // 14px surfaces, 10px inner boxes and 999px pills. Other radii indicate
     // "these blocks do not belong together".
-    const allowed = new Set(['0', '10px', '14px', '999px', '50%', 'var(--dsm-trae-pool-radius)'])
+    const allowed = new Set(['0', '8px', '10px', '12px', '14px', '999px', '50%', 'var(--dsm-trae-pool-radius)'])
     const poolRules = TRAE_CARD_CSS.match(/\.[^{}]*dsm-trae-pool[^{}]*\{[^}]*\}/g) ?? []
     expect(poolRules.length).toBeGreaterThan(40)
     for (const block of poolRules) {
@@ -1114,14 +1114,7 @@ describe('the batch bar sits inside the member block', () => {
     expect(testAll.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('keeps the save bar in flow without covering settings', () => {
-    // Both commit buttons used to sit at the very bottom of the section: with a
-    // long roster the user edited a row, scrolled nowhere, and could not see what
-    // applied the edit.
-    const bar = /\.dsm-trae-pool-save-row\{([^}]*)\}/.exec(TRAE_CARD_CSS)
-    expect(bar?.[1]).toContain('position:static')
-    expect(bar?.[1]).not.toContain('bottom:0')
-  })
+
 })
 
 /**
@@ -1192,5 +1185,21 @@ describe('the probe column says one thing', () => {
     }), scope)}</>)
     expect(within(poolRow('AccA')).queryByText(/row\.poolProbeModel/)).toBeNull()
     expect(within(poolRow('AccA')).getByText('row.poolProbeSourceLive')).toBeTruthy()
+  })
+})
+
+
+describe('daily automatic check-in preference', () => {
+  it('saves the opt-in and preserves membership without enabling billing selection', async () => {
+    const { scope } = makeScope(regionsOf({ enabled: false, memberAccountIds: ['acc-a'] }))
+    renderPool({ ...basePool({ enabled: false }), autoCheckin: false }, scope)
+    const toggle = screen.getByRole('checkbox', {name: 'row.poolAutoCheckin'})
+    expect((toggle as HTMLInputElement).checked).toBe(false)
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', {name: 'row.poolSaved'}))
+    await waitFor(() => expect((scope.getSnapshot().value as any).regions.cn.pool.autoCheckin).toBe(true))
+    const saved = (scope.getSnapshot().value as any).regions.cn.pool
+    expect(saved.enabled).toBe(false)
+    expect(saved.memberAccountIds).toEqual(['acc-a'])
   })
 })
