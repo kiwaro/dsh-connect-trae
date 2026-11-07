@@ -70,11 +70,12 @@ export const TRAE_CARD_CSS = `
    differs, so it sits inside the tab cell without crowding the label. */
 .dsm-trae-tab-switch{flex:none;margin-left:auto;padding-left:10px;border-left:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.24))}
 .dsm-trae-tab-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:baseline}
-/* 供应商行的说明：视觉隐藏，读屏仍在（learned from workbuddy 5.19.0 的窄列实践）。
+.dsm-trae-tab-hint{margin:0;padding:0 2px;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px}
+/* THE TWO SETTINGS-SURFACE TWEAKS, SCOPED (learned the hard way, post-release).
  *
- * 这一行是三个芯片的注解（「企业版与国内版共用同一份 Trae CN 登录」），原本独占
- * 一整行 36px，把账号池往下推。在 564px 的列里，纵向空间是稀缺资源，而这句话
- * 只在「同时启用两个供应商」时才有用——那个场景下用户已经在看两个芯片了。
+ * 下面两条原本是**无作用域**的：一条把供应商说明行视觉隐藏，一条把分栏条改成
+ * sticky 并加一层底色。它们写的时候只想到设置面板那一列（564px、外壳自带滚动），
+ * 但那两处 DOM 是**三个界面共用的**——卡片、整页、设置页画的是同一棵树。
  *
  * 用 clip 而不是 display:none：display:none 会把它从无障碍树里摘掉，读屏用户
  * 就永远拿不到这条例外说明。视觉隐藏保留了它，且不占布局高度。
@@ -97,7 +98,12 @@ export const TRAE_CARD_CSS = `
  *
  * top:-1px 而不是 0：分栏条自己的 border-bottom 画在盒子外侧，写成 0 会在它上方
  * 留一条 1px 的缝，滚动的行会从这条缝里露出来。 */
-.dsm-trae-panels{position:sticky;top:-1px;z-index:2;display:flex;align-items:stretch;gap:2px;margin:4px 0 0;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.24));background:var(--dsw-alias-bg-layer-2,#24262c)}
+.dsm-trae-panels{display:flex;align-items:stretch;gap:2px;margin:4px 0 0;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.24))}
+/* 分栏条只在设置面板里钉住（见上方 .dsm-trae-tab-hint 的长注释：这两条原本无
+ * 作用域，在卡片上留下两个回归）。卡片与整页没有"外壳的滚动列"，那里的分栏条
+ * 跟着内容正常滚走即可；sticky 在没有滚动祖先时不会生效，却会把底色带进来——
+ * 而底色取 layer-2，卡片本身是 layer-3，色差在卡片上就成了一条浅色带。 */
+.dsm-trae-section .dsm-trae-panels{position:sticky;top:-1px;z-index:2;background:var(--dsw-alias-bg-layer-2,#24262c)}
 .dsm-trae-panel-tab{appearance:none;font:inherit;cursor:pointer;border:0;background:transparent;padding:7px 11px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--dsw-alias-label-tertiary,#999);font-size:13px;font-weight:600;line-height:20px;white-space:nowrap;transition:color .15s,border-color .15s}
 .dsm-trae-panel-tab:hover:not(.dsm-trae-panel-tab-active){color:var(--dsw-alias-label-primary,#e6e6e6)}
 .dsm-trae-panel-tab:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
@@ -212,7 +218,7 @@ export const TRAE_CARD_CSS = `
 /* The account rows: two lines each: who the account is, then what it is worth,
    with the one action that applies to THAT row on the right. A four-column
    table was the wrong instrument here: every field demanded its own header, the
-   columns drifted with the content ("LaoDing" vs a full expiry stamp), and the
+   columns drifted with the content (a short nickname vs a full expiry stamp), and the
    bound row repeated its "in use" badge in two different columns. */
 /* The account table, shaped like the sibling WorkBuddy card's pool table: a
    bordered container, a tinted header row, and one grid row per account whose
@@ -471,6 +477,8 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-context-budget{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:none;margin:0;padding:0;border:0;color:var(--dsw-alias-label-secondary,#c6c9d0);font-size:11px;line-height:16px}
 .dsm-trae-context-budget label{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
 .dsm-trae-context-budget input{margin:0;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
+.dsm-trae-context-select{flex:none;width:96px;max-width:none;padding:2px 6px;font:inherit;font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary,#e6e6e6);background:var(--dsw-alias-bg-layer-3,#2a2c33);border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:7px;cursor:pointer}
+.dsm-trae-context-select:disabled{cursor:default;opacity:.6}
 .dsm-trae-model-capability-note{margin:0;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px}
 .dsm-trae-model-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--dsw-alias-border-l2,#36373b);padding-top:12px}
 .dsm-trae-model-actions-buttons{display:flex;align-items:center;justify-content:flex-end;gap:8px}
@@ -754,7 +762,7 @@ export const TRAE_CARD_CSS = `
    * 真正竖排的是它内部的 .dsm-trae-pool-probe-cell（flex-direction:column）。
    * 只改外层包装的话，状态列仍然一句一行，被挤成「正常 / 测得 3 天前 / 来自测速 /
    * upstream answered」四行——旁边只有 12px 间距，整行高度就被这一格撑到 100px
-   * 以上，账号名也跟着被压窄（实测截成「LaoDin」「用户7」）。
+   * 以上，账号名也跟着被压窄（实测截成前几个字符「用户7」）。
    *
    * 改成横排并允许在自己内部换行：这四个事实读起来本来就是一句话
    * （「正常 · 测得 3 天前 · 来自测速 · upstream answered」），宽时从左排到右，
@@ -764,7 +772,7 @@ export const TRAE_CARD_CSS = `
    *
    * 宽的时候它是个三行网格（名字 / 标签 / 探针时间），第一列固定给勾选框。
    * 在窄列里这三行没有理由继续各占一行——它们本来就是一句话
-   * （「LaoDing · 已在池中 · 测试于 11/03, 06:35」），横排后名字与这两条短事实
+   * （「demo-usr · 已在池中 · 测试于 11/03, 06:35」），横排后名字与这两条短事实
    * 共享一行，只有真的放不下时才折行。勾选框仍然排在最前，并保持垂直居中对齐
    * 到第一行基线（align-self:baseline 会让它沉到行底）。 */
   .dsm-trae-pool-account{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}

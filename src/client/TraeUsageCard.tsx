@@ -1255,7 +1255,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
   }
 
   /**
-   * Bulk context-budget switch (issue #42 side request). The per-model radios
+   * Bulk context-budget switch (issue #42 side request). The per-model selectors
    * stay exactly as they are; these controls act on the whole region draft at once.
    * The reporter counted 18 CN models whose Max window differs from the
    * default and described clicking 18 times per region — 「整区切到 Max」 is
@@ -2117,7 +2117,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
                               </label>
                             <fieldset className="dsm-trae-context-budget" aria-label={t('row.contextBudget')} title={t('row.contextBudgetHint')}>
                               {/* Issue #60: the window a row shows is Trae's OWN
-                                  advertisement, while these radios only set DSH's
+                                  advertisement, while these selectors only set DSH's
                                   local budget — the request body carries no window
                                   or Max-mode field, so raising it does not make the
                                   upstream serve the wider window. The hint says so

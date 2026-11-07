@@ -26,8 +26,11 @@ import { describeIdShape, describeNameShape, maskUserPath } from '../src/redact.
 
 describe('maskUserPath', () => {
   it('removes the Windows account name but keeps the Trae directory spelling', () => {
-    const masked = maskUserPath('C:\\Users\\DingMinHua\\AppData\\Roaming\\Trae CN\\User\\globalStorage\\storage.json')
-    expect(masked).not.toContain('DingMinHua')
+    // A mixed-case placeholder on purpose: a masked path must not depend on the
+    // home segment's casing, and a synthetic `RealName` proves the mask works on
+    // something that looks like a person rather than a literal `<user>`.
+    const masked = maskUserPath('C:\\Users\\RealName\\AppData\\Roaming\\Trae CN\\User\\globalStorage\\storage.json')
+    expect(masked).not.toContain('RealName')
     expect(masked).toBe('C:\\Users\\<user>\\AppData\\Roaming\\Trae CN\\User\\globalStorage\\storage.json')
   })
 
@@ -72,14 +75,14 @@ describe('describeNameShape', () => {
   it('reports length and numeric-ness instead of the name', () => {
     // A real nickname and a generated `用户<phone>` id must be distinguishable
     // by shape — that is what tells a reader account discovery worked.
-    const nickname = describeNameShape('LaoDing')
-    expect(nickname).toBe('7 字符')
-    expect(nickname).not.toContain('LaoDing')
-    expect(describeNameShape('7520607992')).toBe('10 字符，纯数字')
+    const nickname = describeNameShape('demo-user')
+    expect(nickname).toBe('9 字符')
+    expect(nickname).not.toContain('demo-user')
+    expect(describeNameShape('1000000000')).toBe('10 字符，纯数字')
   })
 
   it('never echoes the value for any input', () => {
-    for (const value of ['丁敏华', 'real@example.com', 42, undefined, null]) {
+    for (const value of ['demo-user', 'real@example.com', 42, undefined, null]) {
       const shape = describeNameShape(value)
       expect(shape).toMatch(/^\d+ 字符/)
       if (typeof value === 'string' && value !== '') expect(shape).not.toContain(value)

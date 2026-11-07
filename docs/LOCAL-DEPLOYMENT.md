@@ -7,15 +7,15 @@
 | 对象 | 位置 |
 | --- | --- |
 | 源码工作区 | `D:/work/dsh-connect-trae` |
-| 安装实体副本 | `C:/Users/Limu/.dsh/local-plugins/dsh-connect-trae` |
-| DSH profile | `C:/Users/Limu/.dsh/profiles/desktop` |
-| 安装前备份 | `C:/Users/Limu/.dsh/backups/trae-install-20261106-132238` |
+| 安装实体副本 | `C:/Users/<user>/.dsh/local-plugins/dsh-connect-trae` |
+| DSH profile | `C:/Users/<user>/.dsh/profiles/desktop` |
+| 安装前备份 | `C:/Users/<user>/.dsh/backups/trae-install-20261106-132238` |
 
 备份包含安装前已有的 `package.json`、`pnpm-lock.yaml`、`cordis.patch.yml` 和 `cordis.yml`。安装副本只复制发布白名单文件，不携带源码仓库、测试、开发依赖或凭据。
 
 ## 2. 安装与验证结果
 
-使用 DSH 自带 CLI 执行 `plugin --profile desktop add file:C:/Users/Limu/.dsh/local-plugins/dsh-connect-trae`。desktop 已增加 Trae 依赖及 `dsh.profile.bundles` 条目，保留已有插件与默认模型。
+使用 DSH 自带 CLI 执行 `plugin --profile desktop add file:C:/Users/<user>/.dsh/local-plugins/dsh-connect-trae`。desktop 已增加 Trae 依赖及 `dsh.profile.bundles` 条目，保留已有插件与默认模型。
 
 在独立进程中使用 DSH 自带 Electron/Node 与运行时依赖解析安装副本，并在隔离的临时 DSH_HOME 中加载：
 
@@ -29,7 +29,7 @@
 
 ## 3. 最新部署与生效验证
 
-2026-11-06 已恢复插件详情页配置卡，构建后更新实体安装目录及 desktop 的 node_modules 副本；两处 lib 文件的 SHA256 与工作区构建结果全部一致。此次产物备份位于 `C:/Users/Limu/AppData/Local/Temp/trae-deploy-20261106-154102`。
+2026-11-06 已恢复插件详情页配置卡，构建后更新实体安装目录及 desktop 的 node_modules 副本；两处 lib 文件的 SHA256 与工作区构建结果全部一致。此次产物备份位于 `C:/Users/<user>/AppData/Local/Temp/trae-deploy-20261106-154102`。
 
 类型检查通过。完整测试首次运行有 103 个文件通过，客户端入口断言及发布验证测试出现失败；修正恢复配置卡后的入口断言后，相关 4 个文件、43 项测试复验全部通过，发布验证也已通过。
 
@@ -46,7 +46,7 @@
 
 ## 5. 2026-11-06 文档审核后的部署
 
-20:05 将发布白名单内 20 个文件复制至 local-plugins 与 desktop/node_modules 两处实体安装目录，40 项 SHA256 均与工作区一致。复制前备份位于 `C:/Users/Limu/AppData/Local/Temp/trae-docs-deploy-20261106-200525`。
+20:05 将发布白名单内 20 个文件复制至 local-plugins 与 desktop/node_modules 两处实体安装目录，40 项 SHA256 均与工作区一致。复制前备份位于 `C:/Users/<user>/AppData/Local/Temp/trae-docs-deploy-20261106-200525`。
 
 类型检查与构建通过。本轮相关测试共 5 个文件、78 项通过；此前完整测试结果为 105 个文件、1354 项通过。此次将模型测试提示改为三分钟后超时取消，与实际 180000 ms 超时配置一致。
 

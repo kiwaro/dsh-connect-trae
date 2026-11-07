@@ -7,6 +7,8 @@
   <img src="docs/assets/dsh-connect-trae-usage-card.png" width="860" alt="dsh-connect-trae settings panel" />
 </p>
 
+> 本文与配图中的账号名、额度与时间**均为演示数据**（`demo-*`），不含任何真实账号信息。
+
 <h1 align="center">dsh-connect-trae</h1>
 
 <p align="center"><b>把本机登录的 Trae 模型接入 DeepSeek Harness，并提供用量/积分概览与每日签到领取。</b></p>
@@ -127,6 +129,12 @@
 
 
 - **安全 loopback shim**。每区域一个随机端口 + 进程内随机 secret，真实 Trae token 不交给 pi-ai。
+
+在“更多设置 → 图标样式”中可切换 Claude 风格线条图标和默认图标。默认使用 Claude 风格，选择立即生效，并由当前浏览器分别保存每个插件的设置。
+
+### 每日自动签到
+
+国内版账号池支持每日自动签到，默认关闭。开启并保存后，插件在 DSH 运行期间为勾选的个人账号签到，重启后保留当天进度，失败自动重试。此开关独立于账号池的自动挑号开关。Trae 对每台设备的每日奖励设有限制，不能保证每个成员都能领取。国际版与企业版不提供此功能。
 
 <a id="工作原理"></a>
 ## 2. 工作原理
@@ -565,9 +573,3 @@ dsh plugin --profile desktop add /path/to/dsh-connect-trae
 ## 15. 许可证
 
 本项目采用 [MIT](LICENSE) 许可证，版权归属：**Copyright (c) 2026 LaoDing**。
-
-在“更多设置 → 图标样式”中可切换 Claude 风格线条图标和默认图标。默认使用 Claude 风格，选择立即生效，并由当前浏览器分别保存每个插件的设置。
-
-### 每日自动签到
-
-国内版账号池支持每日自动签到，默认关闭。开启并保存后，插件在 DSH 运行期间为勾选的个人账号签到，重启后保留当天进度，失败自动重试。此开关独立于账号池的自动挑号开关。Trae 对每台设备的每日奖励设有限制，不能保证每个成员都能领取。国际版与企业版不提供此功能。

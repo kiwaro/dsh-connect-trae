@@ -28,7 +28,7 @@ function stubUsage(): void {
   vi.stubGlobal('fetch', async () => new Response(JSON.stringify({
     status: 'signed-in',
     accountId: 'account-1',
-    accountName: 'LaoDing',
+    accountName: 'demo-user',
     tokenExpiresAtMs: Date.now() + 3_600_000,
     region: 'cn',
     accounts: [],
@@ -240,11 +240,19 @@ describe('the section surface', () => {
     // "models / diagnostics" become unreachable until the user scrolls back to
     // the top. sticky is the whole point; an opaque fill is part of it, or the
     // rows scrolling underneath show through the labels.
-    const body = /\.dsm-trae-panels\{([^}]*)\}/.exec(TRAE_CARD_CSS)?.[1] ?? ''
+    //
+    // SCOPED to .dsm-trae-section. The strip element is shared by three
+    // surfaces; an unscoped sticky shipped in 4.9.0 and, on the card (which has
+    // no scrolling ancestor), laid down a layer-2 band over a layer-3 card.
+    const body = /\.dsm-trae-section \.dsm-trae-panels\{([^}]*)\}/.exec(TRAE_CARD_CSS)?.[1] ?? ''
     expect(body).toContain('position:sticky')
     expect(body).toMatch(/top:-?\d/u)
     expect(body).toMatch(/z-index:\s*\d/u)
     expect(body).toMatch(/background:/u)
+    // ...and the unscoped rule must carry NO positioning, or it leaks back.
+    const base = /^[^\n]*\.dsm-trae-panels\{([^}]*)\}/mu.exec(TRAE_CARD_CSS)?.[1] ?? ''
+    expect(base, 'base .dsm-trae-panels').not.toContain('position:sticky')
+    expect(base, 'base .dsm-trae-panels').not.toMatch(/background:/u)
   })
 
   it('hides the region hint visually but keeps it for screen readers', () => {
@@ -257,13 +265,17 @@ describe('the section surface', () => {
     expect(body).not.toContain('display:none')
     expect(body).not.toMatch(/opacity:\s*0/u)
     expect(body).toContain('width:1px')
+    // The unscoped rule must stay visible text.
+    const base = /^[^\n]*\.dsm-trae-tab-hint\{([^}]*)\}/mu.exec(TRAE_CARD_CSS)?.[1] ?? ''
+    expect(base, 'base .dsm-trae-tab-hint').not.toContain('clip')
+    expect(base, 'base .dsm-trae-tab-hint').not.toContain('width:1px')
   })
 
   it('reflows the pool table on the TABLE width, not the viewport', () => {
     // Every @media breakpoint in this stylesheet measures the VIEWPORT, and the
     // settings column is 564px regardless of window size — so a media query
     // never fires there. The pool shipped a five-column grid into 564px and the
-    // account name was measured at 76px ("用户7520607992" read "用户75").
+    // account name was measured at 76px (a 9-digit id read as only its prefix).
     //
     // container-type belongs on the TABLE and not an ancestor: it makes the
     // element the containing block for position:fixed descendants, and the busy
@@ -293,7 +305,7 @@ describe('the section surface', () => {
     // each carry their OWN `flex-direction:column` / three-row grid. Left alone
     // they kept those inner layouts, so the status cell stayed four lines
     // ("正常 / 测得 3 天前 / 来自测速 / upstream answered") and the account name
-    // was squeezed to "LaoDin" and "用户75" — the row got taller AND narrower.
+    // was squeezed to a bare prefix — the row got taller AND narrower.
     const narrow = /@container \(max-width:700px\)\{([\s\S]*?)\n\}/.exec(TRAE_CARD_CSS)?.[1] ?? ''
     expect(narrow).toContain('.dsm-trae-pool-probe-cell{flex-direction:row')
     expect(narrow).toContain('.dsm-trae-pool-account{display:flex')
