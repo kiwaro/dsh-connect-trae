@@ -1,3 +1,5 @@
+import { updateStickyTabs } from './series-layout.ts'
+import { PluginIcon } from './plugin-icon.tsx'
 /**
  * Trae usage card contributed to Harness Plugin configuration.
  *
@@ -2698,7 +2700,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
                   <span>{t('row.pageBack')}</span>
                 </button>
               )}
-          <img className="dsm-trae-page-icon" src={TRAE_PLUGIN_ICON} alt="" />
+          <PluginIcon className="dsm-trae-page-icon" />
           <span className="dsm-trae-page-title">{title}</span>
           <span className="dsm-trae-page-desc">{t('row.desc')}</span>
         </div>
@@ -2730,7 +2732,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
 
   if (pageSurface) {
     return (
-      <div className="dsm-trae-page">
+      <div className="dsm-trae-page" onScroll={event => { updateStickyTabs(event.currentTarget) }} ref={page => { if (page !== null) requestAnimationFrame(() => { updateStickyTabs(page) }) }}>
         {pageHead}
         <div className="dsm-trae-page-body">{cardBody}</div>
         <BusyOverlay
@@ -2766,7 +2768,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
         aria-label={`${t(open ? 'row.collapse' : 'row.expand')}: ${title}`}
         onClick={() => { setCardOpen(!open) }}
       >
-        <img className="dsm-plugin-card-icon" src={TRAE_PLUGIN_ICON} alt="" />
+        <PluginIcon className="dsm-plugin-card-icon" />
         <span className="dsm-plugin-card-head">
           <span className="dsm-plugin-card-title">{title}</span>
           <span className="dsm-plugin-card-description">{t('row.desc')}</span>

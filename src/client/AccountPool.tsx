@@ -1,3 +1,4 @@
+import { IconStylePreference } from './plugin-icon.tsx'
 /**
  * The account-pool card UI for Trae, ported from the WorkBuddy sibling.
  *
@@ -724,7 +725,7 @@ export function AccountPool({ panel, pool, models, t, settingsScope, onChanged, 
         {/* ONE line, and only one. The same paragraph used to stand under the
             switch at the bottom of the page as well, which read as a developer
             note that had leaked into the card. */}
-        <p className="dsm-trae-pool-note">{t('row.poolEnabledHint')}</p>
+        <p className="dsm-trae-pool-note">{t('row.poolEnabledHint')} {t('row.poolFailoverHint')}</p>
         {panel === 'cn' && pool.checkinSupported && typeof pool.autoCheckin === 'boolean' ? <div className="dsm-trae-pool-auto-checkin">
           <div className="dsm-trae-pool-modebar-row">
             <label className="dsm-trae-switch dsm-trae-switch-pill">
@@ -884,6 +885,7 @@ export function AccountPool({ panel, pool, models, t, settingsScope, onChanged, 
         {tools === undefined ? null : <div className="dsm-trae-pool-tools dsm-trae-pool-tools-dashed">{tools}</div>}
         <div className="dsm-trae-pool-head">
           <h3 className="dsm-trae-pool-title">{t('row.poolSettingsTitle')}</h3>
+          <IconStylePreference t={t} />
         </div>
         {/* Reference text, folded. Three paragraphs used to sit here as a wall of
             grey — where the copies live, when settings take effect, what Delete
