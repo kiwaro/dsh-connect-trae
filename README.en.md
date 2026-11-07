@@ -68,6 +68,10 @@ A [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) bund
 
 - **Secure loopback shim** — one random port + in-process random secret per region; the real Trae token is never handed to pi-ai.
 
+### Daily automatic check-in
+
+The domestic personal account pool offers automatic check-in, disabled by default. Enable and save to check in selected members while DSH runs. Progress survives restarts and failed attempts retry with backoff. This setting is independent of automatic billing selection. Trae limits daily rewards per device, so not every member can receive a reward. Global and enterprise panels do not offer automatic check-in.
+
 ## How it works
 
 ```text
@@ -387,7 +391,3 @@ The open-source projects referenced for Trae integration (architecture/protocol 
 ## License
 
 This project is licensed under the [MIT License](LICENSE). Copyright: **Copyright (c) 2026 LaoDing**.
-
-### Daily automatic check-in
-
-The domestic personal account pool offers automatic check-in, disabled by default. Enable and save to check in selected members while DSH runs. Progress survives restarts and failed attempts retry with backoff. This setting is independent of automatic billing selection. Trae limits daily rewards per device, so not every member can receive a reward. Global and enterprise panels do not offer automatic check-in.

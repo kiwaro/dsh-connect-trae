@@ -2356,7 +2356,7 @@ export function apply(ctx: Context, config: Config): void {
     run: async done => await poolDepsOf('cn', done).checkin?.('cn') ?? [],
   })
   ctx.effect(() => {
-    const tick = (): void => { void automaticCheckin.tick().catch(() => ctx.logger.warn('Trae 自动签到进度保存失败，将在后续检查时重试。')) }
+    const tick = (): void => { void automaticCheckin.tick().catch(() => ctx.logger.warn('无法读取或保存 Trae 自动签到进度，请检查本地数据目录的访问权限。')) }
     const timer = setInterval(tick, 30_000)
     tick()
     return () => { clearInterval(timer); automaticCheckin.stop() }
