@@ -1203,3 +1203,22 @@ describe('daily automatic check-in preference', () => {
     expect(saved.memberAccountIds).toEqual(['acc-a'])
   })
 })
+
+describe('live request activity', () => {
+  it('shows a host-side refusal and switch, and clears only the visible history', () => {
+    const pool = { ...basePool(), events: [
+      { id: 1, atMs: 1, tone: 'error' as const, text: 'demo-primary: upstream risk control' },
+      { id: 2, atMs: 2, tone: 'ok' as const, text: '已切换账号[demo-backup]继续请求' },
+    ] }
+    const view = render(<AccountPool panel="cn" pool={pool} models={MODELS} t={t} />)
+    expect(screen.getByText('demo-primary: upstream risk control')).toBeTruthy()
+    expect(screen.getByText('已切换账号[demo-backup]继续请求')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'row.poolLogClear' }))
+    expect(screen.queryByText('demo-primary: upstream risk control')).toBeNull()
+    view.rerender(<AccountPool panel="cn" pool={{ ...pool, events: [...pool.events,
+      { id: 3, atMs: 3, tone: 'error', text: 'new refusal' },
+    ] }} models={MODELS} t={t} />)
+    expect(screen.getByText('new refusal')).toBeTruthy()
+    expect(screen.queryByText('已切换账号[demo-backup]继续请求')).toBeNull()
+  })
+})

@@ -1,4 +1,3 @@
-import { IconStylePreference } from './plugin-icon.tsx'
 import { NoCandidateNotice, MemberRowHeader, MemberRow, MemberGhostRow, ActivityLog } from './account-pool-view.tsx'
 import type { TraePoolRowDetail, TraePoolRowClaim, LogEntry, T } from './account-pool-types.ts'
 export type { TraePoolRowDetail, TraePoolRowClaim } from './account-pool-types.ts'
@@ -211,6 +210,7 @@ export function AccountPool({ panel, pool, models, t, settingsScope, onChanged, 
 
   // The draft the user edits. The membership checkbox binds HERE (NON-NEGOTIABLE
   // #4), never to `account.member`.
+  const [clearedEventId, setClearedEventId] = useState(0)
   const [enabled, setEnabled] = useState(saved.enabled)
   const [autoCheckin, setAutoCheckin] = useState(saved.autoCheckin)
   const [targetModelId, setTargetModelId] = useState(saved.targetModelId ?? '')
@@ -823,7 +823,6 @@ export function AccountPool({ panel, pool, models, t, settingsScope, onChanged, 
         <div className="dsm-trae-pool-head">
           <h3 className="dsm-trae-pool-title">{t('row.poolSettingsTitle')}</h3>
         </div>
-        <IconStylePreference t={t} />
         {/* Reference text, folded. Three paragraphs used to sit here as a wall of
             grey — where the copies live, when settings take effect, what Delete
             does — and they pushed the two real controls below them off the first
@@ -947,7 +946,13 @@ export function AccountPool({ panel, pool, models, t, settingsScope, onChanged, 
       </div>
 
       {/* Activity log. */}
-      <ActivityLog log={log} t={t} now={now} relativeAt={relativeAt} onClear={() => setLog([])} />
+      <ActivityLog log={[
+        ...(pool.events ?? []).filter(event => event.id > clearedEventId).slice().reverse().map(event => ({ ...event, id: -event.id })),
+        ...log,
+      ]} t={t} now={now} relativeAt={relativeAt} onClear={() => {
+        setLog([])
+        setClearedEventId(Math.max(0, ...(pool.events ?? []).map(event => event.id)))
+      }} />
     </section>
   )
 }

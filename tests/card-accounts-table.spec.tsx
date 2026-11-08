@@ -198,6 +198,33 @@ describe('the account rows in the card', () => {
 
     await vi.waitFor(() => { expect(holder.writes.length).toBeGreaterThan(0) })
     expect(holder.writes[0]).toEqual({ field: 'accounts', value: { ai: 'account-sg', cn: 'account-2' } })
+    await waitFor(() => { expect(screen.getByText(/row.accountSwitched.*SecondCN/)).toBeTruthy() })
+  })
+
+  it('shows a manual switch failure with the target name and actual reason', async () => {
+    stubFetch(usageDocument())
+    const holder = makeScope()
+    holder.scope.set = async () => { throw new Error('settings permission refused') }
+    await renderOpen(holder.scope)
+    fireEvent.click(within(accountRow('SecondCN')).getByRole('button', { name: 'row.accountSwitch' }))
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toMatch(/row.accountSwitchFailed.*SecondCN.*settings permission refused/) })
+    expect(screen.queryByText(/row.accountSwitched/)).toBeNull()
+  })
+
+  it('turns off this panel pool before a manual switch so ranking cannot override it', async () => {
+    stubFetch(usageDocument())
+    const holder = makeScope({
+      regions: { cn: { enabled: true, pool: { enabled: true, memberAccountIds: ['account-1', 'account-2'] } },
+        ai: { pool: { enabled: true } } },
+    })
+    await renderOpen(holder.scope)
+    fireEvent.click(within(accountRow('SecondCN')).getByRole('button', { name: 'row.accountSwitch' }))
+    await vi.waitFor(() => { expect(holder.writes.some(write => write.field === 'accounts')).toBe(true) })
+    expect(holder.writes[0]).toEqual({ field: 'regions', value: {
+      cn: { enabled: true, pool: { enabled: false, memberAccountIds: ['account-1', 'account-2'] } },
+      ai: { pool: { enabled: true } },
+    } })
+    expect(holder.scope.getSnapshot().value.accounts).toEqual({ cn: 'account-2' })
   })
 
   it('loads a per-account status (including balance) for each row, one read per account', async () => {

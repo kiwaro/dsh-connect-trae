@@ -110,14 +110,16 @@ async function renderOpen(document: Record<string, unknown> = usageOf()): Promis
  * an id selector occasionally resolves to null for an element that is plainly in
  * the tree. Matching the class list and comparing `el.id` is deterministic.
  */
-function panel(id: 'accounts' | 'models' | 'diag'): HTMLElement {
+function panel(id: PanelId): HTMLElement {
   const found = Array.from(document.querySelectorAll<HTMLElement>('.dsm-trae-panel'))
     .find(element => element.id === `dsm-trae-panel-${id}`)
   if (found === undefined) throw new Error(`no panel dsm-trae-panel-${id}`)
   return found
 }
 
-function tab(id: 'accounts' | 'models' | 'diag'): HTMLButtonElement {
+type PanelId = 'accounts' | 'capabilities' | 'models' | 'diag'
+
+function tab(id: PanelId): HTMLButtonElement {
   const found = Array.from(document.querySelectorAll<HTMLButtonElement>('.dsm-trae-panels [role="tab"]'))
     .find(element => element.id === `dsm-trae-tab-${id}`)
   if (found === undefined) throw new Error(`no tab dsm-trae-tab-${id}`)

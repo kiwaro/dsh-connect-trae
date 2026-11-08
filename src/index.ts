@@ -56,6 +56,7 @@ import type { TraeRawDiagnostic } from './raw-diagnostic.ts'
 import { TraeDelegatingUpstreamClient } from './delegating-upstream.ts'
 import { MAX_PROBE_INPUT_TOKENS, probeBody, probeModelsSequentially, probeOneModel } from './model-probe.ts'
 import { TraeUsageClient } from './usage.ts'
+import { TraeAccountEvents, safeAccountMessage } from './account-events.ts'
 import { registerTraeUsageRoute, toCheckin, toCredits, type TraePoolCheckinState, type TraePoolDeps } from './web-status.ts'
 import { billableMembers, effectiveMembersOf, pickAccount, poolKeyOfPanel, rankPool, resolveTargetModel } from './account-pool.ts'
 import type { TraePoolCredits, TraePoolMember, TraePoolOutcome, TraePoolProbe } from './account-pool.ts'
@@ -134,6 +135,7 @@ export { TraeRawCapabilityController, type TraeRawCapabilityControllerOptions } 
 export { TraeFallbackUpstreamClient, type TraeFallbackUpstreamOptions } from './fallback-upstream.ts'
 export { TraeGatedUpstreamClient, type TraeGatedUpstreamOptions } from './gated-upstream.ts'
 export { applyReasoningEffort, parseReasoningCapability, TRAE_REASONING_EFFORTS, type TraeReasoningCapability, type TraeReasoningEffort } from './reasoning.ts'
+export { TRAE_BADGE_TONES, traeModelBadge, type TraeBadgeTone, type TraeModelBadge } from './model-badge.ts'
 export { refreshTraeCredential, type TraeRefreshDevice } from './refresh.ts'
 export { decodeTraeEvent, SseDecoder, type SseEvent, type TraeStreamEvent } from './sse.ts'
 export { prepareSoloBody, TraeSoloUpstreamClient, TRAE_SOLO_CHAT_PATH, TRAE_SOLO_FUNCTION, TRAE_SOLO_MODELS_PATH, type TraeSoloClientOptions } from './solo.ts'
@@ -303,6 +305,7 @@ interface TraeRegionStack {
 }
 
 export function apply(ctx: Context, config: Config): void {
+  const accountEvents = new TraeAccountEvents()
   // The namespace the host actually serves (see `settingsNamespaceOf`). On
   // 0.1.7 this is the Loader entry id, and the harness looks a provider's
   // namespace up by EXACT match — advertising anything else makes the provider
@@ -1232,6 +1235,7 @@ export function apply(ctx: Context, config: Config): void {
     panel: TraePanel,
     tried: readonly string[],
   ): Promise<{ accountId: string; client: TraeUpstreamClient } | undefined> {
+    if (poolPreferencesOf(panel).enabled !== true) return undefined
     const next = pickAccount(await poolBillableMembers(panel, tried), Date.now())
     if (next === undefined) return undefined
     const stack = stacks[panel]
@@ -1265,7 +1269,7 @@ export function apply(ctx: Context, config: Config): void {
     const outcome = POOL_OUTCOME_BY_KIND[kind]
     if (outcome === undefined) return
     await writeTraePoolProbes(poolKeyOfPanel(panel), {
-      [accountId]: { outcome, atMs: Date.now(), source: 'live-request', message: `${kind}: ${message}` },
+      [accountId]: { outcome, atMs: Date.now(), source: 'live-request', message: safeAccountMessage(`${kind}: ${message}`) },
     }).catch(() => {})
   }
 
@@ -1304,6 +1308,14 @@ export function apply(ctx: Context, config: Config): void {
    */
   function poolShimHooksOf(panel: TraePanel): TraeShimPool {
     return {
+      describe: async accountId => {
+        const store = stacks[panel].store
+        const account = accountId === undefined
+          ? await store.current()
+          : (await store.accounts()).find(row => row.id === accountId)
+        return account?.accountName || '未知账号'
+      },
+      event: event => accountEvents.add(panel, event),
       prepare: () => applyPoolSelection(panel),
       next: tried => failoverClientFor(panel, tried),
       failed: (accountId, kind, message) => recordPoolFailure(panel, accountId, kind, message),
@@ -1500,6 +1512,7 @@ export function apply(ctx: Context, config: Config): void {
     // the panel that asked, and so a batch sees sign-ins the user added while an
     // earlier batch was still running.
     pool: {
+      events: panel => accountEvents.read(panel),
       preferences: panel => poolPreferencesOf(panel),
       members: panel => poolMembersOf(panel),
       // Issue #77: the first-paint source. Same roster, without the per-account

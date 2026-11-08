@@ -1,4 +1,5 @@
-import { unwrapVolatileDeep } from '../status-paths.ts'
+import type { TraePanel } from '../region.ts'
+import { configuredAccountsOf, nextRegionPool, regionPoolOf, unwrapVolatileDeep } from '../status-paths.ts'
 import type { TraeUsageCardInjected } from './trae-card-types.ts'
 
 /**
@@ -36,4 +37,23 @@ export async function writeSettingsField(
   if (!landed(unwrapVolatileDeep(scope.getSnapshot().value))) {
     throw new TraeSettingsWriteError(field)
   }
+}
+
+/** Manual selection stops this panel's automatic ranking, retaining its roster.
+ * Disable first: a rejected pool write must never report a successful switch.
+ * Both writes are verified; sibling panels and model settings are preserved. */
+export async function writeManualAccount(
+  scope: NonNullable<TraeUsageCardInjected['settingsScope']>,
+  panel: TraePanel,
+  accountId: string,
+): Promise<void> {
+  const pool = regionPoolOf(scope.getSnapshot().value, panel)
+  if (pool.enabled === true) {
+    await writeSettingsField(scope, 'regions',
+      nextRegionPool(scope.getSnapshot().value, panel, { ...pool, enabled: false }),
+      value => regionPoolOf(value, panel).enabled === false)
+  }
+  const accounts = configuredAccountsOf(scope.getSnapshot().value)
+  await writeSettingsField(scope, 'accounts', { ...accounts, [panel]: accountId },
+    value => configuredAccountsOf(value)[panel] === accountId)
 }

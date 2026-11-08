@@ -423,6 +423,38 @@ describe('ComposerPoints readout', () => {
     expect(detail).not.toBe(oldRendering)
   })
 
+  it('renders NO expiry box when the document carries an expiry with every bucket empty', async () => {
+    // The box in the screenshot. `credits.expiry` EXISTING is not the same as
+    // there being something to say: `expiryNotice()` returns undefined when all
+    // four buckets are empty (`packs === 0` in each), because there is no
+    // horizon, no amount and no pack count to report. The component guarded on
+    // the OBJECT instead of on the NOTICE, so the `<div class="dsm-trae-expiry">`
+    // still rendered — an empty bordered box between the table and "最近刷新",
+    // 28px tall, with nothing inside it.
+    //
+    // This is the shape a real account produces whenever `/usage` returns an
+    // `expiry` block whose packs are all outside the 7-day horizon or already
+    // drained: the keys are present, every figure is 0.
+    stubRoute({
+      expiry: {
+        within24h: { total: 0, packs: 0 },
+        within3d: { total: 0, packs: 0 },
+        within7d: { total: 0, packs: 0 },
+        expired: { total: 0, packs: 0 },
+      },
+    })
+    render(<ComposerPoints t={realT} provider="trae" region="cn" />)
+    await waitFor(() => { expect(screen.getByText(/3,392/)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: /Trae - CN/ }))
+    await waitFor(() => { expect(document.querySelector('[role="dialog"]')).not.toBeNull() })
+
+    // Nothing to warn about -> no box at all, not a box with no text.
+    expect(document.querySelector('.dsm-trae-expiry')).toBeNull()
+    // And the foot is still there right after the table, so this is "the box is
+    // gone", not "the whole panel failed to render".
+    expect(document.querySelector('.dsm-trae-composer-panel-foot')).not.toBeNull()
+  })
+
   it('keeps the same-day refresh stamp as a bare clock time', async () => {
     // The fix must not overreach: `composer.lastRefresh` is "now" by
     // construction, always the same day, and widens the foot of a narrow panel
@@ -567,6 +599,52 @@ describe('the account table and account switching', () => {
     await waitFor(() => { expect(holder.writes).toHaveLength(1) })
     expect(holder.writes[0]?.field).toBe('accounts')
     expect(holder.writes[0]?.value).toEqual({ cn: 'account-2', ai: 'keep-me' })
+    await waitFor(() => { expect(screen.getByText('row.accountSwitched')).toBeTruthy() })
+  })
+
+  it('shows a manual switch failure separately from a refresh failure', async () => {
+    stubRoute()
+    const holder = makeScope(true)
+    ;(holder.scope as { set: (field: string, value: unknown) => Promise<boolean> }).set = async () => { throw new Error('settings permission refused') }
+    render(<ComposerPointsGate t={t} settingsScope={holder.scope as never} useProjection={() => ({ lastUsed: { provider: 'trae' } })} />)
+    await waitFor(() => { expect(screen.getByText(/composer\.points/)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: /composer\.points/ }))
+    await waitFor(() => { expect(screen.getByText(/composer\.panelTitle/)).toBeTruthy() })
+    const other = (screen.getAllByRole('button', { name: /composer\.switchTo/ }) as HTMLButtonElement[]).find(button => !button.disabled)
+    if (!other) throw Error('missing switchable account')
+    fireEvent.click(other)
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('row.accountSwitchFailed') })
+    expect(screen.queryByText('row.accountSwitched')).toBeNull()
+  })
+
+  it('disables automatic selection before a manual popover switch', async () => {
+    // The field is also written by the card. Writing ONLY the target region
+    // would drop the international selection — the reason both writers go
+    // through the same merge helper.
+    stubRoute()
+    const holder = makeScope(true, { accounts: { cn: 'account-1', ai: 'keep-me' }, regions: { cn: { enabled: true, pool: { enabled: true, memberAccountIds: ['account-1', 'account-2'] } } } })
+    render(
+      <ComposerPointsGate
+        t={t}
+        settingsScope={holder.scope as never}
+        useProjection={() => ({ lastUsed: { provider: 'trae' } })}
+      />,
+    )
+    await waitFor(() => { expect(screen.getByText(/composer\.points/)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: /composer\.points/ }))
+    await waitFor(() => { expect(screen.getByText(/composer\.panelTitle/)).toBeTruthy() })
+
+    const other = (screen.getAllByRole('button', { name: /composer\.switchTo/ }) as HTMLButtonElement[])
+      .find(button => button.disabled === false)
+    // A guard rather than `toBeDefined()`: `expect` does not narrow types, and
+    // clicking `undefined` would be a silent no-op that still passes.
+    if (other === undefined) throw new Error('expected a switchable account row')
+    fireEvent.click(other)
+
+    await waitFor(() => { expect(holder.writes).toHaveLength(2) })
+    expect(holder.writes[0]).toEqual({ field: 'regions', value: { cn: { enabled: true, pool: { enabled: false, memberAccountIds: ['account-1', 'account-2'] } } } })
+    expect(holder.writes[1]?.field).toBe('accounts')
+    expect(holder.writes[1]?.value).toEqual({ cn: 'account-2', ai: 'keep-me' })
   })
 
   it('falls back to the usage document when the table omits the BOUND account', async () => {
@@ -833,5 +911,20 @@ describe('the same-day refresh stamp follows the READER\'s locale', () => {
       foot.includes(format(before)) || foot.includes(format(after)),
       `the stamp ${JSON.stringify(foot)} is not the reader's locale rendering of ${format(before)}`,
     ).toBe(true)
+  })
+})
+
+describe('runtime account diagnostics in the popover', () => {
+  it('shows upstream refusal details beside the account and recent switch activity', async () => {
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ ...usageDocument(3392),
+      pool: { enabled: true, checkinSupported: false, accounts: [
+        { accountId: 'account-1', probe: { outcome: 'rate-limited', message: 'upstream risk control' } },
+      ], events: [{ id: 1, atMs: 1, tone: 'ok', text: '已切换账号[demo-backup]继续请求' }] },
+    }), { status: 200 }))
+    render(<ComposerPoints t={t} provider="trae" region="cn" />)
+    await waitFor(() => { expect(screen.getByText(/composer\.points/)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: /composer\.points/ }))
+    await waitFor(() => { expect(screen.getByText('upstream risk control')).toBeTruthy() })
+    expect(screen.getByRole('log').textContent).toContain('已切换账号[demo-backup]继续请求')
   })
 })

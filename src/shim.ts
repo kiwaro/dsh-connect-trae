@@ -1,3 +1,5 @@
+import { safeAccountMessage } from './account-events.ts'
+import type { TraeAccountEvent } from './status-paths.ts'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
@@ -43,6 +45,10 @@ export interface TraeShimRoute {
  * chat request into a 500 when a plain answer was possible.
  */
 export interface TraeShimPool {
+  /** Resolve names only inside this plugin, including the fixed/manual account. */
+  describe?(accountId?: string): Promise<string>
+  /** Publish local activity; reporting failures must never break a request. */
+  event?(event: Pick<TraeAccountEvent, 'tone' | 'text'>): void
   /**
    * Choose the account for this request and report which one it is. Called once,
    * before the first attempt; `undefined` means "the pool chose nobody", which
@@ -215,22 +221,40 @@ export function createTraeShim(options: TraeShimOptions): TraeShim {
     raw: string,
     signal: AbortSignal,
   ): Promise<
-    | { kind: 'stream'; response: Response }
+    | { kind: 'stream'; response: Response; accountName: string; notice?: string }
     | { kind: 'failed'; status: number; code: string; message: string }
   > {
     const pool = route.pool
     let client: TraeUpstreamClient = route.client
     let accountId = pool === undefined ? undefined : await pool.prepare().catch(() => undefined)
     const tried: string[] = []
+    let switchedFrom: string | undefined
+    const describe = async (): Promise<string> => safeAccountMessage(
+      await pool?.describe?.(accountId).catch(() => '未知账号') ?? '未知账号').replace(/[\r\n]/gu, ' ').slice(0, 80)
+    const report = (tone: 'ok' | 'error', text: string): void => {
+      try { pool?.event?.({ tone, text: safeAccountMessage(text) }) } catch { /* Diagnostics do not own billing. */ }
+    }
     for (let attempt = 0; ; attempt += 1) {
-      const result = await client.chatStream(raw, signal)
-      if (result.ok) return { kind: 'stream', response: result.response }
+      const accountName = await describe()
+      const result = await client.chatStream(raw, signal).catch((error: unknown) => ({
+        ok: false as const, status: 502, kind: 'server' as const, message: safeAccountMessage(error),
+      }))
+      if (result.ok) {
+        if (switchedFrom === undefined) return { kind: 'stream', response: result.response, accountName }
+        const text = `${switchedFrom}，已切换账号[${accountName}]继续请求`
+        report('ok', text)
+        return { kind: 'stream', response: result.response, accountName, notice: `\n\n> [dsh-connect-trae] ${text}\n\n` }
+      }
+      const reason = safeAccountMessage(result.message).replace(/\s+/gu, ' ').slice(0, 240)
+      const failureText = `账号[${accountName}]请求失败（${result.kind}）：${reason}`
+      report('error', failureText)
+      options.logger?.warn('dsh-connect-trae: account request failed', { kind: result.kind, message: reason })
       const retryable = pool !== undefined && !signal.aborted && FAILOVER_KINDS.has(result.kind)
       // Only account-scoped failures are recorded: a bad model id is not evidence
       // that the account cannot serve, and writing it would exclude the account
       // from the pool permanently over one typo.
-      if (retryable && accountId !== undefined) await pool.failed(accountId, result.kind, result.message).catch(() => {})
-      const failed = { kind: 'failed' as const, status: STATUS_BY_KIND[result.kind], code: result.kind, message: result.message }
+      if (retryable && accountId !== undefined) await pool.failed(accountId, result.kind, reason).catch(() => {})
+      const failed = { kind: 'failed' as const, status: STATUS_BY_KIND[result.kind], code: result.kind, message: pool?.describe === undefined ? reason : failureText }
       if (!retryable) return failed
       if (accountId !== undefined) tried.push(accountId)
       // A spent attempt budget and an empty pool end the request the same way, so
@@ -242,6 +266,7 @@ export function createTraeShim(options: TraeShimOptions): TraeShim {
         const reason = await pool.shortfall(tried).catch(() => undefined)
         return reason === undefined ? failed : { ...failed, message: `${failed.message} (${reason})` }
       }
+      switchedFrom = failureText
       client = next.client
       accountId = next.accountId
     }
@@ -291,13 +316,22 @@ export function createTraeShim(options: TraeShimOptions): TraeShim {
           'Connection': 'keep-alive',
           'X-Accel-Buffering': 'no',
         })
+        // A normal OpenAI content delta, emitted only after a replacement
+        // account accepted the request. Tool-call frames and usage pass through.
+        if (result.notice !== undefined) res.write(`data: ${JSON.stringify({
+          id: `trae-switch-${randomBytes(8).toString('hex')}`,
+          object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000),
+          model: typeof parsed.model === 'string' ? parsed.model : '',
+          choices: [{ index: 0, delta: { content: result.notice }, finish_reason: null }],
+        })}\n\n`)
         const body = Readable.fromWeb(result.response.body as Parameters<typeof Readable.fromWeb>[0])
         body.on('error', (error: unknown) => {
-          const record = error instanceof Error
-            ? { name: error.name, message: error.message, cause: error.cause ? String(error.cause) : undefined }
-            : String(error)
-          options.logger?.warn('dsh-connect-trae: upstream stream failed', record)
-          if (!res.writableEnded) res.end()
+          const message = `账号[${result.accountName}]响应中断：${safeAccountMessage(error)}`
+          options.logger?.warn('dsh-connect-trae: upstream stream failed', message)
+          try { route.pool?.event?.({ tone: 'error', text: message }) } catch { /* Keep diagnostics best-effort. */ }
+          // Once streaming started, replaying could duplicate tools or spend.
+          // Send the OpenAI error shape so the host reports a failed turn.
+          if (!res.writableEnded) res.end(`data: ${JSON.stringify({ error: { message, type: 'server', code: 'server' } })}\n\n`)
         })
         body.pipe(res)
         return

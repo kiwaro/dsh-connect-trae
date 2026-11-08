@@ -481,6 +481,9 @@ export class TraeCredentialStore {
 
 
   setSource(storagePath: string | undefined, edition: TraeEdition | 'auto' = 'auto', accountId?: string): void {
+    // Explicit selection supersedes any earlier automatic rotation. Unrelated
+    // settings writes keep the rotation until the next ranking decision.
+    if (this.accountId !== accountId) this.setRotatedAccount(undefined)
     this.storagePathOverride = storagePath
     this.edition = edition
     this.accountId = accountId

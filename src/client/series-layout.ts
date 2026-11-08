@@ -92,7 +92,7 @@ ${u} ${p}-pool-current-tag{border:1px solid var(--dsw-alias-border-l2,#777);back
 @container(max-width:700px){
  ${u} ${p}-pool-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:10px 12px}
  ${u} ${p}-pool-row-head{display:none}
- ${u} ${p}-pool-account{flex:1 1 100%;min-width:0}
+ ${u} ${p}-pool-account{flex:1 1 auto;min-width:0}
  ${u} ${p}-pool-row-actions{flex:1 1 100%;justify-content:flex-start;padding-top:4px}
 }
 /* 自动签到、设备参数和 SDK 是功能差异；沿用公共间距，不移除控件。 */
@@ -120,6 +120,8 @@ export function updateStickyTabs(page: HTMLElement): void {
   const viewportBottom = page.getBoundingClientRect().bottom
   for (const bar of Array.from(page.querySelectorAll<HTMLElement>('[class$="-pool-save-row"],[class$="-pool-save-bar"]'))) {
     const visible = bar.getClientRects().length > 0
-    bar.dataset.saveStuck = String(visible && Math.abs(bar.getBoundingClientRect().bottom - viewportBottom) <= 1)
+    // 保存栏的负 bottom 用于覆盖内边距，判断吸附时需要计入这一偏移。
+    const bottom = Number.parseFloat(getComputedStyle(bar).bottom) || 0
+    bar.dataset.saveStuck = String(visible && Math.abs(bar.getBoundingClientRect().bottom + bottom - viewportBottom) <= 1)
   }
 }

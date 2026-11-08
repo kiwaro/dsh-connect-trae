@@ -45,6 +45,7 @@ async function mount(pool: TraePoolDeps | undefined): Promise<CapturedEntry[]> {
   const client = new TraeUsageClient({ credential: async () => credential, fetchImpl: async () => new Response('{}'), baseUrl: 'https://api.trae.cn' })
   const options: TraeUsageRouteOptions = {
     store: () => ({
+      async current() { return credential },
       async accounts() { return [{ id: A, accountName: 'demo-user', edition: 'solo', enterprise: false, region: 'cn', source: 'desktop', tokenExpiresAtMs: expiresAtMs, selected: true }] },
       async status() { return { state: 'signed-in', edition: 'solo', expiresAtMs, source: 'desktop' } },
       async resolve() { return credential },
@@ -251,5 +252,22 @@ describe('the account pool route', () => {
     const out = recorder()
     await handler.handler(request(withTraePoolAction('cn', 'remove')), out.res)
     expect(out.status()).toBe(400)
+  })
+})
+
+describe('runtime account activity projection', () => {
+  it('returns this panel history in both the full and fast usage documents', async () => {
+    const entries = await mount(deps({
+      localMembers: async () => [],
+      events: panel => [{ id: 1, atMs: 1, tone: 'error', text: `${panel}: upstream risk control` }],
+    }))
+    const usage = entries.find(entry => entry.path.endsWith('/usage'))
+    if (!usage) throw Error('missing usage route')
+    for (const detail of ['fast', 'full']) {
+      const out = recorder()
+      await usage.handler(request(`${usage.path}?region=cn&detail=${detail}`, 'GET'), out.res)
+      expect(out.status()).toBe(200)
+      expect(out.lines()[0]).toMatchObject({ pool: { events: [{ text: 'cn: upstream risk control' }] } })
+    }
   })
 })

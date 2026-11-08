@@ -26,6 +26,7 @@ import type {
   TraeWebUsage,
 } from '../status-paths.ts'
 import type { TraeUsageCardInjected } from './trae-card-types.ts'
+import { IconStylePreference } from './plugin-icon.tsx'
 import { AccountPool } from './AccountPool.tsx'
 import type { TraePoolRowClaim, TraePoolRowDetail } from './AccountPool.tsx'
 import { AccountTransfer } from './AccountTransfer.tsx'
@@ -76,6 +77,20 @@ export interface TraeAccountPanelProps {
   preferencesOnly?: boolean
 
   t: (key: TraeSettingsKey, params?: Record<string, unknown>) => string
+  /**
+   * WHICH part of this panel to draw.
+   *
+   * The card grew a 「能力」 section (learned from dsh-connect-workbuddy): the
+   * preference switches authorize what the plugin does on the user's behalf,
+   * which is a different question from "which account is serving right now".
+   * Mixing them put three standing preferences between the account list and the
+   * pool, so a user reading their balance scrolled past settings to find it.
+   *
+   * `'all'` (the default) keeps the pre-split layout for the CARD surface, where
+   * there are no section tabs at all — splitting content with nothing to
+   * navigate by would hide the preferences entirely.
+   */
+  section?: 'all' | 'prefs' | 'accounts'
   settingsScope?: TraeUsageCardInjected['settingsScope'] | undefined
   /** The panel (provider) this section is about. */
   panel: TraePanel
@@ -122,13 +137,21 @@ export interface TraeAccountPanelProps {
   onTransferChanged(): void | Promise<unknown>
 
   /** The pool document, when the Host serves one. */
-  poolDetails: Record<string, TraePoolRowDetail>
+  /**
+   * Pool-only inputs. OPTIONAL because the 「能力」 section draws this component
+   * with `section: 'prefs'`, where none of them are read — the switches above
+   * are region-level preferences and the pool belongs to the account section.
+   * Making them required would force the capabilities caller to fabricate pool
+   * state it never renders, which is how a prop that means "what the pool knows"
+   * turns into "something the caller had to invent".
+   */
+  poolDetails?: Record<string, TraePoolRowDetail>
   poolClaims?: Record<string, TraePoolRowClaim> | undefined
   /** Every model of this panel, for the pool's target select. */
-  models: readonly TraeWebModel[]
-  deviceClaimed: boolean
-  onPoolChanged(): void | Promise<unknown>
-  onPoolRefresh(): void | Promise<unknown>
+  models?: readonly TraeWebModel[]
+  deviceClaimed?: boolean
+  onPoolChanged?(): void | Promise<unknown>
+  onPoolRefresh?(): void | Promise<unknown>
 
   /** Notices that are about the ACCOUNT, so they live in this section. */
   creditsUnavailable?: 'enterprise' | undefined
@@ -214,8 +237,10 @@ export function TraeAccountPanel({
   sidebarPanelOn, sidebarPanelBusy, onToggleSidebarPanel,
   savingPreferences, creditsLabelId, creditsHintId,
   rows, busy, rescanNote, onRescan, switchingAccount, onSwitchAccount, onClaim, onTransferChanged,
-  poolDetails, poolClaims, models, deviceClaimed, onPoolChanged, onPoolRefresh,
+  poolDetails, poolClaims, models = [], deviceClaimed = false,
+  onPoolChanged = () => {}, onPoolRefresh = () => {},
   creditsUnavailable, creditsExpiry, alternatives, onSwitchToAlternative,
+  section = 'all',
 }: TraeAccountPanelProps): ReactElement | null {
   const writable = settingsScope?.getSnapshot().writable === true
   const signedIn = status.status === 'signed-in'
@@ -303,24 +328,22 @@ export function TraeAccountPanel({
             <span className="dsm-trae-pref-hint">{t('row.sidebarPanelHint')}</span>
           </span>
         </label>
+        {/* ICON STYLE — the plugin's appearance, so it belongs with the other
+            「what this plugin does」 switches rather than in the account section.
+
+            It sat in the pool-settings header before, next to 「账号池设置」, and
+            that was the wrong shelf: everything around it there is about the
+            ACCOUNTS (which ones are pooled, what the drafts will do on save),
+            while this one changes how the plugin looks in the sidebar and on its
+            page — no account involved, and nothing to save.
+
+            Last in the block because it is the least consequential of the four:
+            the three above change behaviour, this one changes a drawing. */}
+        <IconStylePreference t={t} />
       </div>
   )
   return (
     <>
-      {/* The preference switches, as BARE LINES — no bordered box, no heading,
-          no 「保存」/「放弃」 footer.
-
-          That is the sibling dsh-connect-workbuddy card's shape, and the reason
-          it is the better one here: a card that asks the user to press Save for a
-          boolean is asking them to remember something with no reason to need
-          remembering. The boxes write on their own click (see the card's
-          `writePreference`), exactly like the region on/off boxes in the tab bar
-          above — so the whole card has ONE commit model instead of two.
-
-          The label IS the checkbox's own <label>, so the text is a larger click
-          target and the accessible name needs no ARIA. */}
-
-
       {/* ONE account table, not two. Once the pool document exists the pool's
           member table below lists the same accounts with the same credits and the
           same check-in state, so this roster would be a verbatim second copy of

@@ -1,3 +1,5 @@
+Local integration has been checked against upstream 4.15.0, including legacy settings navigation, aligned account rows, original-icon defaults and sticky save boundaries. Enterprise isolation and account-switch feedback remain enabled. See [integration notes](docs/UPSTREAM-INTEGRATION-2026-11-08.md).
+
 > Local review: settings contain Accounts, Models, Capabilities and Diagnostics. Screenshots below show earlier versions. Historical host comparisons describe their named releases; current development dependencies are DSH 0.2.2-rc.1, pi-ai 1.3.0 and schemastery 3.19.0. The SemVer table uses includePrerelease: true. Account pools may automatically select and retry accounts only when explicitly enabled. Compatible JSON fields do not make WorkBuddy credentials valid for Trae. Later toolbar registrations move left automatically.
 
 > Local maintenance: see [module split and checks](docs/MODULE-SPLIT-PLAN.md) and [local deployment](docs/LOCAL-DEPLOYMENT.md). This checkout uses the `kiwaro/dsh-connect-trae` fork and retains upstream copyright and version.
@@ -39,7 +41,12 @@ A [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) bund
 > Accounts, credentials, model catalogs and request routing remain isolated. Only toolbar order reservations are shared with WorkBuddy.
 
 <a id="features"></a>
+
 ## 1. Features
+
+Manual account switching stops automatic selection for the current panel before saving the account. Pool membership, model settings and other panels are preserved. Enable and save the panel's pool again to resume automatic selection. In automatic mode, SOLO quota exhaustion (4008) and account risk restrictions (4017) trigger account failover within the request's attempt limit; requests still fail when no usable member remains.
+
+Automatic failover adds an account switch notice before the response, with the previous account and failure reason. Final refusals and interrupted streams identify the account and reason in the turn error and pool activity. The credits popover shows per-account failure details and the latest five events. Both manual switch controls report success or the actual failure reason. Runtime history is cleared when the plugin restarts.
 
 - **Three parallel providers** — the CN side registers as the `trae` provider (e.g. `DeepSeek-V4-Flash`, `DeepSeek-V4-Pro`), the enterprise side as `trae-enterprise`, and the international side as `trae-global` (the Gemini/GPT/MiniMax roster); **all three rosters appear in the DSH model picker simultaneously**: different sessions can each pick a side without interfering.
 - **Enterprise is a separate billing channel, not an alias for CN** — the same CN credential, when it belongs to a `tob_online` tenant, is served by **two** gateways: the consumer pool (billed against personal credits) and the tenant pool (billed against the enterprise allowance). Same model, two payers, so **you** choose who pays; the plugin never guesses. `trae` never touches the enterprise gateway, and `trae-enterprise` **never falls back** — a refusal is reported as a refusal instead of quietly re-running on personal credits. Enterprise is **off by default**: a personal-only account cannot use the tenant pool, so shipping it enabled would mean handing everyone a provider that fails on first use.

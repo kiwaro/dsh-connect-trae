@@ -1,3 +1,4 @@
+import { bridgeTraeSoloStreamOrFail } from '../src/solo-bridge.ts'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -125,6 +126,14 @@ describe('pool rotation in the credential store', () => {
 
     expect(store.rotatedAccount()).toBeUndefined()
     expect((await store.resolve()).accessToken).toBe('ta')
+  })
+
+  it('clears a previous rotation when the user changes the bound account', async () => {
+    const { store, idOf } = await twoAccountStore({ bind: 'alpha' })
+    store.setRotatedAccount(idOf('alpha'))
+    store.setSource(store.candidates()[0]!.path, 'cn', idOf('beta'))
+    expect(store.rotatedAccount()).toBeUndefined()
+    expect((await store.resolve()).accessToken).toBe('tb')
   })
 
   it('ignores a rotation to an account this machine no longer has', async () => {
@@ -263,6 +272,86 @@ function chat(shim: TraeShim): Promise<{ status: number; body: string }> {
 }
 
 describe('shim failover across pooled accounts', () => {
+  it('names both accounts in a successful failover notice before answer text', async () => {
+    const first = scriptedClient([rateLimited('upstream risk control')])
+    const second = scriptedClient([ok()])
+    const events: { text: string }[] = []
+    const { pool } = recordingPool({
+      describe: async id => id === 'account-b' ? 'demo-backup' : 'demo-primary',
+      event: event => { events.push(event) },
+      next: async () => ({ accountId: 'account-b', client: second.client }),
+    })
+    const response = await chat(await startShim(first.client, pool))
+    expect(response.status).toBe(200)
+    expect(response.body).toContain('已切换账号[demo-backup]继续请求')
+    expect(response.body.indexOf('demo-primary')).toBeLessThan(response.body.indexOf('data: ok'))
+    expect(events.some(event => event.text.includes('upstream risk control'))).toBe(true)
+    expect(events.some(event => event.text.includes('已切换账号[demo-backup]'))).toBe(true)
+  })
+
+  it('delivers the switch notice through the actual pi-ai stream consumer', async () => {
+    const { createProvider } = await import('@earendil-works/pi-ai')
+    const { openAICompletionsApi } = await import('@earendil-works/pi-ai/api/openai-completions.lazy')
+    const { pool } = recordingPool({ describe: async () => 'demo-backup', next: async () => ({
+      accountId: 'account-b', client: { chatStream: async () => ({ ok: true, response: new Response('data: {"choices":[{"index":0,"delta":{"content":"fixture answer"},"finish_reason":null}]}\n\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n') }) },
+    }) })
+    const shim = await startShim(scriptedClient([rateLimited()]).client, pool)
+    const model: import('@earendil-works/pi-ai').Model<'openai-completions'> = {
+      id: 'fixture-model', name: 'fixture-model', api: 'openai-completions', provider: 'trae',
+      baseUrl: `${shim.baseUrl()}/v1`, input: ['text'], reasoning: false, contextWindow: 200_000, maxTokens: 32_768,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: {},
+    }
+    const provider = createProvider({ id: 'trae', name: 'trae', models: [model], api: openAICompletionsApi(),
+      auth: { apiKey: { name: 'fixture', async resolve() { return { auth: { apiKey: shim.token() }, source: 'fixture' } } } },
+    }) as unknown as { streamSimple(model: unknown, context: unknown, options: unknown): AsyncIterable<{ type: string; delta?: string; error?: unknown }> }
+    const events = []
+    for await (const event of provider.streamSimple(model, { messages: [{ role: 'user', content: 'fixture', timestamp: 1 }] }, { apiKey: shim.token(), signal: AbortSignal.timeout(5_000) })) events.push(event)
+    expect(events.filter(event => event.type === 'error')).toEqual([])
+    const text = events.filter(event => event.type === 'text_delta').map(event => event.delta ?? '').join('')
+    expect(text).toContain('已切换账号[demo-backup]继续请求')
+    expect(text).toContain('fixture answer')
+  })
+
+  it('preserves tool-call frames and usage after the switch notice', async () => {
+    const frame = { id: 'completion-fixture', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'call-fixture', type: 'function', function: { name: 'demo_tool', arguments: '{}' } }] }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 3, completion_tokens: 4, total_tokens: 7 } }
+    const wire = `data: ${JSON.stringify(frame)}\n\ndata: [DONE]\n\n`
+    const { pool } = recordingPool({ describe: async () => 'demo-backup', next: async () => ({
+      accountId: 'account-b', client: { chatStream: async () => ({ ok: true, response: new Response(wire) }) },
+    }) })
+    const response = await chat(await startShim(scriptedClient([rateLimited()]).client, pool))
+    const chunks = response.body.split('\n\n').filter(Boolean)
+    expect(JSON.parse(chunks[0]!.slice(6)).choices[0].delta.content).toContain('已切换账号[demo-backup]')
+    expect(chunks.slice(1).join('\n\n') + '\n\n').toBe(wire)
+  })
+
+  it('reports a stream interruption without retrying an already started response', async () => {
+    const events: { text: string }[] = []
+    const { pool, log } = recordingPool({ describe: async () => 'demo-primary', event: event => { events.push(event) } })
+    const stream = new ReadableStream({ start(controller) { controller.error(new Error('socket closed; access_token=private-fixture')) } })
+    const response = await chat(await startShim({ chatStream: async () => ({ ok: true, response: new Response(stream) }) }, pool))
+    expect(response.body).toContain('demo-primary')
+    expect(response.body).toContain('socket closed')
+    expect(response.body).not.toContain('private-fixture')
+    expect(log).toEqual(['prepare'])
+    expect(events).toHaveLength(1)
+  })
+
+  it('reports a final refusal with its account name and redacts credentials', async () => {
+    const events: { text: string }[] = []
+    const { pool } = recordingPool({
+      describe: async () => 'demo-primary',
+      event: event => { events.push(event) },
+    })
+    const response = await chat(await startShim(scriptedClient([rateLimited('risk control; access_token=secret-fixture')]).client, pool))
+    expect(response.status).toBe(429)
+    expect(response.body).toContain('demo-primary')
+    expect(response.body).toContain('risk control')
+    expect(response.body).not.toContain('secret-fixture')
+    expect(events).toHaveLength(1)
+    expect(events[0]?.text).not.toContain('secret-fixture')
+    expect(response.body).not.toContain('已切换账号')
+  })
+
   it('serves the first attempt and never asks for a failover', async () => {
     const route = scriptedClient([ok()])
     const { pool, log } = recordingPool()
@@ -290,6 +379,23 @@ describe('shim failover across pooled accounts', () => {
     expect(second.state.calls).toBe(1)
     expect(log).toEqual(['prepare', 'failed:account-a:soft_rate', 'next:account-a'])
   })
+
+  it.each([[4008, 'hard_credit'], [4017, 'soft_rate']] as const)(
+    'fails over an actual early Trae SSE refusal %i', async (code, kind) => {
+      const first: TraeUpstreamClient = { chatStream: async () =>
+        bridgeTraeSoloStreamOrFail(new Response(
+          `event: error\ndata: ${JSON.stringify({ code, message: 'account unavailable' })}\n\n`,
+          { headers: { 'content-type': 'text/event-stream' } }), 'glm-5.2') }
+      const second = scriptedClient([ok()])
+      const { pool, log } = recordingPool({ next: async tried => {
+        log.push(`next:${tried.join(',')}`)
+        return { accountId: 'account-b', client: second.client }
+      } })
+      const response = await chat(await startShim(first, pool))
+      expect(response.status).toBe(200)
+      expect(second.state.calls).toBe(1)
+      expect(log).toEqual(['prepare', `failed:account-a:${kind}`, 'next:account-a'])
+    })
 
   it('does not fail over a client error: a bad request is not an account problem', async () => {
     const route = scriptedClient([{ ok: false, status: 400, kind: 'client', message: 'bad model id' }])

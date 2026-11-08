@@ -8,6 +8,8 @@
  * 和可切换账号。面板提供账号池测试及插件设置入口。
  * 账号明细只在面板打开时查询，定时刷新失败时保留上次读数。
  */
+import { safeAccountMessage } from '../account-events.ts'
+import { writeManualAccount } from './trae-settings-write.ts'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAnchoredPosition, useDismissOnOutsidePointer } from './popover.ts'
@@ -15,12 +17,12 @@ import {
   TRAE_ACCOUNT_CREDITS_PATH,
   TRAE_ACCOUNT_STATUS_PATH,
   TRAE_USAGE_PATH,
-  configuredAccountsOf,
   withTraeRegion,
 } from '../status-paths.ts'
 import { COMPOSER_POINTS_CSS } from './styles.ts'
 import { formatDateTime } from './display.ts'
 import { expiryHeadlineKey, expiryNotice, expiryToneClass } from './expiry-ladder.ts'
+import type { ExpiryNotice } from './expiry-ladder.ts'
 import { planText } from './plan-text.ts'
 import type { TraeWebAccountCredit, TraeWebAccountState, TraeWebCreditExpiry, TraeWebPayStatus, TraeWebUsage } from '../status-paths.ts'
 import { withTraePoolAction } from '../status-paths.ts'
@@ -128,6 +130,25 @@ function formatCredits(value: number): string {
 }
 
 /**
+ * The notice this panel would render, or undefined when there is nothing to say.
+ *
+ * THE ONE GUARD THE RENDER READS. An earlier version asked
+ * `signedIn?.credits?.expiry !== undefined`, which is true whenever upstream sent
+ * the four buckets — even with every `packs` count at 0. The box then rendered
+ * with an empty `<span>` inside and the `lapsed` border (the tone fallback),
+ * i.e. a warning-shaped rectangle containing nothing. Every empty-bucket
+ * document produced one, which is the blank box in the reported screenshot.
+ *
+ * Putting the whole lookup here means the render cannot ask a weaker question
+ * than the copy does: "is there a box" and "is there a sentence" are now the
+ * same boolean.
+ */
+function expiryNoticeOf(signedIn: { credits?: { expiry?: TraeWebCreditExpiry } } | undefined): ExpiryNotice | undefined {
+  const expiry = signedIn?.credits?.expiry
+  return expiry === undefined ? undefined : expiryNotice(expiry)
+}
+
+/**
  * The soonest expiry the chosen tier names, or undefined when none carries one.
  *
  * Read from the tier the shared ladder picked, so the time shown always belongs
@@ -194,6 +215,7 @@ export function ComposerPoints(props: ComposerPointsProps) {
    */
   const [accountPlans, setAccountPlans] = useState<Record<string, TraeWebPayStatus | undefined> | undefined>(undefined)
   const [switchingId, setSwitchingId] = useState<string | undefined>(undefined)
+  const [switchNotice, setSwitchNotice] = useState<{ panel: string; text: string; failed: boolean }>()
   const [failed, setFailed] = useState(false)
   /**
    * The settings button was pressed on a host with no route to the page.
@@ -349,14 +371,17 @@ export function ComposerPoints(props: ComposerPointsProps) {
     setAccountPlans(Object.fromEntries(entries))
   }, [activeRegion])
 
-  // Per-account figures are read on OPEN, not on the 5-minute cycle.
+  // Opening also refreshes the usage document: a request may have failed or
+  // switched accounts since the five-minute readout poll. Otherwise its reason
+  // would remain invisible in a newly opened account table.
   useEffect(() => {
     if (!open || activeRegion === undefined) return undefined
     const controller = new AbortController()
+    void fetchUsage(controller.signal)
     if (activeRegion === 'ai') void fetchAccountPlans(controller.signal)
     else void fetchAccountCredits(controller.signal)
     return () => { controller.abort() }
-  }, [open, activeRegion, fetchAccountCredits, fetchAccountPlans])
+  }, [open, activeRegion, fetchAccountCredits, fetchAccountPlans, fetchUsage])
 
   // Escape closes the panel, matching the neighbouring popovers.
   useEffect(() => {
@@ -372,9 +397,9 @@ export function ComposerPoints(props: ComposerPointsProps) {
    * Switch to another account, then re-read both the usage document and the
    * table so the marker, the readout, and the panel all move together.
    *
-   * The merge goes through the shared `configuredAccountsOf` helper (the card
-   * uses the same one): writing only `[region]: id` would drop the other
-   * region's selection. The write is read-back checked — `set()` resolving is
+   * The shared `writeManualAccount` helper stops automatic selection in this
+   * panel and preserves the account pool roster. It also merges account slots:
+   * writing only `[region]: id` would drop the other region's selection. The write is read-back checked — `set()` resolving is
    * not proof it landed — so a refused write reports failure instead of
    * showing a marker on an account that was never selected.
    */
@@ -385,19 +410,18 @@ export function ComposerPoints(props: ComposerPointsProps) {
       ?? (usage?.status === 'signed-in' ? usage.accountId : undefined)
     if (accountId === currentId) return
     setSwitchingId(accountId)
+    setSwitchNotice(undefined)
+    const account = accountCredits?.find(row => row.id === accountId)?.accountName
+      ?? (usage?.status === 'signed-in' ? usage.accounts.find(row => row.id === accountId)?.accountName : undefined) ?? t('row.unknownAccount')
     setFailed(false)
     try {
-      const configured = configuredAccountsOf(settingsScope.getSnapshot().value)
-      const accepted = await settingsScope.set('accounts', { ...configured, [activeRegion]: accountId })
-      const readBack = configuredAccountsOf(settingsScope.getSnapshot().value)
-      if (accepted === false || readBack[activeRegion] !== accountId) {
-        throw new Error('the Host did not persist the switch')
-      }
+      await writeManualAccount(settingsScope, activeRegion, accountId)
+      if (mounted.current) setSwitchNotice({ panel: activeRegion, text: t('row.accountSwitched', { account }), failed: false })
       await fetchUsage()
       if (activeRegion === 'ai') await fetchAccountPlans()
       else await fetchAccountCredits()
-    } catch {
-      if (mounted.current) setFailed(true)
+    } catch (error: unknown) {
+      if (mounted.current) setSwitchNotice({ panel: activeRegion, text: t('row.accountSwitchFailed', { account, message: safeAccountMessage(error) }), failed: true })
     } finally {
       if (mounted.current) setSwitchingId(undefined)
     }
@@ -793,6 +817,9 @@ export function ComposerPoints(props: ComposerPointsProps) {
                               <span className="dsm-trae-composer-panel-dot" aria-hidden="true" />
                               {row.accountName}
                             </button>
+                            {pool?.accounts.find(account => account.accountId === row.id)?.probe?.message
+                              ? <span className="dsm-trae-pool-probe-detail">{pool.accounts.find(account => account.accountId === row.id)?.probe?.message}</span>
+                              : null}
                           </th>
                           <td className="dsm-trae-composer-panel-num">
                             {activeRegion === 'ai'
@@ -821,7 +848,7 @@ export function ComposerPoints(props: ComposerPointsProps) {
                 {soonestExpiryOf(signedIn.credits.expiry) === undefined
                   ? null
                   : <span className="dsm-trae-expiry-detail">
-                      {t('row.expiryEarliest', { time: formatDateTime(soonestExpiryOf(signedIn.credits.expiry)!) })}
+                      {t('row.expiryEarliest', { time: formatDateTime(expiryNoticeOf(signedIn)!.soonestExpiresAtMs!) })}
                     </span>}
               </div>
             : null}
@@ -830,6 +857,12 @@ export function ComposerPoints(props: ComposerPointsProps) {
               {t('composer.lastRefresh')} {lastRefresh === undefined ? '—' : formatClock(lastRefresh)}
             </span>
           </div>
+          {switchNotice !== undefined && switchNotice.panel === activeRegion
+            ? <p className={switchNotice.failed ? 'dsm-trae-composer-panel-error' : 'dsm-trae-usage-alternative'} role={switchNotice.failed ? 'alert' : 'status'}>{switchNotice.text}</p>
+            : null}
+          {pool?.events?.length ? <div className="dsm-trae-pool-log" role="log" aria-label={t('row.poolLogTitle')}>
+            {pool.events.slice(-5).reverse().map(event => <p key={event.id} className={`dsm-trae-pool-log-${event.tone}`}>{event.text}</p>)}
+          </div> : null}
           {failed ? <p className="dsm-trae-composer-panel-error" role="status">{t('composer.refreshFailed')}</p> : null}
           {settingsFailed
             ? <p className="dsm-trae-composer-panel-error" role="status">{t('composer.openSettingsFailed')}</p>

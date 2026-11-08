@@ -455,6 +455,13 @@ describe('bridgeTraeSoloStreamOrFail: an early refusal becomes a real error resu
     })
   })
 
+  it('classifies account risk control as a temporary account restriction', async () => {
+    const result = await bridgeTraeSoloStreamOrFail(traeStream([
+      'event: error\ndata: {"code":4017,"message":"common risk control status"}\n\n',
+    ]), 'glm-5.2')
+    expect(result).toMatchObject({ ok: false, status: 429, kind: 'soft_rate' })
+  })
+
   it('recognises a failure hidden in an unnamed event via the error code band', async () => {
     const result = await bridgeTraeSoloStreamOrFail(traeStream([
       'data: {"code":4008,"message":"quota exceeded"}\n\n',
@@ -462,8 +469,8 @@ describe('bridgeTraeSoloStreamOrFail: an early refusal becomes a real error resu
     ]), 'glm-5.2')
     expect(result).toEqual({
       ok: false,
-      status: 400,
-      kind: 'client',
+      status: 402,
+      kind: 'hard_credit',
       message: "Trae reports the account's SOLO quota is exhausted for this request · Trae code 4008 · upstream: quota exceeded",
     })
   })

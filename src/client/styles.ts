@@ -95,7 +95,7 @@ export const TRAE_CARD_CSS = `
  * 作用域，在卡片上留下两个回归）。卡片与整页没有"外壳的滚动列"，那里的分栏条
  * 跟随内容滚动。没有滚动祖先时 sticky 不起作用，但背景色仍会生效，
  * 而底色取 layer-2，卡片本身是 layer-3，色差在卡片上就成了一条浅色带。 */
-.dsm-trae-section .dsm-trae-panels{position:sticky;top:-1px;z-index:2;background:var(--dsw-alias-bg-layer-2,#24262c)}
+.dsm-trae-section .dsm-trae-usage .dsm-trae-panels{position:sticky;top:-1px;z-index:2;padding:0;background:var(--dsw-alias-bg-layer-2,#24262c)}
 .dsm-trae-panel-tab{appearance:none;font:inherit;cursor:pointer;border:0;background:transparent;padding:7px 11px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--dsw-alias-label-tertiary,#999);font-size:13px;font-weight:600;line-height:20px;white-space:nowrap;transition:color .15s,border-color .15s}
 .dsm-trae-panel-tab:hover:not(.dsm-trae-panel-tab-active){color:var(--dsw-alias-label-primary,#e6e6e6)}
 .dsm-trae-panel-tab:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
@@ -103,6 +103,12 @@ export const TRAE_CARD_CSS = `
 /* No top margin of its own: the strip above already carries a border, and the
    card's 16px stack gap would double the separation. */
 .dsm-trae-panel{margin-top:0}
+/* The one-line note at the top of a section that holds controls but no Save
+ * button. A section with switches and no footer is the first thing a reader
+ * doubts — "did that press stick?" — so the note answers it before the doubt
+ * forms, and it is styled as a muted paragraph rather than a warning because
+ * "takes effect immediately" is a fact, not a caveat. */
+.dsm-trae-panel-note{margin:0 0 4px;padding:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#9aa0a8)}
 /* DIAGNOSTICS: a two-column fact table rather than prose. Each row is one thing
  * the card actually READ, so a bug report can quote a line instead of
  * paraphrasing the UI. No control lives here on purpose — a diagnostics panel
@@ -139,6 +145,20 @@ export const TRAE_CARD_CSS = `
 .dsm-trae-prefs{display:flex;flex-direction:column;gap:14px;padding:2px 2px 0}
 .dsm-trae-pref{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:18px;color:var(--dsw-alias-label-secondary,#c6c9d0);cursor:pointer}
 .dsm-trae-pref input{flex:none;cursor:pointer;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
+/* The icon picker inside the 「能力」 list.
+ *
+ * It is a shared component (plugin-icon.tsx) that also renders standalone, so
+ * its own rule carries a 12px block padding for that standalone use. Inside the
+ * prefs column that padding doubles up with the container's 14px gap and the row
+ * drifts away from its three neighbours, which are bare lines with no padding of
+ * their own. Strip it here rather than in the shared rule: the standalone
+ * spacing is still correct wherever else this component is mounted.
+ *
+ * min-width:0 on the copy because the labels here are Chinese sentences, not the
+ * short English words the 180px floor was chosen for; without it a long hint
+ * pushes the two icon buttons out of the 564px column instead of wrapping. */
+.dsm-trae-prefs .dsm-icon-preference{padding:0;align-items:flex-start}
+.dsm-trae-prefs .dsm-icon-preference-copy{min-width:0}
 .dsm-trae-pref-check{inline-size:15px;block-size:15px;margin:3px 0 0}
 /* The label and its explanation used to run together as one wrapped blob
    ("在输入框工具栏显示积分读数 在输入框工具栏显示可点击读数…"), which is what made
@@ -663,7 +683,23 @@ export const TRAE_CARD_CSS = `
    reads as a selection control, and the checkbox beside it already is one. */
 .dsm-trae-pool-row-current{background:rgba(86,134,254,.07);box-shadow:inset 3px 0 0 var(--dsw-alias-brand-primary,#5686fe)}
 .dsm-trae-pool-row-ghost{opacity:.7}
-.dsm-trae-pool-row-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+/* The row's buttons: RIGHT side of the row, pulled there by the auto margin
+ * (learned from dsh-connect-workbuddy, which had the same complaint).
+ *
+ * WHY THE AUTO MARGIN AND NOT JUST justify-content. In the wide grid this cell
+ * IS the last track, so justify-content:flex-end was enough. But in the
+ * NARROW form the row becomes a wrapping flex line, and this cell is a sibling
+ * of the account line rather than a track beside it -- so it claimed a line of
+ * its own and the row spent a whole line on two small buttons.
+ *
+ * margin-inline-start:auto moves it to the END of whatever line has room. In
+ * the narrow form that is the account line, which is the SHORTEST line in the
+ * row, so the buttons land beside the account name where the eye already is
+ * instead of under it.
+ *
+ * flex:none is load-bearing: the account name may truncate, the buttons may
+ * not, and a shrunken button is unclickable. */
+.dsm-trae-pool-row-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;flex:none;margin-inline-start:auto}
 .dsm-trae-pool-account{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:2px 8px;min-width:0}
 .dsm-trae-pool-check{display:inline-flex;align-items:center;flex:none;grid-column:1;grid-row:1;cursor:pointer}
 .dsm-trae-pool-check input{flex:none;margin:0;cursor:pointer;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
@@ -741,13 +777,48 @@ export const TRAE_CARD_CSS = `
  *
  * .dsm-trae-pool-row-head 隐藏：它的标签描述的是已经不存在的轨道。 */
 @container (max-width:700px){
-  .dsm-trae-pool-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:var(--dsm-trae-pool-pad-y) 12px}
+  /* The dsm-trae-usage hop is load-bearing: series-layout.ts appends a
+     dsm-trae-usage dsm-trae-pool-row rule inside this same container query, and
+     at 0,2,0 it beat the plain dsm-trae-pool-row below (0,1,0). Measured after
+     the 4.14.0 merge: display came back as flex, rows grew 75 -> 111px and the
+     check-in fell to line 2 again, while the grid COLUMN rules still applied —
+     a half-applied layout, which is why it looked like a padding problem rather
+     than a specificity one. */
+  .dsm-trae-usage .dsm-trae-pool-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:var(--dsm-trae-pool-pad-y) 12px}
   .dsm-trae-pool-row-head{display:none}
-  .dsm-trae-pool-account{flex:1 1 100%;align-items:center}
-  .dsm-trae-pool-credit{flex:0 1 auto;flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
-  .dsm-trae-pool-probe{flex:1 1 auto}
-  .dsm-trae-pool-checkin{flex:none}
-  .dsm-trae-pool-row-actions{flex:1 1 100%;justify-content:flex-start;padding-top:4px}
+  /* TWO ROWS, EXPLICITLY PLACED. Not "let flex wrap and hope".
+   *
+   * 每一行账号只有两行：
+   *
+   *   第一行  [勾选 + 账号名 + 标签]            [签到状态 + 按钮]  [积分]
+   *   第二行  [状态 · 测得时间 · 来源]                            [测速] [删除]
+   *
+   * 以前是 flex-wrap，由内容决定怎么折——结果是同一个表格里的行落在不同的
+   * 位置（实测三行分别占地 4 / 4 / 3 个纵向位置），有的积分被挤到中间（x=588）。
+   * 网格把每个事实钉在一个格子里：无论账号名多长，积分永远停在同一右缘，
+   * 「签到」永远和名字同一行。
+   *
+   * 列的含义：
+   *   1fr   —— 会伸缩的那一列（账号名、状态）。
+   *   auto  —— 签到：宽度由文字决定（「已签到」「未签到」「本设备今日已用」）。
+   *   auto  —— 积分：贴在右缘，flex:none，不许被压缩。
+   *
+   * 积分为什么单独成列而不是跟在名字后面：余额是这一行里唯一会被**跨行横向比对**
+   * 的数字（「哪个账号还剩得多」），而跟着名字走时三行分别落在 593 / 614 / 498，
+   * 眼睛没法竖着扫。等宽字形让小数点也对齐。
+   *
+   * 状态那一格（probe）独占第二行：它讲的是「能不能用」，与「还剩多少」不是同一个
+   * 问题；按钮也放在第二行，因为第一行已经有三个事实，再塞两个按钮会把账号名压窄。 */
+  .dsm-trae-usage .dsm-trae-pool-row:not(.dsm-trae-pool-row-head){
+    display:grid;grid-template-columns:minmax(0,1fr) auto auto;
+    align-items:center;gap:4px 10px}
+  .dsm-trae-pool-account{grid-column:1;grid-row:1;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;min-width:0}
+  .dsm-trae-pool-checkin{grid-column:2;grid-row:1;justify-self:end;flex:none}
+  .dsm-trae-pool-credit{grid-column:3;grid-row:1;justify-self:end;flex:none;flex-direction:row;align-items:baseline;gap:2px 8px;text-align:right;font-variant-numeric:tabular-nums}
+  .dsm-trae-pool-probe{grid-column:1;grid-row:2;min-width:0}
+  /* Spans from the check-in column to the edge: the buttons sit under the figures
+     they act on, flush with the credit above them. */
+  .dsm-trae-pool-row-actions{grid-column:2/-1;grid-row:2;justify-self:end;justify-content:flex-end;margin-inline-start:0;padding-top:0}
   /* THE PROBE CELL'S OWN COLUMN, collapsed to one line.
    *
    * 这一条是最容易漏掉的：.dsm-trae-pool-probe 只是个 min-width:0 的外层包装，

@@ -69,6 +69,7 @@ const TRAE_ERROR_HINTS: Readonly<Record<number, string>> = {
   2001: 'Trae could not find a function config for this route. Retry later; if it persists, check the account and route configuration',
   4001: 'Trae does not serve this model under the SOLO function the request used (config_name rejected)',
   4008: 'Trae reports the account\'s SOLO quota is exhausted for this request',
+  4017: 'Trae temporarily restricted this account through risk control',
   4011: 'Trae throttled the SOLO channel for this account (a rate limit, not the credit balance)',
   4023: 'Trae does not recognise this model name on the SOLO route that was asked',
   4222: 'The enterprise tenant allowance is exhausted (tenant spend is separate from the personal credit balance; the consumer gateway still has its own)',
@@ -119,11 +120,13 @@ export function describeTraeFailure(failure: TraeFailure): string {
  * replay — correct, since a throttled route is not a route-compatibility
  * problem.
  *
- * Everything else stays a client-side rejection.
+ * `4008` exhausts the account quota and `4017` temporarily restricts the
+ * account. Both must reach account failover rather than stop as request errors.
+ * Other codes stay client-side rejections.
  */
 function classifyTraeFailure(failure: TraeFailure): { status: number; kind: TraeUpstreamErrorKind } {
-  if (failure.code === 1005) return { status: 402, kind: 'hard_credit' }
-  if (failure.code === 4011) return { status: 429, kind: 'soft_rate' }
+  if (failure.code === 1005 || failure.code === 4008) return { status: 402, kind: 'hard_credit' }
+  if (failure.code === 4011 || failure.code === 4017) return { status: 429, kind: 'soft_rate' }
   return { status: 400, kind: 'client' }
 }
 

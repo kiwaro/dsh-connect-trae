@@ -26,6 +26,7 @@ import { cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fillPlaceholders,
+  MODEL_LABEL_PRIORITY,
   promoZhe,
   resetTraeModelLabelCache,
   splitCatalogRate,
@@ -267,18 +268,23 @@ describe('the model label in the host picker', () => {
    * another provider's decoration. It must draw it where the host draws it:
    * before the name in the composer trigger, after it in menus/options.
    */
-  it('keeps another provider\'s catalog badge visible, in the host\'s order', () => {
+  it('keeps another provider\'s catalog badge visible, always after the name', () => {
     vi.stubGlobal('fetch', async () => {
       throw new Error('a foreign model must never trigger this plugin\'s fetch')
     })
     const badge = { text: 'New', tone: 'success' as const }
 
+    // No space in the text: name and capsule are siblings in a flex row, so
+    // the gap is CSS. Order is pinned structurally below.
     const menu = render(<TraeModelLabel {...props('someone-else', 'Their Model', 'm1', badge)} />)
-    expect(menu.container.textContent).toBe('Their Model New')
+    expect(menu.container.textContent).toBe('Their ModelNew')
     menu.unmount()
 
+    // The trigger keeps the SAME order as a menu row, unlike the host's own
+    // fallback. This plugin's own rows never swap, so following the host would
+    // show two orders in one open menu; see `docs/MODEL-LABEL-SPEC.md`.
     const trigger = render(<TraeModelLabel {...props('someone-else', 'Their Model', 'm1', badge, 'trigger')} />)
-    expect(trigger.container.textContent).toBe('New Their Model')
+    expect(trigger.container.textContent).toBe('Their ModelNew')
     expect(trigger.container.querySelector('.dsm-trae-model-label-host-badge')).not.toBeNull()
   })
 
@@ -298,5 +304,31 @@ describe('the model label in the host picker', () => {
     } finally {
       Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true })
     }
+  })
+})
+
+describe('the seat in the host picker', () => {
+  it('claims a priority BELOW every sibling, because a single slot renders the lowest', () => {
+    // THE BUG THIS PINS, and it shipped: `conversation.input.model.label` is a
+    // `single` slot, so exactly one registration renders — the one with the
+    // LOWEST priority. This plugin held `-0.25` while the siblings had moved to
+    // `-101` (qoder) and `-100` (workbuddy), so Trae's capsule was never drawn.
+    // The comment in the source claimed qoder was `-1` and workbuddy `-0.5`,
+    // which is why the mistake survived: it described an arrangement the
+    // siblings had already left.
+    //
+    // The numbers below are copied from the siblings' sources, not from memory.
+    // If either sibling moves again, this test is the reminder to look.
+    const QODER = -101
+    const WORKBUDDY = -100
+    expect(MODEL_LABEL_PRIORITY).toBeLessThan(QODER)
+    expect(MODEL_LABEL_PRIORITY).toBeLessThan(WORKBUDDY)
+    // ...and not absurdly far below: this needs ONE seat, not a claim on every
+    // future plugin's chance of picking a sane number.
+    expect(MODEL_LABEL_PRIORITY).toBeGreaterThan(-200)
+    // Distinctness is still required regardless: two registrations at the SAME
+    // priority make the host THROW, which is the failure issue #74 reported.
+    expect(MODEL_LABEL_PRIORITY).not.toBe(QODER)
+    expect(MODEL_LABEL_PRIORITY).not.toBe(WORKBUDDY)
   })
 })

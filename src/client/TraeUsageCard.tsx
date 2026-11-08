@@ -1,6 +1,7 @@
 import { updateStickyTabs } from './series-layout.ts'
 import { formatCapacity, modelChannelLabel, probeBadge, promoBadge } from './trae-model-display.tsx'
-import { writeSettingsField } from './trae-settings-write.ts'
+import { safeAccountMessage } from '../account-events.ts'
+import { writeManualAccount, writeSettingsField } from './trae-settings-write.ts'
 export { writeSettingsField, TraeSettingsWriteError } from './trae-settings-write.ts'
 import type { TraeUsageCardProps } from './trae-card-types.ts'
 export type { TraeUsageCardInjected, TraeUsageCardProps } from './trae-card-types.ts'
@@ -260,6 +261,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
    * reverting. On 0.1.7 a rejected write resolves normally, so without this
    * the control would flip and then quietly snap back on the next snapshot.
    */
+  const [switchNotice, setSwitchNotice] = useState<{ panel: TraePanel; text: string; failed: boolean }>()
   const [writeError, setWriteError] = useState<string | undefined>(undefined)
   /**
    * The optional sidebar row's switch (see `Config.sidebarPanel`).
@@ -706,8 +708,13 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
     } catch (error: unknown) {
       if (mounted.current) {
         const message = error instanceof Error ? error.message : t('row.requestFailed')
+        // ONLY the rescan note (ISSUE #78). This path refreshes the account list;
+        // it writes no setting, so routing the message into `writeError` printed
+        // 「设置未能保存：…」 for something that never touched settings. The
+        // reporter went looking through settings persistence before finding the
+        // real cause, which is exactly the cost of a wrong label. `writeError`
+        // stays for the routes that DO write.
         setRescanNote(t('row.accountsRescanFailed', { message }))
-        setWriteError(message)
       }
     } finally {
       if (mounted.current) setBusy(false)
@@ -717,19 +724,21 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
   const switchAccount = async (accountId: string): Promise<void> => {
     if (settingsScope === undefined) return
     setSwitchingAccount(true)
+    setSwitchNotice(undefined)
     setWriteError(undefined)
+    const account = (status.status === 'error' ? undefined : status.accounts.find(row => row.id === accountId)?.accountName) ?? t('row.unknownAccount')
     try {
-      const configured = configuredAccountsOf(settingsScope.getSnapshot().value)
-      await writeSettingsField(settingsScope, 'accounts',
-        { ...configured, [activeRegion]: accountId },
-        readBack => configuredAccountsOf(readBack)[activeRegion] === accountId)
+      await writeManualAccount(settingsScope, activeRegion, accountId)
+      if (mounted.current) setSwitchNotice({ panel: activeRegion, text: t('row.accountSwitched', { account }), failed: false })
       // Refresh the usage document so the "in use" badge moves, and re-read the
       // newly bound account's per-row status so its check-in/balance/subscription
       // figures agree with the badge instead of disagreeing in front of the user.
       await refreshUsage(activeRegion)
       void loadAccountStatus(accountId, activeRegion)
     } catch (error: unknown) {
-      if (mounted.current) setWriteError(error instanceof Error ? error.message : t('row.requestFailed'))
+      if (mounted.current) setSwitchNotice({ panel: activeRegion, text: t('row.accountSwitchFailed', {
+        account, message: safeAccountMessage(error),
+      }), failed: true })
     } finally {
       if (mounted.current) setSwitchingAccount(false)
     }
@@ -1719,6 +1728,9 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
         })}
       </div>
 
+      {switchNotice?.panel === activeRegion
+        ? <p className={switchNotice.failed ? 'dsm-trae-usage-error' : 'dsm-trae-usage-alternative'} role={switchNotice.failed ? 'alert' : 'status'}>{switchNotice.text}</p>
+        : null}
       {writeError === undefined
         ? null
         : <p className="dsm-trae-usage-error" role="alert">{t('row.settingsWriteFailed', { message: writeError })}</p>}
@@ -1799,6 +1811,7 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
         <TraeAccountPanel
           t={t}
           settingsScope={settingsScope}
+          section="accounts"
           panel={activeRegion}
           status={status}
           statusLabel={label}

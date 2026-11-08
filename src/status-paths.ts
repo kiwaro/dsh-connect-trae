@@ -281,7 +281,16 @@ export interface TraeWebPoolAccount {
  * at all until its first live refresh, and "missing multiplier ≠ free" means the
  * card must render "no free model" rather than silently substituting a paid one.
  */
+/** Local runtime history; contains no request body or credential. */
+export interface TraeAccountEvent {
+  id: number
+  atMs: number
+  tone: 'ok' | 'error'
+  text: string
+}
+
 export interface TraeWebPool {
+  events?: TraeAccountEvent[]
   autoCheckinState?: { done: number; deviceBlocked: boolean; failures: number }
   autoCheckin?: boolean
   enabled: boolean

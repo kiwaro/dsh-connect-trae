@@ -5,6 +5,9 @@
  */
 
 export const en = {
+  'row.accountSwitched': 'Switched to [{account}]. Subsequent requests will use this account.',
+  'row.accountSwitchFailed': 'Could not switch to [{account}]: {message}',
+  'row.unknownAccount': 'Unknown account',
   "row.tabCredentialHint": "Domestic and enterprise providers share Trae CN credentials and save account bindings separately.",
   "row.tabFreeQuotaWarn": "Free models can still encounter upstream request limits or busy responses.",
   "row.poolFailoverHint": "Trae also tries another account after server failures. Invalid requests and model permission refusals are reported directly.",
@@ -27,6 +30,7 @@ export const en = {
   // names a section and never a provider.
   "row.panelAria": "Card sections",
   'row.panelAccounts': 'Account',
+  'row.panelCapabilities': 'Capabilities',
   'row.panelModels': 'Models',
   'row.panelDiag': 'Diagnostics',
   // DIAGNOSTICS — facts the card actually READ, so a bug report can quote a
@@ -120,7 +124,7 @@ export const en = {
   'row.refreshCredits': 'Refresh usage',
   'row.refreshing': 'Refreshing…',
   'row.accountsTitle': 'Trae account',
-  'row.accountsHint': "On refresh, the plugin saves copies of detected Trae credentials. Refresh after signing in to a new account, before another sign-in replaces credentials that have not yet been copied.",
+  'row.accountsHint': "On refresh, the plugin saves copies of detected Trae credentials. Refresh after signing in to a new account, before another sign-in replaces credentials that have not yet been copied. Switching manually stops automatic selection for this panel and keeps its pool roster.",
   // Account transfer (issue #37): batch export / import of this region's stored
   // credentials, so several accounts can be kept without replacing the Trae
   // login each time. The wording says what leaves the machine, because these
@@ -216,7 +220,6 @@ export const en = {
   'row.creditPositionStats': 'below the input box',
   'row.creditPositionAria': 'Credit readout position for {region}',
   'row.creditPositionHint': "The default position is on the model picker row. If another connector occupies the same position, the readout loaded later moves left automatically. Choose below the input box to show it beside the round, step and token statistics.",
-  'row.panelCapabilities': 'Capabilities',
   'composer.action': 'Action',
   'composer.inUse': 'In use',
   'composer.switching': 'Switching…',
@@ -508,6 +511,9 @@ export const en = {
 export type TraeSettingsKey = keyof typeof en
 
 export const zh: Record<TraeSettingsKey, string> = {
+  'row.accountSwitched': '已切换账号[{account}]，后续请求使用此账号。',
+  'row.accountSwitchFailed': '切换账号[{account}]失败：{message}',
+  'row.unknownAccount': '未知账号',
   "row.tabCredentialHint": "国内版与企业版共用 Trae CN 登录凭据，账号绑定分别保存。",
   "row.tabFreeQuotaWarn": "免费模型也可能遇到上游请求限制或服务繁忙。",
   "row.poolFailoverHint": "Trae 也会在服务端故障时尝试换号；参数错误和模型权限不足会直接显示报错。",
@@ -528,6 +534,7 @@ export const zh: Record<TraeSettingsKey, string> = {
   // 区域页签选择供应商；下方分栏分别管理该供应商的账号、模型和诊断信息。
   "row.panelAria": "卡片分区",
   'row.panelAccounts': '账号',
+  'row.panelCapabilities': '能力',
   'row.panelModels': '模型',
   'row.panelDiag': '诊断',
   // 诊断栏：卡片真的读到过的事实，贴进反馈就能用。这一栏没有任何会改设置的控件。
@@ -614,7 +621,7 @@ export const zh: Record<TraeSettingsKey, string> = {
   'row.refreshCredits': '刷新用量',
   'row.refreshing': '正在刷新…',
   'row.accountsTitle': 'Trae 账号',
-  'row.accountsHint': "插件刷新账号时会为检测到的 Trae 登录保存凭据副本。切换到新账号后请刷新一次，以免下次登录覆盖尚未保存的凭据。",
+  'row.accountsHint': "插件刷新账号时会为检测到的 Trae 登录保存凭据副本。切换到新账号后请刷新一次，以免下次登录覆盖尚未保存的凭据。手动切换会关闭当前区域的自动挑号，账号池名单保留。",
   // 账号导入导出（issue #37）：批量导出/导入本区域已保存的凭据，
   // 这样多个账号可以并存，不必每次替换 Trae 登录。
   "row.transferTitle": "导出 / 导入账号",
@@ -697,7 +704,6 @@ export const zh: Record<TraeSettingsKey, string> = {
   'row.creditPositionStats': '输入框下方',
   'row.creditPositionAria': '{region} 的积分显示位置',
   'row.creditPositionHint': "默认与模型选择同一行显示；遇到其他连接器占用排序位置时，后加载的读数自动向左排列。也可选择「输入框下方」，与轮次、步数和 token 统计同一行显示。",
-  'row.panelCapabilities': '能力',
   'composer.action': '操作',
   'composer.inUse': '使用中',
   'composer.switching': '切换中…',
