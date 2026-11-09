@@ -1,3 +1,4 @@
+import { identityForCredential } from './account-device.ts'
 import type { TraeCredential } from './auth.ts'
 import type { TraeIdentity } from './identity.ts'
 import { buildTraeCnHeaders, traeEndpoint } from './protocol.ts'
@@ -18,7 +19,7 @@ export interface TraeRawChatConfig {
 
 export interface TraeRawChatClientOptions {
   credential: () => Promise<TraeCredential>
-  identity: () => Promise<TraeIdentity>
+  identity: (credential?: TraeCredential) => Promise<TraeIdentity>
   config: TraeRawChatConfig
   baseUrl?: string
   fetchImpl?: typeof fetch
@@ -62,7 +63,8 @@ export class TraeRawChatUpstreamClient {
     try { input = JSON.parse(bodyJson) as typeof input }
     catch { return { ok: false, status: 400, kind: 'client', message: 'invalid JSON request' } }
     if (!Array.isArray(input.messages) || input.messages.length === 0) return { ok: false, status: 400, kind: 'client', message: 'messages are required' }
-    const [credential, identity] = await Promise.all([this.options.credential(), this.options.identity()])
+    const credential = await this.options.credential()
+    const identity = await identityForCredential(credential, value => this.options.identity(value))
     const requestId = crypto.randomUUID()
     const headers = buildTraeCnHeaders(credential, identity, { requestId, profile: 'raw-chat' })
     const runtime = this.options.config.runtime

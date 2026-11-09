@@ -80,6 +80,8 @@ export function deviceKeyPairOf(storage: Record<string, unknown>): TraeDeviceKey
 }
 
 export interface TraeIdentityReadOptions {
+  /** Auth and identity must be captured from one storage snapshot during account mirroring. */
+  storage?: Record<string, unknown>
   /** Platform override for testing; defaults to process.platform. */
   platform?: NodeJS.Platform
   /** Home-directory override for testing; defaults to homedir(). */
@@ -93,7 +95,7 @@ export async function readTraeIdentity(candidate: TraeStorageCandidate, options:
   const platform = options.platform ?? process.platform
   const home = options.home ?? homedir()
   const env = options.env ?? process.env
-  const storage = JSON.parse(await readFile(candidate.path, 'utf8')) as Record<string, unknown>
+  const storage = options.storage ?? JSON.parse(await readFile(candidate.path, 'utf8')) as Record<string, unknown>
   const appRoot = dirname(dirname(dirname(candidate.path)))
   const machineFile = nonEmpty(await readFile(join(appRoot, 'machineid'), 'utf8').catch(() => ''))
   const telemetryMachine = nonEmpty(storage['telemetry.machineId'])

@@ -32,10 +32,12 @@ export interface TraeUsageOptions {
    * (`main.js`'s `fb(headers)` sets `x-device-id` from `guaranteedDeviceId`).
    * Absent, the client still reads status; only the claim refuses.
    */
-  deviceId?(): Promise<string | undefined>
+  deviceId?(credential?: TraeCredential): Promise<string | undefined>
   fetchImpl?: typeof fetch
   baseUrl?: string
   timeoutMs?: number
+  /** Successful complete CN snapshots, pinned to the credential used for that read. */
+  onSnapshot?(credential: TraeCredential, snapshot: TraeUsageSnapshot, startedAt: number): Promise<void>
 }
 
 /**
@@ -196,7 +198,10 @@ function parseUsageSnapshot(payload: Record<string, unknown>): TraeUsageSnapshot
     const packageExtra = productExtra?.['package_extra'] as Record<string, unknown> | undefined
     const packageQuota = packageExtra?.['quota'] as Record<string, unknown> | undefined
     const creditsLimit = asNumber(packageQuota?.['credits_limit']) ?? asNumber(quota?.['credits_limit'])
-    const consumedCredits = asNumber(usage?.['credits_amount'])
+    // The verified pack contract uses an empty usage object for an unused pack.
+    // A missing usage object or invalid explicit counter remains unknown.
+    const consumedCredits = usage !== undefined && usage !== null && typeof usage === 'object' && !Array.isArray(usage)
+      ? ('credits_amount' in usage ? asNumber(usage['credits_amount']) : 0) : undefined
     const availableEndpoint = asNumber(base?.['available_endpoint'])
     packs.push({
       displayDesc: typeof pack['display_desc'] === 'string' ? pack['display_desc'] : '',
@@ -264,21 +269,21 @@ export class TraeUsageClient {
    * identity must not break the read-only status query, which the upstream
    * answers with or without the header.
    */
-  private async deviceIdHeader(): Promise<Record<string, string>> {
+  private async deviceIdHeader(credential: TraeCredential): Promise<Record<string, string>> {
     try {
-      const deviceId = await this.options.deviceId?.()
+      const deviceId = credential.deviceIdentity?.deviceId ?? await this.options.deviceId?.(credential)
       return deviceId === undefined || deviceId === '' ? {} : { 'x-device-id': deviceId }
     } catch {
       return {}
     }
   }
 
-  private async authedHeaders(): Promise<Record<string, string>> {
-    const credential = await this.options.credential()
+  private async authedHeaders(credential?: TraeCredential): Promise<Record<string, string>> {
+    credential ??= await this.options.credential()
     if (credential === undefined || credential.accessToken === '') {
       throw new Error('Trae credential is not available; cannot query usage')
     }
-    const origin = await this.currentRegion() === 'ai' ? 'https://www.trae.ai' : 'https://www.trae.cn'
+    const origin = assertSupportedRegion(regionOfCredential(credential)) === 'ai' ? 'https://www.trae.ai' : 'https://www.trae.cn'
     return {
       'Authorization': `Cloud-IDE-JWT ${credential.accessToken}`,
       'Content-Type': 'application/json',
@@ -293,9 +298,16 @@ export class TraeUsageClient {
     data: Record<string, unknown>,
     signal?: AbortSignal,
     extraHeaders: Record<string, string> = {},
+    pinnedCredential?: TraeCredential,
   ): Promise<T> {
-    const headers = { ...await this.authedHeaders(), ...extraHeaders }
-    const response = await this.fetchImpl(`${await this.payBase()}${path}`, {
+    const credential = pinnedCredential ?? await this.options.credential()
+    if (credential === undefined) throw new Error('Trae credential is not available; cannot query usage')
+    const region = assertSupportedRegion(regionOfCredential(credential))
+    const checkin = path.includes('/checkin_credits/')
+    if (checkin && region !== 'cn') throw new Error('Trae check-in is only available for the CN region; the international (ai) region uses payStatus')
+    const headers = { ...await this.authedHeaders(credential), ...extraHeaders,
+      ...checkin ? await this.deviceIdHeader(credential) : {} }
+    const response = await this.fetchImpl(`${this.baseUrl ?? REGION_GATEWAYS[region].pay}${path}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(data),
@@ -359,9 +371,16 @@ export class TraeUsageClient {
 
   /** Total entitlements / credits and per-pack breakdown. */
   async snapshot(signal?: AbortSignal): Promise<TraeUsageSnapshot> {
-    await this.requireCnRegion('usage snapshot')
-    const payload = await this.post<Record<string, unknown>>('/trae/api/v2/pay/web_user_ent_usage', { require_usage: true }, signal)
-    return parseUsageSnapshot(payload)
+    const credential = await this.options.credential()
+    if (credential === undefined) throw new Error('Trae credential is not available; cannot query usage')
+    if (assertSupportedRegion(regionOfCredential(credential)) !== 'cn') throw new Error('Trae usage snapshot is only available for the CN region; the international (ai) region uses payStatus')
+    const startedAt = Date.now()
+    const payload = await this.post<Record<string, unknown>>('/trae/api/v2/pay/web_user_ent_usage', { require_usage: true }, signal, {}, credential)
+    const snapshot = parseUsageSnapshot(payload)
+    // Missing lists are not an empty account. Never erase a baseline on an error
+    // document, partial body or a response that belongs to another credential.
+    if (Array.isArray(payload['user_entitlement_pack_list']) && snapshot.packs.length === payload['user_entitlement_pack_list'].length) await this.options.onSnapshot?.(credential, snapshot, startedAt)
+    return snapshot
   }
 
   /**
@@ -375,9 +394,7 @@ export class TraeUsageClient {
    * {@link TraeCheckinStatus.didCheckedIn}).
    */
   async checkinStatus(signal?: AbortSignal): Promise<TraeCheckinStatus> {
-    await this.requireCnRegion('check-in status')
-    const headers = await this.deviceIdHeader()
-    const payload = await this.post<Record<string, unknown>>('/trae/api/v2/ug/checkin_credits/status', {}, signal, headers)
+    const payload = await this.post<Record<string, unknown>>('/trae/api/v2/ug/checkin_credits/status', {}, signal)
     const extraCredits = asNumber(payload['extra_credits'])
     return {
       checkedIn: payload['checked_in'] === true,
@@ -404,9 +421,7 @@ export class TraeUsageClient {
    * request never reached the server.
    */
   async claimCheckin(signal?: AbortSignal): Promise<TraeCheckinClaim> {
-    await this.requireCnRegion('check-in claim')
-    const headers = await this.deviceIdHeader()
-    const payload = await this.post<Record<string, unknown>>('/trae/api/v2/ug/checkin_credits/claim', {}, signal, headers)
+    const payload = await this.post<Record<string, unknown>>('/trae/api/v2/ug/checkin_credits/claim', {}, signal)
     const code = asNumber(payload['code']) ?? 0
     return {
       claimed: code === 0,

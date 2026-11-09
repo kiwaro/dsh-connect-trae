@@ -1,4 +1,7 @@
-import { createAutoCheckin } from './auto-checkin.ts'
+import { join } from 'node:path'
+import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import { creditAccountKey, recordCreditSnapshot, readCreditHistory } from './credit-journal.ts'
+import { checkinReadingFresh, createAutoCheckin } from './auto-checkin.ts'
 import { readAutoCheckin, writeAutoCheckin } from './auto-checkin-store.ts'
 import type { TraePoolPreferences } from './status-paths.ts'
 import { Config, settingsNamespaceOf, regionStateOf, regionEnabled, thinkingEffortsOf, sidebarPanelEnabled } from './plugin-config.ts'
@@ -32,7 +35,7 @@ import type { TraeWebAccountState, TraeWebCredits } from './status-paths.ts'
 import type { TraeCheckinClaim, TraeCheckinStatus } from './usage.ts'
 import { configuredAccountsOf, drawImagePanelsOf, unwrapVolatile, unwrapVolatileDeep } from './status-paths.ts'
 import type { TraeAdapter } from './adapter.ts'
-import { isTraeAccountId, traeAccountId, TraeCredentialStore } from './auth.ts'
+import { isTraeAccountId, traeAccountId, TraeCredentialStore, type TraeCredential } from './auth.ts'
 import { piAiRuntimeInfo } from './pi-ai-runtime.ts'
 import { applyImageSelection, deriveCatalog, discoveredCatalog, FALLBACK_CONTEXT_WINDOW, FALLBACK_TRAE_MODELS, fallbackModelsFor, mergeTraeModelSources, sanitizeCatalog, servedContextWindow, TraeCatalog, traeInputModalities, traeModelDisplayName, withChatCallableFunctions, type TraeModelInfo } from './catalog.ts'
 import { refreshTraeCredential, type TraeRefreshDevice } from './refresh.ts'
@@ -267,7 +270,7 @@ interface TraeRegionStack {
   accountStateOf(accountId: string): Promise<TraeWebAccountState | undefined>
   /**
    * Claim today's check-in reward FOR ONE NAMED ACCOUNT through a throwaway
-   * client bound to that account (same shared device id), so the row's own
+   * client bound to that account and its saved device identity, so the row's own
    * button can claim without first switching the whole binding — and without
    * moving billing, which stays wherever the user put it. Undefined when that
    * account's token cannot be read; otherwise the upstream claim + the
@@ -298,8 +301,8 @@ interface TraeRegionStack {
    * resolve ids exactly as a real chat would.
    */
   wireResolver: (displayId: string) => TraeWireTarget | undefined
-  /** This region's best-effort device identity (the shared `x-device-id`). */
-  identity: () => Promise<TraeIdentity>
+  /** Account-bound identity, with a diagnosed legacy installation fallback. */
+  identity: (credential?: TraeCredential) => Promise<TraeIdentity>
   /** The route this panel's primary provider bills through. */
   routeOf: (provider: string) => TraeChatRoute
 }
@@ -490,9 +493,9 @@ export function apply(ctx: Context, config: Config): void {
      * narrowed to THIS region's editions, so the CN stack can never read an
      * international install's identity (and vice versa).
      */
-    const identity = async () => {
+    const installationIdentity = async (credential?: TraeCredential) => {
       let preferred: TraeEdition | undefined
-      try { preferred = (await store.current())?.edition } catch { /* fall through to every candidate */ }
+      try { preferred = (credential ?? await store.current())?.edition } catch { /* fall through to every candidate */ }
       // `authFile` and `edition` are volatile on the 0.1.7 line, so the raw
       // config value is a `{get(): T}` live reference: reading it directly
       // would make the storage path an object and the edition a truthy non-enum
@@ -526,9 +529,13 @@ export function apply(ctx: Context, config: Config): void {
      * degrades to the superseded contract instead of sending an unsigned
      * request the server answers with `20405 Device proof required`.
      */
-    const refreshDeviceSafe = async (): Promise<TraeRefreshDevice | undefined> => {
+    const identity = async (credential?: TraeCredential): Promise<TraeIdentity> => {
+      const current = credential ?? await store.current()
+      return current?.deviceIdentity ?? installationIdentity(current)
+    }
+    const refreshDeviceSafe = async (credential: TraeCredential): Promise<TraeRefreshDevice | undefined> => {
       try {
-        const value = await identity()
+        const value = await identity(credential)
         return {
           deviceId: value.deviceId,
           machineId: value.machineId,
@@ -557,7 +564,7 @@ export function apply(ctx: Context, config: Config): void {
       // The refresh callback resolves the device identity lazily so an
       // international SOLO account refreshes with its own installation's
       // machine/device ids (the official client sends a DeviceInfo body there).
-      refresh: async credential => refreshTraeCredential(credential, undefined, await refreshDeviceSafe()),
+      refresh: async credential => refreshTraeCredential(credential, undefined, await refreshDeviceSafe(credential)),
     })
     // No baseUrl: the chat gateway follows the selected credential's region
     // (`trae-api-cn.mchost.guru` for CN, `coresg-normal.trae.ai` for ai).
@@ -759,9 +766,20 @@ export function apply(ctx: Context, config: Config): void {
     // and it must be THIS installation's id — the same one the chat path sends.
     // Resolved lazily and best-effort, so a machine whose identity cannot be
     // read still gets the read-only usage panel.
+    const journalDirectory = (): string => join(resolveDshHome(), 'storages', 'dsh-connect-trae')
+    const onCreditSnapshot = async (credential: TraeCredential, snapshot: import('./usage.ts').TraeUsageSnapshot, startedAt: number): Promise<void> => {
+      try {
+        await recordCreditSnapshot(journalDirectory(), creditAccountKey(credential.userId, credential.tenantId), snapshot, startedAt)
+      } catch {
+        // Credit history is auxiliary: failure must not block balances or chat,
+        // and logs must not reveal the account, file path or upstream body.
+        ctx.logger.warn('Trae 积分包流水保存失败，请检查本地数据目录和快照完整性。')
+      }
+    }
     const usageClient = new TraeUsageClient({
+      onSnapshot: onCreditSnapshot,
       credential: () => store.resolve(),
-      deviceId: async () => (await identity()).deviceId,
+      deviceId: async credential => (await identity(credential)).deviceId,
     })
 
     stacks[panel] = {
@@ -792,26 +810,16 @@ export function apply(ctx: Context, config: Config): void {
       creditsOfAccount: async (accountId: string) => {
         const credential = await store.resolveCredentialOf(accountId)
         if (credential === undefined) return undefined
-        const snapshot = await new TraeUsageClient({ credential: async () => credential }).snapshot()
+        const snapshot = await new TraeUsageClient({ credential: async () => credential, onSnapshot: onCreditSnapshot }).snapshot()
         return toCredits(snapshot)
       },
       accountStateOf: async (accountId: string) => {
         const state: TraeWebAccountState = { id: accountId }
-        // Use the shared client when this account matches the current binding;
-        // otherwise resolve a client for the named account without rebinding.
-        // The shared client follows the binding at read time, so a concurrent
-        // account switch can change which credential that branch resolves.
-        const selectedCredential = await store.current()
-        const bound = selectedCredential !== undefined && traeAccountId(selectedCredential) === accountId
-        const client = bound
-          ? usageClient
-          : (() => {
-            const credential = store.resolveCredentialOf(accountId)
-            return new TraeUsageClient({
-              credential: async () => credential,
-              deviceId: async () => (await identity()).deviceId,
-            })
-          })()
+        // Pin the named row even if the user switches the active account while awaiting I/O.
+        const credential = await store.resolveCredentialOf(accountId)
+        if (credential === undefined) return undefined
+        const client = new TraeUsageClient({ credential: async () => credential, onSnapshot: onCreditSnapshot,
+          deviceId: async value => (await identity(value)).deviceId })
         if (region === 'ai') {
           // International accounts are subscription-based: read their pay
           // status; a failure keeps the row without a subscription figure.
@@ -826,17 +834,11 @@ export function apply(ctx: Context, config: Config): void {
         return state
       },
       claimCheckinOf: async (accountId: string) => {
-        const selectedCredential = await store.current()
-        const bound = selectedCredential !== undefined && traeAccountId(selectedCredential) === accountId
-        const client = bound
-          ? usageClient
-          : (() => {
-            const credential = store.resolveCredentialOf(accountId)
-            return new TraeUsageClient({
-              credential: async () => credential,
-              deviceId: async () => (await identity()).deviceId,
-            })
-          })()
+        // Pin the named row even if the user switches the active account while awaiting I/O.
+        const credential = await store.resolveCredentialOf(accountId)
+        if (credential === undefined) return undefined
+        const client = new TraeUsageClient({ credential: async () => credential, onSnapshot: onCreditSnapshot,
+          deviceId: async value => (await identity(value)).deviceId })
         const claim = await client.claimCheckin()
         const checkin = await client.checkinStatus()
         return { claim, checkin }
@@ -1093,7 +1095,7 @@ export function apply(ctx: Context, config: Config): void {
     const members = await Promise.all(choices.map(async choice => {
       const credits = await poolCreditsOfAccount(panel, choice.id).catch((): undefined => undefined)
       return {
-        account: { id: choice.id, accountName: choice.accountName },
+        account: { id: choice.id, accountName: choice.accountName, deviceBound: choice.deviceBound === true, ...choice.deviceWarning === undefined ? {} : { deviceWarning: choice.deviceWarning } },
         ...credits === undefined ? {} : { credits },
         ...probes[choice.id] === undefined ? {} : { probe: probes[choice.id] },
         ...choice.tokenExpiresAtMs === undefined ? {} : { tokenExpiresAtMs: choice.tokenExpiresAtMs },
@@ -1148,7 +1150,7 @@ export function apply(ctx: Context, config: Config): void {
     const nowMs = Date.now()
     const state: Record<string, TraePoolCheckinState> = {}
     for (const [accountId, entry] of Object.entries(checkinStateCache[panel])) {
-      if (nowMs - entry.atMs >= CHECKIN_CACHE_MS) continue
+      if (!checkinReadingFresh(entry.atMs, nowMs, CHECKIN_CACHE_MS)) continue
       state[accountId] = entry.state
     }
     return state
@@ -1166,7 +1168,7 @@ export function apply(ctx: Context, config: Config): void {
     return choices.map(choice => {
       const credits = cache.get(choice.id)
       return {
-        account: { id: choice.id, accountName: choice.accountName },
+        account: { id: choice.id, accountName: choice.accountName, deviceBound: choice.deviceBound === true, ...choice.deviceWarning === undefined ? {} : { deviceWarning: choice.deviceWarning } },
         ...credits === undefined ? {} : { credits },
         ...probes[choice.id] === undefined ? {} : { probe: probes[choice.id] },
         ...choice.tokenExpiresAtMs === undefined ? {} : { tokenExpiresAtMs: choice.tokenExpiresAtMs },
@@ -1246,7 +1248,7 @@ export function apply(ctx: Context, config: Config): void {
         if (credential === undefined) throw new Error(`no stored credential for account ${accountId}`)
         return credential
       },
-      identity: () => stack.identity(),
+      identity: credential => stack.identity(credential),
       route: stack.routeOf(providerOfPanel(panel)),
       log: (message, detail) => ctx.logger.warn(message, detail),
     })
@@ -1349,7 +1351,7 @@ export function apply(ctx: Context, config: Config): void {
           if (credential === undefined) throw new Error(`no stored credential for account ${accountId}`)
           return credential
         },
-        identity: () => stack.identity(),
+        identity: credential => stack.identity(credential),
         route: stack.routeOf(providerOfPanel(panel)),
         log: (message, detail) => ctx.logger.warn(message, detail),
       })
@@ -1363,11 +1365,11 @@ export function apply(ctx: Context, config: Config): void {
     const probeDeps = (): TraePoolRunnerDeps => ({
       credentialFor: accountId => stacks[panel].store.resolveCredentialOf(accountId),
       checkinStatusOf: async credential => {
-        const client = new TraeUsageClient({ credential: async () => credential, deviceId: async () => (await stacks[panel].identity()).deviceId })
+        const client = new TraeUsageClient({ credential: async () => credential, deviceId: async credential => (await stacks[panel].identity(credential)).deviceId })
         return client.checkinStatus()
       },
       claimCheckinOf: async credential => {
-        const client = new TraeUsageClient({ credential: async () => credential, deviceId: async () => (await stacks[panel].identity()).deviceId })
+        const client = new TraeUsageClient({ credential: async () => credential, deviceId: async credential => (await stacks[panel].identity(credential)).deviceId })
         return client.claimCheckin()
       },
       chatFor: credential => chatBridgeFor(traeAccountId(credential)),
@@ -1414,7 +1416,7 @@ export function apply(ctx: Context, config: Config): void {
         for (const target of await poolTargetsOf(stored)) {
           const credential = await stacks[stored].store.resolveCredentialOf(target.accountId)
           if (credential === undefined) continue
-          const client = new TraeUsageClient({ credential: async () => credential, deviceId: async () => (await stacks[stored].identity()).deviceId })
+          const client = new TraeUsageClient({ credential: async () => credential, deviceId: async credential => (await stacks[stored].identity(credential)).deviceId })
           try {
             const status = await client.checkinStatus()
             const measured: TraePoolCheckinState = { checkedIn: status.checkedIn, deviceCheckedIn: status.didCheckedIn, enabled: status.enabled }
@@ -1474,6 +1476,12 @@ export function apply(ctx: Context, config: Config): void {
     autoCheckinProgress: readAutoCheckin,
     store: panel => stacks[panel].store,
     client: panel => stacks[panel].usageClient,
+    creditHistoryOf: async (panel, accountId) => {
+      if (panel !== 'cn') return undefined
+      const credential = await stacks[panel].store.resolveCredentialOf(accountId)
+      if (credential === undefined) return undefined
+      return readCreditHistory(join(resolveDshHome(), 'storages', 'dsh-connect-trae'), creditAccountKey(credential.userId, credential.tenantId))
+    },
     displayModels: panel => displayModels(current(), panel),
     enabledModelIds: panel => regionStateOf(current(), panel).enabledModelIds ?? [],
     regionEnabled: panel => regionEnabled(current(), panel),

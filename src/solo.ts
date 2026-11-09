@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { identityForCredential } from './account-device.ts'
 import type { TraeCredential } from './auth.ts'
 import type { TraeIdentity } from './identity.ts'
 import { TRAE_CHANNEL_PRIORITY, TRAE_SOLO_FUNCTION } from './model-order.ts'
@@ -252,7 +253,7 @@ function wireCreditMultiplier(config: Record<string, unknown>): number | undefin
 
 export interface TraeSoloClientOptions {
   credential(): Promise<TraeCredential>
-  identity(): Promise<TraeIdentity>
+  identity(credential?: TraeCredential): Promise<TraeIdentity>
   baseUrl?: string
   /**
    * Which chat gateway this client is pinned to. Omitted = `solo`, the consumer
@@ -305,7 +306,8 @@ export class TraeSoloUpstreamClient {
    * paygo variants) never surface even though they appear here.
    */
   async fetchModels(signal?: AbortSignal): Promise<TraeSoloModel[]> {
-    const [credential, identity] = await Promise.all([this.options.credential(), this.options.identity()])
+    const credential = await this.options.credential()
+    const identity = await identityForCredential(credential, value => this.options.identity(value))
     // Refuse a region this build cannot serve BEFORE asking any gateway: the
     // SG gateway answers a US token with 401 (issue #66).
     const region = assertSupportedRegion(regionOfCredential(credential))
@@ -448,7 +450,8 @@ export class TraeSoloUpstreamClient {
     let prepared: string
     try { prepared = prepareSoloBody(bodyJson, undefined, functionName) }
     catch { return { ok: false, status: 400, kind: 'client', message: 'invalid JSON request' } }
-    const [credential, identity] = await Promise.all([this.options.credential(), this.options.identity()])
+    const credential = await this.options.credential()
+    const identity = await identityForCredential(credential, value => this.options.identity(value))
     const headers = buildTraeCnHeaders(credential, identity)
     let base: string
     try {

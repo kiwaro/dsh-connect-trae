@@ -103,10 +103,9 @@ export const POOL_BATCH_GAP_MS = 400
  *
  * Idempotent by design (see the module note): an account already checked in today
  * is reported as `already` and NO write is attempted. A failure on one account is
- * recorded on that row and the batch continues — EXCEPT for the device-level
- * refusal (`9095`), which stops the run: it is a fact about this MACHINE, so every
- * later account would hit the same wall and each of those calls is a wasted
- * upstream request against an endpoint that just said "stop".
+ * recorded on that row and the batch continues. A device refusal (`9095`)
+ * skips later accounts bound to that device, while other registered devices
+ * may continue. Unbound legacy accounts share one conservative fallback group.
  *
  * Never throws: every problem becomes a row.
  */
@@ -115,23 +114,22 @@ export async function checkinAllAccounts(
   deps: TraePoolRunnerDeps,
 ): Promise<TraePoolCheckinRow[]> {
   const rows: TraePoolCheckinRow[] = []
+  const legacyDevice = Symbol('legacy-device')
+  const blockedDevices = new Set<string | symbol>()
   for (const [index, target] of targets.entries()) {
-    if (index > 0) await (deps.wait ?? defaultWait)(POOL_BATCH_GAP_MS)
-    const row = await checkinOne(target, deps)
-    rows.push(row)
-    if (row.status === 'device-already') {
-      // Say so on the remaining rows rather than leaving them blank: a user who
-      // sees two rows and then nothing cannot tell "not attempted" from "broken".
-      for (const skipped of targets.slice(index + 1)) {
-        rows.push({
-          accountId: skipped.accountId,
-          accountName: skipped.accountName,
-          status: 'device-already',
-          message: 'skipped: this device has already claimed today',
-        })
-      }
-      break
+    let credential: TraeCredential | undefined
+    try { credential = await deps.credentialFor(target.accountId) }
+    catch (error) { rows.push({ ...target, status: 'failed', message: messageOf(error) }); continue }
+    const device = credential?.deviceIdentity?.deviceId ?? legacyDevice
+    if (blockedDevices.has(device)) {
+      rows.push({ ...target, status: 'device-already', message: 'skipped: this device has already claimed today' })
+      continue
     }
+    if (index > 0) await (deps.wait ?? defaultWait)(POOL_BATCH_GAP_MS)
+    // Reuse this exact snapshot for status and claim, including its registration.
+    const row = await checkinOne(target, { ...deps, credentialFor: async () => credential })
+    rows.push(row)
+    if (row.status === 'device-already') blockedDevices.add(device)
   }
   return rows
 }

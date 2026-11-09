@@ -31,10 +31,13 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "docs/UPSTREAM-INTEGRATION-2026-11-09.md",
     "lib",
     "icons",
     "docs/MODULE-SPLIT-PLAN.md",
     "docs/LOCAL-DEPLOYMENT.md",
+    "docs/ACCOUNT-DEVICE-BINDING.md",
+    "docs/CREDIT-HISTORY.md",
     "docs/assets/dsh-connect-trae-usage-card.png",
     "docs/assets/dsh-connect-trae-sidebar-page.png",
     "docs/assets/dsh-connect-trae-composer-credits.png",

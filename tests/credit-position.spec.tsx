@@ -211,10 +211,10 @@ describe('the gate renders in the seat the setting names', () => {
     expect(drawGate({ position: 'stats', scope: off })).toBe(0)
   })
 
-  it('renders the enabled Trae region in its configured seat with another provider', () => {
+  it.each(['workbuddy', 'workbuddy-global'])('hides both Trae seats for %s', (provider) => {
     const scope = scopeOf({ regions: { cn: { creditPosition: 'stats' }, ai: { creditPosition: 'stats' } } }).scope
-    expect(drawGate({ position: 'composer', scope, provider: 'workbuddy' })).toBe(0)
-    expect(drawGate({ position: 'stats', scope, provider: 'workbuddy' })).toBe(1)
+    expect(drawGate({ position: 'composer', scope, provider })).toBe(0)
+    expect(drawGate({ position: 'stats', scope, provider })).toBe(0)
   })
 
   it('reads the seat of the region the SESSION is pointed at, not of the other tab', () => {

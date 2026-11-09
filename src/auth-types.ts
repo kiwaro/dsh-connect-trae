@@ -3,6 +3,8 @@ import type { TraeRegion, TraeServiceRegion } from './region.ts'
 import type { RunningProbe } from './trae-process.ts'
 
 export interface TraeCredential {
+  /** Device registered with this credential; persisted only in the private auth copy. */
+  deviceIdentity?: import('./identity.ts').TraeIdentity
   accessToken: string
   refreshToken?: string
   userId: string
@@ -85,6 +87,9 @@ export interface TraeCredentialStoreOptions {
 }
 
 export interface TraeAccountChoice {
+  deviceBound?: boolean
+  /** Display-only diagnosis; never contains device identifiers or signing keys. */
+  deviceWarning?: import('./account-device.ts').TraeDeviceWarning
   id: string
   accountName: string
   edition: TraeEdition

@@ -35,6 +35,9 @@ export type TraePoolProbeSource = 'test-batch' | 'live-request'
 
 /** One account's pool entry: what the picker needs, plus its last measurement. */
 export interface TraePoolAccount {
+  deviceBound?: boolean
+  deviceWarning?: { state: 'shared' | 'unbound'; peers: string[] }
+
   /** Stable account id (the same one `TraeWebAccount` carries). */
   id: string
   /** Human name, or `''` when the desktop app recorded none. */

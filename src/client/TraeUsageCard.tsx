@@ -1,3 +1,4 @@
+import { CreditHistory } from './CreditHistory.tsx'
 import { updateStickyTabs } from './series-layout.ts'
 import { formatCapacity, modelChannelLabel, probeBadge, promoBadge } from './trae-model-display.tsx'
 import { safeAccountMessage } from '../account-events.ts'
@@ -22,6 +23,7 @@ import {
   nextRegionCreditPosition,
   nextRegionDirectory,
   nextRegionDrawImage,
+  refreshIntervalMinutesOf,
   regionCreditPositionOf,
   regionEnabledOf,
   TRAE_ACCOUNT_STATUS_PATH,
@@ -37,6 +39,7 @@ import {
 } from '../status-paths.ts'
 import type { TraeModelProbeVerdict, TraeModelsTestResponse, TraeWebAccount, TraeWebAccountState, TraeWebCheckinClaim, TraeWebModel, TraeWebUsage } from '../status-paths.ts'
 import type { TraeCreditPosition } from '../status-paths.ts'
+import type { TraeRefreshIntervalMinutes } from '../status-paths.ts'
 import { providerOfPanel, regionOfPanel, type TraePanel } from '../region.ts'
 import { contextBudgetOptions, TRAE_CONTEXT_BUDGET_MID } from '../context-budget.ts'
 import { defaultEffortFor } from '../default-effort.ts'
@@ -68,7 +71,7 @@ function routeErrorText(body: unknown, status: number): string {
   return `HTTP ${status}`
 }
 
-const POLL_INTERVAL_MS = 60_000
+// 自动刷新间隔由卡片与输入框共享设置提供，默认五分钟。
 const TRAE_GITHUB_URL = 'https://github.com/dingminhua/dsh-connect-trae'
 
 /** One region's unsaved model edits; switching tabs never drops these. */
@@ -226,7 +229,10 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
    * box back to the Host's value instead of leaving it claiming one that never
    * landed.
    */
-  const optimisticSettings = useRef<{ showPointsInMainUi?: boolean | undefined }>({})
+  const optimisticSettings = useRef<{
+    showPointsInMainUi?: boolean | undefined
+    refreshIntervalMinutes?: TraeRefreshIntervalMinutes | undefined
+  }>({})
   /** True while a preference is crossing the wire; serializes both writers. */
   const [savingSettings, setSavingSettings] = useState(false)
   /** The in-flight flip of the per-panel 「自主生图」 switch (undefined = read the document). */
@@ -289,6 +295,17 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
    */
   const committedSettings = {
     showPointsInMainUi: (unwrapVolatileDeep(settingsScope?.getSnapshot().value) as { showPointsInMainUi?: unknown } | null)?.showPointsInMainUi === true,
+    /**
+     * The automatic-refresh cadence (`Config.refreshIntervalMinutes`).
+     *
+     * Read through the SHARED reader rather than off the document here: the
+     * composer readout reads the same field through the same function, and the
+     * two surfaces disagreeing about the cadence is exactly what a second
+     * interpretation would produce. It also owns the fallback for a document
+     * that never went through the schema (a hand-edited file), so the card
+     * cannot end up on a cadence the write path would have refused.
+     */
+    refreshIntervalMinutes: refreshIntervalMinutesOf(settingsScope?.getSnapshot().value),
   }
   /**
    * Ids for the block's label/hint wiring. `useId`, not constants: DSH can mount
@@ -303,10 +320,22 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
    */
   const settingsEdits = {
     showPointsInMainUi: optimisticSettings.current.showPointsInMainUi ?? committedSettings.showPointsInMainUi,
+    refreshIntervalMinutes: optimisticSettings.current.refreshIntervalMinutes ?? committedSettings.refreshIntervalMinutes,
   }
   const settingsIds = useId()
   const creditsLabelId = `${settingsIds}-credits`
   const creditsHintId = `${settingsIds}-credits-hint`
+  /**
+   * The poll period, in milliseconds, as the CARD uses it.
+   *
+   * Derived from the committed-plus-optimistic value above rather than from the
+   * document directly, so a pick shows its effect immediately: the timer is
+   * rebuilt from this on the next render (see the poll effect's dependency
+   * list). Reading it here also keeps the number and the picker in one place —
+   * a picker on one cadence and a timer on another is precisely the class of
+   * bug this setting replaced.
+   */
+  const refreshIntervalMs = settingsEdits.refreshIntervalMinutes * 60_000
 
   /**
    * Write ONE preference switch, on the click that flipped it.
@@ -341,6 +370,43 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
       // must show.
       if (mounted.current) {
         optimisticSettings.current = { ...optimisticSettings.current, [field]: undefined }
+        setSettingsRevision(revision => revision + 1)
+      }
+      if (mounted.current) setSavingSettings(false)
+    }
+  }
+
+  /**
+   * Change how often the plugin refreshes on its own
+   * (`Config.refreshIntervalMinutes`).
+   *
+   * Same shape as {@link writePreference}, and for the same reason: this is a
+   * standing preference, so it commits on the pick and is read-back verified —
+   * a picker that merely LOOKS changed while the timer keeps its old period is
+   * the failure mode worth guarding against here. The read-back compares
+   * through `refreshIntervalMinutesOf`, so the value has to land as one of the
+   * offered cadences rather than merely being present.
+   *
+   * The write alone changes nothing on screen until the settings snapshot
+   * notifies, which the poll effect below is keyed on: the interval is rebuilt
+   * from the new value on the next render, so the old timer is cleared and a
+   * fresh one started. That is deliberate — a cadence change must take effect
+   * without a reload, and it must not leave the previous interval running.
+   */
+  const writeRefreshInterval = async (value: TraeRefreshIntervalMinutes): Promise<void> => {
+    if (settingsScope === undefined || settingsScope.getSnapshot().writable !== true) return
+    setSavingSettings(true)
+    setWriteError(undefined)
+    optimisticSettings.current = { ...optimisticSettings.current, refreshIntervalMinutes: value }
+    setSettingsRevision(revision => revision + 1)
+    try {
+      await writeSettingsField(settingsScope, 'refreshIntervalMinutes', value,
+        readBack => refreshIntervalMinutesOf(readBack) === value)
+    } catch (error: unknown) {
+      if (mounted.current) setWriteError(error instanceof Error ? error.message : t('row.requestFailed'))
+    } finally {
+      if (mounted.current) {
+        optimisticSettings.current = { ...optimisticSettings.current, refreshIntervalMinutes: undefined }
         setSettingsRevision(revision => revision + 1)
       }
       if (mounted.current) setSavingSettings(false)
@@ -640,12 +706,17 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
   useEffect(() => {
     if (!open || !activeRegionOn || status.status !== 'signed-in') return
     const controller = new AbortController()
-    const timer = window.setInterval(() => { void refreshUsage(activeRegion, controller.signal) }, POLL_INTERVAL_MS)
+    const timer = window.setInterval(() => { void refreshUsage(activeRegion, controller.signal) }, refreshIntervalMs)
     return () => {
       window.clearInterval(timer)
       controller.abort()
     }
-  }, [open, activeRegion, activeRegionOn, refreshUsage, status.status])
+    // `refreshIntervalMs` is a dependency on purpose: changing the cadence has
+    // to REPLACE the running timer, not leave the old period ticking until the
+    // next remount. The cleanup above is what makes that safe — the old
+    // interval is cleared and its in-flight read aborted before the new one
+    // starts, so a change can never leave two loops running.
+  }, [open, activeRegion, activeRegionOn, refreshUsage, status.status, refreshIntervalMs])
 
   const rescanAccounts = async (): Promise<void> => {
     setBusy(true)
@@ -1554,7 +1625,9 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
     const checkin = state?.checkin
     const reward = checkin === undefined ? undefined : formatNumber(checkin.credits)
     const claimed = checkin?.checkedIn === true
-    const deviceSpent = deviceClaimedToday
+    const boundDevice = status.status !== 'error' && status.accounts.find(account => account.id === accountId)?.deviceBound === true
+    const deviceSpent = checkin?.didCheckedIn === true || deviceSpentByRegion[activeRegion][accountId] === true
+      || (!boundDevice && deviceClaimedToday)
     const spending = claimingFor === accountId
     const usable = checkin !== undefined && checkin.enabled
     const title = reward === undefined || !usable
@@ -1611,6 +1684,10 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
       return {
         id: account.id,
         accountName: account.accountName,
+        deviceWarning: account.deviceWarning === undefined ? undefined
+          : account.deviceWarning.state === 'shared'
+            ? t('row.deviceShared', { accounts: account.deviceWarning.peers.join('、') })
+            : t('row.deviceUnbound'),
         current,
         selected: account.selected === true,
         meta: `${editionLabel(account.edition)} · ${sourceLabel(account.source)}`,
@@ -1821,6 +1898,8 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
           onToggleShowPoints={value => { void writePreference('showPointsInMainUi', value) }}
           creditPosition={creditPositionOn(activeRegion)}
           onCreditPositionChange={position => { void changeCreditPosition(activeRegion, position) }}
+          refreshIntervalMinutes={settingsEdits.refreshIntervalMinutes}
+          onRefreshIntervalChange={minutes => { void writeRefreshInterval(minutes) }}
           sidebarPanelOn={sidebarPanelOn}
           sidebarPanelBusy={sidebarPanelBusy}
           onToggleSidebarPanel={value => { void writeSidebarPanel(value) }}
@@ -1860,6 +1939,8 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
           alternatives={status.status === 'signed-in' ? status.alternatives : undefined}
           onSwitchToAlternative={accountId => { void switchAccount(accountId) }}
         />
+        {activeRegion === 'cn' && status.status === 'signed-in' && status.accountId
+          ? <CreditHistory key={status.accountId} accountId={status.accountId} t={t} /> : null}
       </div>
 
       <div className="dsm-trae-panel" role="tabpanel" id="dsm-trae-panel-capabilities" aria-labelledby="dsm-trae-tab-capabilities" hidden={signedIn && panel !== 'capabilities'}>
@@ -1876,6 +1957,8 @@ export function TraeUsageCard({ t, settingsScope, view, surface, backToConversat
           onToggleShowPoints={value => { void writePreference('showPointsInMainUi', value) }}
           creditPosition={creditPositionOn(activeRegion)}
           onCreditPositionChange={position => { void changeCreditPosition(activeRegion, position) }}
+          refreshIntervalMinutes={settingsEdits.refreshIntervalMinutes}
+          onRefreshIntervalChange={minutes => { void writeRefreshInterval(minutes) }}
           sidebarPanelOn={sidebarPanelOn}
           sidebarPanelBusy={sidebarPanelBusy}
           onToggleSidebarPanel={value => { void writeSidebarPanel(value) }}

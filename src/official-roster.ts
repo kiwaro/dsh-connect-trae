@@ -1,4 +1,5 @@
 import type { TraeCredential } from './auth.ts'
+import { identityForCredential } from './account-device.ts'
 import type { TraeIdentity } from './identity.ts'
 import { TRAE_MODEL_DETAIL_FUNCTIONS, TRAE_MODEL_DETAIL_PATH, buildTraeModelDetailRequest } from './model-detail.ts'
 import { buildTraeCnHeaders, traeEndpoint } from './protocol.ts'
@@ -249,7 +250,7 @@ const ROSTER_TIMEOUT_MS = 20_000
 
 export interface TraeOfficialRosterOptions {
   credential(): Promise<TraeCredential>
-  identity(): Promise<TraeIdentity>
+  identity(credential?: TraeCredential): Promise<TraeIdentity>
   fetchImpl?: typeof fetch
   /** Pins the host (tests, diagnostics). Defaults to the credential region's chat gateway. */
   baseUrl?: string
@@ -293,7 +294,8 @@ export class TraeOfficialRosterClient {
     // to read it one second later. Without this, every refresh pays the timeout.
     if (this.failedAt !== undefined && now - this.failedAt < ROSTER_CACHE_MS) return undefined
     try {
-      const [credential, identity] = await Promise.all([this.options.credential(), this.options.identity()])
+      const credential = await this.options.credential()
+    const identity = await identityForCredential(credential, value => this.options.identity(value))
       // The roster is optional, so an unsupported region simply yields no
       // roster (the catalog keeps every row) — but it must not be asked for
       // one on a gateway that would answer 401 (issue #66).

@@ -59,3 +59,8 @@ export function createAutoCheckin(deps: AutoCheckinDeps): { tick(): Promise<void
     },
   }
 }
+
+/** A status answers today's question; TTL alone cannot carry it across midnight. */
+export function checkinReadingFresh(atMs: number, nowMs: number, ttlMs: number): boolean {
+  return nowMs >= atMs && nowMs - atMs < ttlMs && checkinDay(atMs) === checkinDay(nowMs)
+}

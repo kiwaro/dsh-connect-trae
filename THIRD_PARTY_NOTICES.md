@@ -16,3 +16,7 @@
 - `dsh-trae-api` 使用 **MIT** 宽松许可，与项目自身的 MIT 许可证兼容；`laojichao/trae-local-api` 未声明许可证（保留所有权利），本项目仅将其作为协议调研线索，未复制、修改或分发其代码。
 - MIT 许可要求保留上游版权声明。本项目**不重新打包或再分发**上述参考项目的源码，仅参考其架构思路与协议信息；`docs/` 中的分析文档亦为独立撰写。
 - 若后续引入新的与 Trae 接入相关的依赖或复用其他项目的代码，必须在引入时同步更新本文件，并遵守对应许可证的署名与声明要求。
+
+## wild-work 思路参考
+
+参考 `rockswang/wild-work` 提交 `dffbc643781723752de03a2cf7fac3308c5b8b54`（2026-11-06）的 `internal/ledger/credit.go` 与 `internal/provider/usage.go`：积分包快照差分与缓存字段兼容。本次为独立实现，未复制或分发其源码。该参考项目采用 MIT License，版权主体为 Copyright (c) 2026 rockswang。源码地址：<https://github.com/rockswang/wild-work>。

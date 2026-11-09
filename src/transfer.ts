@@ -14,8 +14,9 @@
  * @module dsh-connect-trae/transfer
  */
 
+import { parseDeviceIdentity } from './account-device.ts'
 import { traeAccountId, type TraeCredential } from './auth.ts'
-import { regionOfHost, regionOfUserRegion, type TraeRegion, type TraeServiceRegion } from './region.ts'
+import { regionOfHost, regionOfUserRegion, regionOfEdition, type TraeRegion, type TraeServiceRegion } from './region.ts'
 import type { TraeEdition } from './paths.ts'
 
 /** The shared transfer-file record shape (snake_case top-level fields). */
@@ -31,6 +32,7 @@ export interface TraeTransferRecord {
   /** Epoch **milliseconds**, per the shared contract. */
   refreshExpiresAt?: number
   /** The original auth document, carried verbatim for the write-back path. */
+  device_identity?: unknown
   auth_raw?: unknown
 }
 
@@ -156,6 +158,7 @@ export function traeTransferRecordOf(
     ...credential.host !== '' ? { domain: credential.host } : {},
     ...(credential.expiresAtMs > 0 ? { expiresAt: credential.expiresAtMs } : {}),
     ...credential.refreshExpiresAtMs === undefined ? {} : { refreshExpiresAt: credential.refreshExpiresAtMs },
+    ...credential.deviceIdentity === undefined ? {} : { device_identity: credential.deviceIdentity },
     auth_raw: authRawDocument,
   }
   return record
@@ -257,10 +260,14 @@ export function credentialOfTransferRecord(record: TraeTransferRecord): Omit<Tra
   const userId = userIdOfRaw(record)
   const accountName = accountNameOfRaw(record)
   const host = typeof record['domain'] === 'string' ? record['domain'] : ''
-  const edition = editionOfDomain(host) ?? 'cn'
+  const bindingEdition = rawRoot(record['device_identity'])?.['edition']
+  const edition = (bindingEdition === 'cn' || bindingEdition === 'sg' || bindingEdition === 'solo' || bindingEdition === 'solo-sg')
+    && regionOfEdition(bindingEdition) === regionOfHost(host) ? bindingEdition : editionOfDomain(host) ?? 'cn'
   const userRegion = userRegionOfRaw(record['auth_raw'])
+  const deviceIdentity = parseDeviceIdentity(record['device_identity'], edition)
   return {
     accessToken,
+    ...deviceIdentity === undefined ? {} : { deviceIdentity },
     ...refreshToken === '' ? {} : { refreshToken },
     userId,
     ...accountName === undefined ? {} : { accountName },

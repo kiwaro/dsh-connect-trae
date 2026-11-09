@@ -6,6 +6,14 @@ import { seriesLayoutCss } from './series-layout.ts'
  */
 
 export const TRAE_CARD_CSS = `
+.dsm-trae-credit-history{margin-top:16px;padding:12px;border:1px solid var(--dsw-alias-border-l2,GrayText);border-radius:8px;font-size:12px}
+.dsm-trae-credit-history summary{cursor:pointer;font-weight:600}
+.dsm-trae-credit-history p{line-height:1.6;color:var(--dsw-alias-label-secondary,GrayText)}
+.dsm-trae-credit-history button{font:inherit;color:inherit;background:transparent;border:1px solid var(--dsw-alias-border-l2,GrayText);border-radius:6px;padding:5px 10px;margin-bottom:8px;cursor:pointer}
+.dsm-trae-credit-history table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.dsm-trae-credit-history th,.dsm-trae-credit-history td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--dsw-alias-border-l2,GrayText)}
+.dsm-trae-credit-history th:last-child,.dsm-trae-credit-history td:last-child{text-align:right}
+
 
 .dsm-icon-preference{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;color:var(--dsw-alias-label-primary,#e6e6e6)}
 .dsm-icon-preference-copy{display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px;font-size:13px}
@@ -193,6 +201,9 @@ export const TRAE_CARD_CSS = `
    question and sits beside the words that ask it. */
 .dsm-trae-credit-position{flex:none;max-width:none;margin-top:0;padding:3px 8px;font-size:12px;line-height:16px;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:7px;background:var(--dsw-alias-bg-layer-3,#2a2c33);color:var(--dsw-alias-label-primary,#e6e6e6);cursor:pointer}
 .dsm-trae-credit-position:disabled{cursor:default}
+.dsm-trae-refresh-interval-pref{align-items:flex-start;padding-left:25px}
+.dsm-trae-refresh-interval{flex:none;max-width:none;margin-top:0;padding:3px 8px;font-size:12px;line-height:16px;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:7px;background:var(--dsw-alias-bg-layer-3,#2a2c33);color:var(--dsw-alias-label-primary,#e6e6e6);cursor:pointer}
+.dsm-trae-refresh-interval:disabled{cursor:default}
 /* The card's checkboxes are the platform's own, styled only with
    accent-color, the same pattern .dsm-trae-mainui-switch-label above already
    uses for the composer-line switch, and the one the sibling
@@ -636,7 +647,8 @@ export const TRAE_CARD_CSS = `
    text; boxing each one is what made the block look like a stack of cards. */
 .dsm-trae-pool-actions-end{margin-inline-start:auto}
 .dsm-trae-pool-credit-meta{display:block;margin-top:2px;font-size:11px;line-height:16px;white-space:nowrap;color:var(--dsw-alias-label-tertiary,#9aa0a8)}
-.dsm-trae-pool-account-note{grid-column:2;grid-row:3;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a8)}
+/* 测试时间与设备提醒可能同时出现，让它们依次占行；固定第 3 行会使文字重叠。 */
+.dsm-trae-pool-account-note{grid-column:2;grid-row:auto;font-size:11px;line-height:16px;overflow-wrap:anywhere;color:var(--dsw-alias-label-tertiary,#9aa0a8)}
 .dsm-trae-pool-tools-dashed{border:1px dashed var(--dsw-alias-border-l2,#3a3d45);border-radius:var(--dsm-trae-pool-radius);padding:var(--dsm-trae-pool-pad-y) var(--dsm-trae-pool-pad-x)}
 .dsm-trae-pool-tool-label{margin-inline-end:auto;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#c6c9d0)}
 .dsm-trae-pool-note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#9aa0a8)}

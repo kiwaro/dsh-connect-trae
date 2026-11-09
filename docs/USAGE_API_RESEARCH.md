@@ -65,7 +65,7 @@ consumption_ratio = 0.78395...
 | 每月登录赠送 | 1 | 500 | `monthly_bonus_...` |
 | 签到奖励 | 1 | 200 | `checkin_YYYYMMDD_...` 多笔（08-20 一笔已用剩 179.63） |
 
-pack 内 `usage.credits_amount` 表示该套餐当前剩余积分。
+pack 内 `usage.credits_amount` 表示该套餐累计已消耗积分；剩余额度为 `quota.credits_amount - usage.credits_amount`。积分包差分只反映账号快照变化，不能归因到某条请求。
 
 ## 其它已验证接口
 

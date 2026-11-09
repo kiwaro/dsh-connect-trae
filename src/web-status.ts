@@ -43,6 +43,7 @@ import {
   TRAE_REGION_PARAM,
   TRAE_TRANSFER_PATH,
   TRAE_USAGE_PATH,
+  TRAE_CREDIT_HISTORY_PATH,
   fastDetailOf,
   transferActionOf,
 } from './status-paths.ts'
@@ -72,6 +73,9 @@ const CHECKIN_DEVICE_ALREADY_CLAIMED = 9095
  * user is on.
  */
 export interface TraeUsageRouteOptions {
+  /** Local account-level history, independent of conversation or request accounting. */
+  creditHistoryOf?(panel: TraePanel, accountId: string): Promise<Awaited<ReturnType<typeof import('./credit-journal.ts').readCreditHistory>> | undefined>
+
   autoCheckinProgress?(): Promise<AutoCheckinState | undefined>
   /** The panel-scoped credential store backing each region's requests. */
   store(panel: TraePanel): TraeCredentialStore
@@ -883,6 +887,8 @@ export async function traeWebPool(
     return {
       accountId: row.account.id,
       accountName,
+      ...row.account.deviceBound === undefined ? {} : { deviceBound: row.account.deviceBound },
+      ...row.account.deviceWarning === undefined ? {} : { deviceWarning: row.account.deviceWarning },
       ...credits === undefined ? {} : {
         credits: credits.total,
         ...credits.generalAvailable === undefined ? {} : { generalAvailable: credits.generalAvailable },
@@ -1107,6 +1113,22 @@ export function registerTraeUsageRoute(ctx: Context, deps: TraeUsageRouteOptions
      * open rather than on the 5-minute cycle (see
      * {@link TRAE_ACCOUNT_CREDITS_PATH}).
      */
+    const disposeCreditHistory = ctx.webServer.register({
+      kind: 'exact',
+      path: TRAE_CREDIT_HISTORY_PATH,
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method !== 'GET') return json(res, 405, { error: 'method not allowed' })
+        if (!loopbackOrigin(req)) return json(res, 403, { error: 'origin-not-trusted' })
+        const panel = requestRegion(req, res)
+        if (panel === undefined) return
+        const accountId = new URL(req.url ?? '/', 'http://localhost').searchParams.get('accountId')
+        if (!accountId) return json(res, 400, { error: 'account-required' })
+        try {
+          const history = await deps.creditHistoryOf?.(panel, accountId)
+          return json(res, history === undefined ? 404 : 200, history ?? { error: 'history-unavailable' })
+        } catch { return json(res, 503, { error: 'history-read-failed' }) }
+      },
+    })
     const disposeAccountCredits = ctx.webServer.register({
       kind: 'exact',
       path: TRAE_ACCOUNT_CREDITS_PATH,
@@ -1560,6 +1582,7 @@ export function registerTraeUsageRoute(ctx: Context, deps: TraeUsageRouteOptions
       disposeTransfer()
       disposeModelsTest()
       disposeAccounts()
+      disposeCreditHistory()
       disposeAccountCredits()
       disposeAccountStatus()
       disposeUsage()

@@ -17,6 +17,8 @@ import {
 import { traeStorageCandidates, type TraeEdition, type TraeStorageCandidate } from './paths.ts'
 import { assertSupportedRegion, isSupportedRegion, regionOfCredential, regionOfEdition, TraeUnsupportedRegionError, type TraeRegion } from './region.ts'
 import { probeRunningTraeApps, type RunningProbe } from './trae-process.ts'
+import { readTraeIdentity } from './identity.ts'
+import { deviceWarningsOf } from './account-device.ts'
 
 /** Host used for CLI tokens, which carry no host claim of their own. */
 const CLI_DEFAULT_HOST = 'https://api.trae.cn'
@@ -92,6 +94,7 @@ function credentialOfStored(stored: unknown): TraeCredential | undefined {
   const edition = record['edition']
   if (edition !== 'cn' && edition !== 'sg' && edition !== 'solo' && edition !== 'solo-sg') return undefined
   return normalizeTraeCredential({
+    deviceIdentity: record['deviceIdentity'],
     token: record['accessToken'], refreshToken: record['refreshToken'], userId: record['userId'], host: record['host'],
     userRegion: record['userRegion'],
     account: record['accountName'] === undefined && record['tenantId'] === undefined
@@ -449,7 +452,7 @@ export class TraeCredentialStore {
   private async mirrorLocalLogins(): Promise<void> {
     const { credentials: discovered } = await this.readDesktopAll()
     const own = await this.readOwns()
-    const ownIds = new Set(own.map(credential => traeAccountId(credential)))
+    const ownById = new Map(own.map(credential => [traeAccountId(credential), credential]))
     const liveIds = new Set(discovered.map(credential => traeAccountId(credential)))
     // The tombstone drop and the mirror write below run in that order but are
     // independent files; the drop is atomic here, under the tombstone lock.
@@ -458,7 +461,10 @@ export class TraeCredentialStore {
     if (stale) await this.updateTombstones(ids => { for (const id of [...ids]) { if (!liveIds.has(id)) ids.delete(id) } })
     const missing = discovered.filter(credential =>
       this.matchesRegion(credential)
-      && !ownIds.has(traeAccountId(credential))
+      && (!ownById.has(traeAccountId(credential)) || (credential.deviceIdentity !== undefined
+        && ((ownById.get(traeAccountId(credential))?.deviceIdentity === undefined
+          && ownById.get(traeAccountId(credential))?.accessToken === credential.accessToken)
+          || credential.expiresAtMs > ownById.get(traeAccountId(credential))!.expiresAtMs)))
       && !tombstones.has(traeAccountId(credential)))
     if (missing.length === 0) return
     const ownPath = this.ownAuthPath()
@@ -472,7 +478,22 @@ export class TraeCredentialStore {
         const id = traeAccountId(credential)
         // Re-check under the lock: a concurrent refresh may have written the
         // copy between the read above and this write.
-        if (byId.has(id)) continue
+        const previous = byId.get(id)
+        if (previous !== undefined) {
+          if (credential.deviceIdentity !== undefined && credential.expiresAtMs > previous.expiresAtMs) {
+            // A newer official login carries its own registration. Persist the
+            // token and device together so later switching the IDE to another
+            // account cannot bring this account's old binding back.
+            byId.set(id, { ...credential, source: 'dsh' })
+            continue
+          }
+          // Only enrich a copy of the exact same token. A different token may
+          // have been registered on a different device; do not guess its proof.
+          if (previous.deviceIdentity === undefined && previous.accessToken === credential.accessToken && credential.deviceIdentity !== undefined) {
+            byId.set(id, { ...previous, deviceIdentity: credential.deviceIdentity })
+          }
+          continue
+        }
         byId.set(id, { ...credential, source: 'dsh' })
       }
       await writeOwn(ownPath, [...byId.values()])
@@ -599,7 +620,10 @@ export class TraeCredentialStore {
      */
     const credentials = inUse !== undefined && !offered.includes(inUse) ? [...offered, inUse] : offered
     const inUseId = inUse === undefined ? undefined : traeAccountId(inUse)
+    const deviceWarnings = deviceWarningsOf(credentials)
     return credentials.map(credential => ({
+      deviceBound: credential.deviceIdentity !== undefined,
+      ...deviceWarnings.get(credential) === undefined ? {} : { deviceWarning: deviceWarnings.get(credential)! },
       id: traeAccountId(credential),
       accountName: credential.accountName ?? (credential.userId || `${credential.edition} account`),
       edition: credential.edition,
@@ -1160,7 +1184,14 @@ export class TraeCredentialStore {
     const failures: TraeCandidateFailure[] = []
     for (const candidate of this.candidates()) {
       try {
-        const credential = this.credentialFrom(candidate, await readFile(candidate.path, 'utf8'))
+        const text = await readFile(candidate.path, 'utf8')
+        const credential = this.credentialFrom(candidate, text)
+        if (candidate.source === 'desktop') {
+          // The login and keypair are read from the same JSON snapshot so a
+          // concurrent official-client account switch cannot cross-bind them.
+          try { credential.deviceIdentity = await readTraeIdentity(candidate, { storage: JSON.parse(text) as Record<string, unknown> }) }
+          catch { /* Legacy logins without identity remain usable and are diagnosed as unbound. */ }
+        }
         if (!credentials.some(existing => traeAccountId(existing) === traeAccountId(credential))) credentials.push(credential)
       } catch (error: unknown) {
         // One stale, partially written, unsupported, or signed-out Trae

@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto'
 import type { TraeEdition } from './paths.ts'
 import type { TraeCredential } from './auth-types.ts'
+import { parseDeviceIdentity } from './account-device.ts'
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined
@@ -39,7 +40,9 @@ export function normalizeTraeCredential(raw: unknown, edition: TraeEdition, sour
   const accountName = optionalString(account?.['username'])
   // `tenant_id` is a number or a string depending on the client that wrote it.
   const tenantId = optionalString(account?.['tenant_id']) ?? (typeof account?.['tenant_id'] === 'number' ? String(account['tenant_id']) : undefined)
+  const deviceIdentity = parseDeviceIdentity(value['deviceIdentity'], edition)
   return {
+    ...deviceIdentity === undefined ? {} : { deviceIdentity },
     accessToken,
     ...refreshToken === undefined ? {} : { refreshToken },
     userId: optionalString(value['userId']) ?? '',

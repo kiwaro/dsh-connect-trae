@@ -226,6 +226,11 @@ export function MemberRow({ account, models, rows, checked, onToggle, onTest, t,
         {account.probe?.atMs === undefined
           ? null
           : <span className="dsm-trae-pool-account-note">{t('row.poolProbeAt', { when: shortWhen(account.probe.atMs) })}</span>}
+        {account.deviceWarning === undefined ? null : <span className="dsm-trae-pool-account-note" role="status">
+          {account.deviceWarning.state === 'shared'
+            ? t('row.deviceShared', { accounts: account.deviceWarning.peers.join('、') })
+            : t('row.deviceUnbound')}
+        </span>}
       </div>
 
       {/* Credit: the General bucket. Work is only a hint (never shown as the number). */}
@@ -250,11 +255,11 @@ export function MemberRow({ account, models, rows, checked, onToggle, onTest, t,
 
       {/* Check-in column (only when the panel supports it). */}
       {showCheckin ? <div className="dsm-trae-pool-checkin">
-        <span className={`dsm-trae-pool-checkin-state dsm-trae-pool-checkin-${checkin === undefined ? 'unknown' : checkin ? 'ok' : device === true || deviceClaimed ? 'device' : 'no'}`}>
+        <span className={`dsm-trae-pool-checkin-state dsm-trae-pool-checkin-${checkin === undefined ? 'unknown' : checkin ? 'ok' : device === true || (account.deviceBound !== true && deviceClaimed) ? 'device' : 'no'}`}>
           {checkin === undefined
             ? t('row.poolCheckinUnknown')
             : checkin ? t('row.poolCheckedIn')
-              : device === true || deviceClaimed ? t('row.poolDeviceUsed') : t('row.poolNotCheckedIn')}
+              : device === true || (account.deviceBound !== true && deviceClaimed) ? t('row.poolDeviceUsed') : t('row.poolNotCheckedIn')}
         </span>
         {/* Only an ACTION belongs here. Once this account is claimed — or this
             machine already spent the day's check-in — a greyed "already

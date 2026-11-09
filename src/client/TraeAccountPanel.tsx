@@ -19,12 +19,14 @@
 import type { ReactElement, ReactNode } from 'react'
 import type {
   TraeCreditPosition,
+  TraeRefreshIntervalMinutes,
   TraePanel,
   TraeWebCreditAlternative,
   TraeWebCreditExpiry,
   TraeWebModel,
   TraeWebUsage,
 } from '../status-paths.ts'
+import { TRAE_REFRESH_INTERVAL_MINUTES } from '../status-paths.ts'
 import type { TraeUsageCardInjected } from './trae-card-types.ts'
 import { IconStylePreference } from './plugin-icon.tsx'
 import { AccountPool } from './AccountPool.tsx'
@@ -38,6 +40,7 @@ import type { TraeSettingsKey } from './locales.ts'
 export interface TraeAccountRowView {
   id: string
   accountName: string
+  deviceWarning?: string | undefined
   /** This is the account currently serving this panel. */
   current: boolean
   /** The binding points at this row (the signed-out variant's only clue). */
@@ -120,6 +123,17 @@ export interface TraeAccountPanelProps {
   /** Where the readout sits for THIS panel. */
   creditPosition: TraeCreditPosition
   onCreditPositionChange(position: TraeCreditPosition): void
+  /**
+   * How often the plugin refreshes on its own, in MINUTES.
+   *
+   * REGION-AGNOSTIC, like the two switches above: this paces the plugin's whole
+   * background chatter (the card's usage read AND the composer readout), not one
+   * region's data. So it is offered on whichever tab the user is on and never
+   * stored per region — two tabs set to different cadences would make the same
+   * screen refresh at two rates.
+   */
+  refreshIntervalMinutes: TraeRefreshIntervalMinutes
+  onRefreshIntervalChange(minutes: TraeRefreshIntervalMinutes): void
   savingPreferences: boolean
   /** Ids wiring the preference label to its hint (`useId` lives in the card). */
   creditsLabelId: string
@@ -234,6 +248,7 @@ function ClaimCell({ claim, onClaim, t }: {
 export function TraeAccountPanel({
   preferencesOnly, t, settingsScope, panel, status, statusLabel, credentialRegionIsAi, regionOn,
   showPointsInMainUi, onToggleShowPoints, creditPosition, onCreditPositionChange,
+  refreshIntervalMinutes, onRefreshIntervalChange,
   sidebarPanelOn, sidebarPanelBusy, onToggleSidebarPanel,
   savingPreferences, creditsLabelId, creditsHintId,
   rows, busy, rescanNote, onRescan, switchingAccount, onSwitchAccount, onClaim, onTransferChanged,
@@ -299,6 +314,47 @@ export function TraeAccountPanel({
               </select>
             </span>
             <span className="dsm-trae-pref-hint">{t('row.creditPositionHint')}</span>
+          </span>
+        </label>
+        {/* HOW OFTEN it refreshes on its own.
+
+            REGION-AGNOSTIC and therefore NOT gated on `regionOn`: the cadence
+            paces the whole plugin's background reads, so a user who has one tab
+            switched off must still be able to slow the other down. It is also
+            the one control here whose value is a NUMBER rather than a choice of
+            seat — hence its own class, so a test selecting the seat picker
+            cannot start asserting about this one.
+
+            The options come from the shared constant, never from a literal list
+            here: the schema validates against that same array, and a second copy
+            would let the picker offer a value the write refuses. */}
+        <label className="dsm-trae-pref dsm-trae-refresh-interval-pref" title={t('row.refreshIntervalHint')}>
+          <span className="dsm-trae-pref-copy">
+            <span className="dsm-trae-pref-lead">
+              <span className="dsm-trae-pref-label">{t('row.refreshIntervalLabel')}</span>
+              <select
+                className="dsm-trae-refresh-interval"
+                value={String(refreshIntervalMinutes)}
+                disabled={!writable || savingPreferences}
+                aria-label={t('row.refreshIntervalAria')}
+                onChange={event => {
+                  // The `<option>` values are generated from the constant, so a
+                  // number that is not in the set can only arrive from a
+                  // hand-edited DOM; refusing it here keeps the writer's
+                  // parameter type honest instead of casting.
+                  const picked = Number(event.currentTarget.value)
+                  const match = TRAE_REFRESH_INTERVAL_MINUTES.find(each => each === picked)
+                  if (match !== undefined) onRefreshIntervalChange(match)
+                }}
+              >
+                {TRAE_REFRESH_INTERVAL_MINUTES.map(minutes => (
+                  <option key={minutes} value={String(minutes)}>
+                    {t('row.refreshIntervalOption', { minutes: String(minutes) })}
+                  </option>
+                ))}
+              </select>
+            </span>
+            <span className="dsm-trae-pref-hint">{t('row.refreshIntervalHint')}</span>
           </span>
         </label>
         {/* THE OPTIONAL SIDEBAR ROW (learned from dsh-connect-workbuddy's PR
@@ -427,6 +483,7 @@ export function TraeAccountPanel({
                               it?". */}
                           {row.current ? <span className="dsm-trae-account-badge">{t('row.accountCurrentBadge')}</span> : null}
                           <span className="dsm-trae-account-meta">{row.meta}</span>
+                          {row.deviceWarning === undefined ? null : <span className="dsm-trae-pool-account-note" role="status">{row.deviceWarning}</span>}
                           {/* The countdown that actually ends automatic renewal.
                               Per ACCOUNT, because the expiry is a property of
                               each credential, and rendered only when it is close

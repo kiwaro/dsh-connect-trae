@@ -1,3 +1,4 @@
+import { normalizeUsageCache } from './usage-cache.ts'
 export const TRAE_RAW_CHAT_V2_PATH = '/api/ide/v2/llm_raw_chat'
 export const TRAE_RAW_CHAT_V1_PATH = '/api/ide/v1/llm_raw_chat'
 
@@ -191,13 +192,12 @@ export function decodeRawChatChunk(value: unknown): RawChatDelta[] {
     if (typeof choice['finish_reason'] === 'string' && choice['finish_reason'] !== '') result.push({ type: 'done', finishReason: choice['finish_reason'] })
   }
   if (typeof record['usage'] === 'object' && record['usage'] !== null) {
-    const usage = record['usage'] as Record<string, unknown>
+    const usage = normalizeUsageCache(record['usage'] as Record<string, unknown>)
     const details = typeof usage['prompt_tokens_details'] === 'object' && usage['prompt_tokens_details'] !== null
       ? usage['prompt_tokens_details'] as Record<string, unknown>
       : {}
-    // Accept both the canonical OpenAI nesting and the top-level spellings that
-    // providers such as DeepSeek/Kimi use, mirroring pi-ai's own resolution.
-    const cacheRead = details['cached_tokens'] ?? usage['prompt_cache_hit_tokens'] ?? usage['cached_tokens']
+    // One compatibility helper supplies the same canonical values as SOLO.
+    const cacheRead = details['cached_tokens']
     const cacheWrite = details['cache_write_tokens']
     result.push({
       type: 'usage',

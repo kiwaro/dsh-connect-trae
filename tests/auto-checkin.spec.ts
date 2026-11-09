@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createAutoCheckin, foldCheckin, checkinDay, type AutoCheckinState } from '../src/auto-checkin.ts'
+import { checkinReadingFresh, createAutoCheckin, foldCheckin, checkinDay, type AutoCheckinState } from '../src/auto-checkin.ts'
 const now = new Date(2026, 10, 7, 12).getTime()
 const empty = (): AutoCheckinState => ({day: checkinDay(now), done: [], deviceBlocked: false, failures: 0, retryAt: 0})
 describe('automatic check-in', () => {
@@ -37,5 +37,16 @@ describe('automatic check-in', () => {
     const runner = createAutoCheckin({enabled: () => true, read: async () => undefined, write: async () => {},run,now: () => now})
     const first = runner.tick(); await Promise.resolve(); await runner.tick()
     finish(); await first; expect(run).toHaveBeenCalledTimes(1)
+  })
+})
+
+// A cached answer about today expires at midnight even inside its TTL.
+describe('check-in cache day boundary', () => {
+  it('rejects yesterday and expired readings while retaining a fresh same-day answer', () => {
+    const before = new Date(2026, 10, 8, 23, 58).getTime()
+    const after = new Date(2026, 10, 9, 0, 2).getTime()
+    expect(checkinReadingFresh(before, after, 600_000)).toBe(false)
+    expect(checkinReadingFresh(after, after+60_000, 600_000)).toBe(true)
+    expect(checkinReadingFresh(after, after+600_000, 600_000)).toBe(false)
   })
 })

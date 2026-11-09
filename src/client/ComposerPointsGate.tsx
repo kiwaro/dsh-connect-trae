@@ -2,7 +2,7 @@
  * 根据已保存的开关、面板启用状态及显示位置，决定是否渲染 Trae 读数。
  *
  * 优先使用 modelSelection 的 next，再使用 lastUsed。选中的供应商属于本插件时
- * 读取对应面板；否则选择第一个已启用的 Trae 面板。积分总开关关闭时不渲染。
+ * 读取对应面板；选中其他供应商或尚未选择时不显示 Trae 读数。积分总开关关闭时不渲染。
  * 两个显示位置均注册组件，由面板保存的 creditPosition 决定实际渲染位置。
  * 工具栏排序避让由 composer-order.ts 处理。
  */
@@ -104,13 +104,10 @@ export function ComposerPointsGate(props: ComposerPointsGateProps) {
   if (!enabled) return null
 
   const selected = selectedProviderOf(projection)
-  const provider = (selected !== undefined && TRAE_COMPOSER_PROVIDERS[selected] !== undefined ? selected : undefined) ?? Object.keys(TRAE_COMPOSER_PROVIDERS).find(candidate =>
-    regionEnabledOf(scopeValueOf(settingsScope), TRAE_COMPOSER_PROVIDERS[candidate]!),
-  )
+  const provider = selected
   const region = provider === undefined ? undefined : TRAE_COMPOSER_PROVIDERS[provider]
-  // Prefer the selected Trae provider, otherwise use the first enabled Trae
-  // panel. This keeps a readout available while another plugin is selected.
-  // With no matching enabled panel there is nothing to render.
+  // Only the selected channel owns this readout. A fallback Trae panel would
+  // leave two credit entries visible when the user selects WorkBuddy.
   if (region === undefined) return null
 
   // A region the user switched OFF must render nothing, even though the model

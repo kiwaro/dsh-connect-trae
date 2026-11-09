@@ -1,4 +1,5 @@
 /** Configuration schema and panel readers; independent of plugin startup. */
+import { TRAE_REFRESH_INTERVAL_MINUTES, TRAE_REFRESH_INTERVAL_DEFAULT_MINUTES, type TraeRefreshIntervalMinutes } from './status-paths.ts'
 import z from '@deepseek-ai/schemastery'
 import type { TraeModelInfo } from './catalog.ts'
 import type { TraeActivityDiscount } from './promo.ts'
@@ -143,6 +144,8 @@ export interface Config {
    * supplies sidebarPanelEnabled to initialize the browser registration.
    */
   sidebarPanel?: boolean
+  /** 卡片与输入框共享的自动刷新间隔（分钟），默认 5。 */
+  refreshIntervalMinutes?: TraeRefreshIntervalMinutes
   /**
    * Per-panel model state, keyed cn, enterprise or ai. The CN and international apps
    * expose different rosters, so each keeps its own directory and selection
@@ -440,6 +443,11 @@ export const Config: z<Config> = z.object({
       .default(false)
       .description('在 DSH 侧边栏显示「Trae」面板：点开是这张卡片的整页版。默认关闭。开启后增加一个侧边栏入口；也可从「插件」页打开相同内容。点一下即生效，不用保存。'),
   ) as unknown as z<boolean>,
+  refreshIntervalMinutes: asVolatile(
+    z.union(TRAE_REFRESH_INTERVAL_MINUTES)
+      .default(TRAE_REFRESH_INTERVAL_DEFAULT_MINUTES)
+      .description('自动刷新间隔（分钟）：卡片与输入框读数共用。可选 1 / 5 / 10 / 30 / 60，默认 5。每次刷新会读取用量（两次只读的上游请求），间隔越短请求越频繁。'),
+  ) as unknown as z<TraeRefreshIntervalMinutes>,
   accounts: asVolatile(accountSelectionConfig.description('Per-panel account selections, keyed cn | enterprise | ai')) as z<Partial<Record<TraePanel, string>>>,
   regions: asVolatile(z.dict(regionStateConfig).default({}).description('Per-panel model directory and selection, keyed cn | enterprise | ai')),
   lastCatalog: z.array(modelConfig).description('Deprecated: pre-region-split CN model directory') as z<TraeModelInfo[]>,

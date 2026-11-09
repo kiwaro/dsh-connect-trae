@@ -288,3 +288,23 @@ describe('region-scoped usage surface', () => {
     await expect(client.payStatus()).rejects.toThrow(/only available for the international/)
   })
 })
+
+
+describe('credit snapshot ownership',()=>{
+ it('uses the credential captured before the read and skips incomplete documents',async()=>{
+  let reads=0
+  const observed: string[]=[]
+  let payload: Record<string,unknown>={is_credits_billing:true,user_entitlement_pack_list:[]}
+  const client=new TraeUsageClient({
+   credential:async()=>({...credential,userId:++reads===1?'demo-first':'demo-second'}),
+   fetchImpl:async()=>new Response(JSON.stringify(payload)),
+   onSnapshot:async(account)=>{observed.push(account.userId)},
+  })
+  await client.snapshot()
+  expect(reads).toBe(1);expect(observed).toEqual(['demo-first'])
+  payload={code:503}
+  await client.snapshot();expect(observed).toEqual(['demo-first'])
+  payload={is_credits_billing:true,user_entitlement_pack_list:[null]}
+  await client.snapshot();expect(observed).toEqual(['demo-first'])
+ })
+})

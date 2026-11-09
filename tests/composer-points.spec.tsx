@@ -188,7 +188,7 @@ function makeScope(enabled: boolean | undefined, initial: Record<string, unknown
 }
 
 describe('ComposerPointsGate provider scoping', () => {
-  it('shows enabled Trae credits while another provider is selected', () => {
+  it.each(['workbuddy', 'workbuddy-global'])('hides Trae credits for %s without fetching', (provider) => {
     // The entire point: the shared composer row stays untouched for every
     // provider this plugin does not own. The switch is deliberately ON here —
     // with it off this case would pass for the WRONG reason and stop testing
@@ -199,19 +199,36 @@ describe('ComposerPointsGate provider scoping', () => {
       <ComposerPointsGate
         t={t}
         settingsScope={scope as never}
-        useProjection={() => ({ lastUsed: { provider: 'workbuddy-global' } })}
+        useProjection={() => ({ lastUsed: { provider } })}
       />,
     )
-    expect(container.querySelector('.dsm-trae-composer-points')).not.toBeNull()
+    expect(container.querySelector('.dsm-trae-composer-points')).toBeNull()
+    expect(calls).toEqual([])
   })
 
-  it('shows enabled Trae credits before model selection', () => {
+  it('hides Trae credits before model selection', () => {
     const { calls } = stubRoute()
     const { scope } = makeScope(true)
     const { container } = render(
       <ComposerPointsGate t={t} settingsScope={scope as never} useProjection={() => undefined} />,
     )
-    expect(container.querySelector('.dsm-trae-composer-points')).not.toBeNull()
+    expect(container.querySelector('.dsm-trae-composer-points')).toBeNull()
+    expect(calls).toEqual([])
+  })
+
+  it('follows unsent channel changes and restores the Trae readout on return', () => {
+    stubRoute()
+    const { scope } = makeScope(true)
+    const gate = (provider: string, previous: string) => (
+      <ComposerPointsGate t={t} settingsScope={scope as never}
+        useProjection={() => ({ next: { provider }, lastUsed: { provider: previous } })} />
+    )
+    const view = render(gate('trae', 'workbuddy'))
+    expect(view.container.querySelector('.dsm-trae-composer-points')).not.toBeNull()
+    view.rerender(gate('workbuddy', 'trae'))
+    expect(view.container.querySelector('.dsm-trae-composer-points')).toBeNull()
+    view.rerender(gate('trae', 'workbuddy'))
+    expect(view.container.querySelector('.dsm-trae-composer-points')).not.toBeNull()
   })
 
   it('renders and fetches CN credits for the trae provider', async () => {
