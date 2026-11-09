@@ -52,7 +52,7 @@ interface ModelFeatureRenderRootConfig {
    拆成 `featureKey` + `subKey`；
 2. 取后端事实 `features[featureKey]`，**只有 `enable === true` 且 `subKey` 与路由一致**才算命中
    （否则 `continue`，所以一个模型只会命中它自己那条活动路由）；
-3. 没有后端事实时才用配置里的 `when` 兜底；
+3. 没有后端事实时才用配置里的 `when` 回退处理；
 4. 选第一个匹配的 branch，把 `base.render` 与 branch 的 `render` 合并；
 5. 每个命中的 feature 都产出一份 `{tag, tooltip.sections, timeProjection}`，按顺序叠加。
 
@@ -122,7 +122,7 @@ IDE 名册那一行（同一时刻）：
 是两条资格路径，**不是两次叠加**。详情栏把两条都列出来是在回答「我能不能享」，
 不是在算 0.12×0.5×0.5。
 
-顺带一个自证：截图二会员段用的是 `member.upgrade_description`（「开通会员享…」），
+补充验证依据：截图二会员段用的是 `member.upgrade_description`（「开通会员享…」），
 不是 `member.description`（「会员专享…」）—— 给非会员的升级话术，与 `userPayIdentity: 0` 对得上。
 
 ## 4. 为什么行上是「会员 5 折」，我们是「闲时 5 折」

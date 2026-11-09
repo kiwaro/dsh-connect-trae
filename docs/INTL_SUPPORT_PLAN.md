@@ -27,7 +27,7 @@ Trae 国内版与国际版账号在本插件中获得完全对等的支持：**�
    凭证共用同一套网关与目录（实测：CN 两版同用 `api.trae.cn`，国际两版同用 `coresg-normal.trae.ai`）。
    映射：`cn|solo → cn`，`sg|solo-sg → ai`。
 3. **region 判定用凭证字段，不用用户配置。** 权威来源 `userRegion.region`（`'CN'|'SG'`，
-   大小写不敏感——日志中亦见小写 `'sg'`），host 后缀 `.trae.ai` 兜底，edition 兜底。
+   大小写不敏感——日志中亦见小写 `'sg'`），host 后缀 `.trae.ai` 回退处理，edition 回退处理。
 4. **refresh 契约按 edition 分叉（4 套），是唯一不按 region 二分的点**：
    ⚠️ **已被 2026-10-11 的新契约取代**，见 INTL_SG_EVIDENCE.md §2.2.1：四版现均走 `/trae/api/v3/oauth/ExchangeToken`，ClientID 按「是否 SOLO 包」分叉（桌面 `ono9krqynydwx5` / SOLO（CN + 国际）`en1oxy7wnw8j9n`），且**强制 `DeviceProof` 签名**（密钥取自 storage.json 的 `iCubeAuthInfo://icube-dc:`）。
 
@@ -35,7 +35,7 @@ Trae 国内版与国际版账号在本插件中获得完全对等的支持：**�
 
    证据见 INTL_SG_EVIDENCE.md §2.2（桌面版 `userJwt` 直证同 CN；SOLO 国际版官方日志直证新契约）。
 5. **请求头与解密器两侧通用（实测）**：`buildTraeCnHeaders` 的整套头（`x-app-id` `6eefa01c-…`、
-   identity 头、`Cloud-IDE-JWT`）被 SG 网关原样接受；`decryptTraeStorageValue` 四版通吃。
+   identity 头、`Cloud-IDE-JWT`）被 SG 网关原样接受；`decryptTraeStorageValue` 兼容四个版本。
    因此 protocol.ts 只需放开 edition 校验，不需要双套头。
 6. **模型目录解析链路零改动（实测）**：`parseTraeRemoteModel` 7/7、`get_detail_param` 形态 14/14、
    `mergeTraeModelSources` 直通并命中 `wireConfigName`（`gemini-3.1-pro` → `custom_model_gemini`）。
@@ -65,7 +65,7 @@ Trae 国内版与国际版账号在本插件中获得完全对等的支持：**�
 - `regionOfEdition(edition: TraeEdition): TraeRegion`（`cn|solo → cn`，`sg|solo-sg → ai`）
 - `regionOfUserRegion(value: unknown): TraeRegion | undefined`（读 `userRegion.region`，大小写不敏感）
 - `regionOfHost(host: string): TraeRegion | undefined`（`.trae.ai` 后缀 → ai，`.trae.cn` → cn）
-- `regionOfCredential(credential): TraeRegion`（userRegion → host → edition 三级兜底）
+- `regionOfCredential(credential): TraeRegion`（userRegion → host → edition 三级回退）
 - `REGION_GATEWAYS`：上表的 base 常量
 - `TraeCredential` 与 `TraeWebAccount` 暴露 region（派生字段，不落盘）
 
@@ -149,7 +149,7 @@ export interface Config {
 ### F. 测试（平移 workbuddy 四组样板 + 本项目既有断言风格）
 
 - `region.spec.ts`（新）：`regionOfUserRegion`（`'SG'`/`'sg'`/缺失）、`regionOfHost`（`.trae.ai`
-  / `.trae.cn` / 空）、`regionOfEdition` 四映射、`regionOfCredential` 三级兜底。
+  / `.trae.cn` / 空）、`regionOfEdition` 四映射、`regionOfCredential` 三级回退。
 - `auth.spec.ts`：四 edition 的 `candidates()` 全收；own 副本收 sg/solo-sg；account 列表带 region。
 - `refresh.spec.ts`（已重写）：四 edition 断言走当前契约 `/trae/api/v3/oauth/` 且 ClientID 按
   「是否 SOLO 包」分叉（solo、solo-sg → `en1oxy7wnw8j9n` + `SOLO_PC`；cn、sg → `ono9krqynydwx5`

@@ -28,7 +28,7 @@
 | TRAE SOLO CN | `https://api.trae.cn` | `{"region":"CN","_aiRegion":"CN"}` |
 | TRAE SOLO（国际） | `https://growsg-normal.trae.ai` | `{"region":"SG","_aiRegion":"SG"}` |
 
-- `userRegion.region`（`"CN" | "SG"`）是权威判定字段；host 后缀（`.trae.ai` vs `.trae.cn`）与之一致，可作为兜底判定。
+- `userRegion.region`（`"CN" | "SG"`）是权威判定字段；host 后缀（`.trae.ai` vs `.trae.cn`）与之一致，可作为后备判定。
 - SG 侧 host 不统一（`api-sg-central` / `growsg-normal`），且 `account` 含 `migrateToSG` 字段（CN 账号可迁移）。刷新使用凭据host；模型、用量和聊天按已验证的REGION_GATEWAYS服务地址选择，不能把凭据host直接用于所有服务。
 - `account.username`、`email` 等字段可用于账号展示；**不要**把 `nonPlainTextMobile` 等敏感字段带出 Host。
 
@@ -109,7 +109,7 @@ TRAE SOLO 国际版 2026-09-15 日志记录了官方 App 自己的刷新调用�
 - 签名消息：`["POST", 路径, ClientID, RefreshToken, String(时间戳秒), nonce].join("\n")`
   —— 分隔符是**换行符**。官方 bundle 写作 `.join("\n")`（模板字面量跨行），**不是空格**；同样的字段用空格连接会被拒为 `20403`，与「密钥不对」的表现**完全一致**，极易误诊。
 - 私钥来源：`storage.json` 的 `iCubeAuthInfo://icube-dc:<deviceId>`，值与凭证同样加密，用**同一个** `decryptTraeStorageValue` 即可解出
-  `{"privateKeyPEM":"-----BEGIN PRIVATE KEY-----…","publicKeyPEM":"-----BEGIN PUBLIC KEY-----…"}`（已实测四版通吃）。
+  `{"privateKeyPEM":"-----BEGIN PRIVATE KEY-----…","publicKeyPEM":"-----BEGIN PUBLIC KEY-----…"}`（已实测兼容四个版本）。
   ⇒ **证明设备的密钥就存在它守护的那份登录旁边**，无需 keychain。
 - `nonce` = 16 字节随机 hex；`Timestamp` = 整秒。
 
@@ -149,7 +149,7 @@ TRAE SOLO 国际版 2026-09-15 日志记录了官方 App 自己的刷新调用�
 
 新契约需要 device keypair，**没有 keypair 时（CLI-only / 旧安装）直接走旧契约**，不发送注定被 `20405` 拒绝的请求。
 
-实测四个 edition 在**两条路径上都能刷新成功**，所以回退是真正的兜底而非摆设。
+实测四个 edition 在**两条路径上都能刷新成功**，说明回退路径已得到实测验证。
 
 > 复现脚本：旧 `scripts/probe-intl*.mjs` 仍是 §2.2/§2.3 的；本次 §2.2.1 的结论由「读客户端 bundle 的 `NPe()`/`$v()`/`m(t)` 三个函数 + 读 App 自写日志 + 四 edition 实测」三方交叉得到，未新增脚本。
 
@@ -168,7 +168,7 @@ TRAE SOLO 国际版 2026-09-15 日志记录了官方 App 自己的刷新调用�
 
 ### 2.4 解析器直通验证（等级 A+）
 
-把 SG 响应喂给本项目 lib 打包产物中的 CN 正式解析器：
+把 SG 响应传给本项目 lib 打包产物中的 CN 正式解析器：
 
 - `parseTraeRemoteModel`：7/7 条目解析成功（id/name/contextWindow/multimodal/reasoningSupported 全部产出）。
 - `get_detail_param` 的 `config_info_list`：14/14 通过 solo.ts 的读取形态。
@@ -234,7 +234,7 @@ CN 版 `web_user_ent_usage`（积分包明细）在 SG 日志中**未出现**；
 | 维度 | CN | SG |
 |---|---|---|
 | 凭证 host | `api.trae.cn`（统一） | `api-sg-central` / `growsg-normal.trae.ai`（按 App 分，非统一） |
-| region 判定 | `userRegion.region === 'CN'` | `'SG'`（host 后缀 `.trae.ai` 兜底；日志中亦见小写 `'sg'`，判定需大小写不敏感） |
+| region 判定 | `userRegion.region === 'CN'` | `'SG'`（host 后缀 `.trae.ai` 回退处理；日志中亦见小写 `'sg'`，判定需大小写不敏感） |
 | 聊天网关 base | `https://trae-api-cn.mchost.guru` | `https://coresg-normal.trae.ai` |
 | remote 目录 base | `https://solo.trae.cn/api/remote/v1` | `https://coresg-normal.trae.ai/api/remote/v1` |
 | refresh 路径 | ~~`/cloudide/…`（CN/SG 旧）~~ | **两者现均为 `/trae/api/v3/oauth/ExchangeToken`**（旧 `/cloudide` 仍 200，降级为回退） |
@@ -244,7 +244,7 @@ CN 版 `web_user_ent_usage`（积分包明细）在 SG 日志中**未出现**；
 | 模型目录 | GLM/Kimi/DeepSeek 等 | Gemini/GPT/MiniMax/Kimi 等（互不重叠为主） |
 | 积分倍率 | `consumption_rate` 存在 | 未见（订阅制） |
 | `x-app-id` 等请求头 | `6eefa01c-1036-4c7e-9ca5-d891f63bfcd8` 等 | 相同（实测接受） |
-| 解密器 | `decryptTraeStorageValue` | 相同（实测四版通吃） |
+| 解密器 | `decryptTraeStorageValue` | 相同（实测兼容四个版本） |
 
 **分桶结论：受支持的存储区域为CN与ai-SG；另有可识别但当前不支持的US，是「2 套存储」的分桶键**——模型目录、勾选、预算、fallback、聊天网关、usage 数据源全部按 region 二分。
 

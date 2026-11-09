@@ -99,7 +99,7 @@ package.json           # npm 自动包含
 8. 经用户明确确认后 push 分支和 tag。
 9. 经用户明确确认并处理 npm 2FA 后执行 `npm publish`。
 10. 验证 npm `version`、`dist-tags.latest`、tarball 内容。
-11. 从 npm 在干净 profile 安装，验证 provider 注册、模型目录和短流式对话。
+11. 从 npm 在正常 profile 安装，验证 provider 注册、模型目录和短流式对话。
 12. 必要时创建 GitHub Release 和市场提交。
 
 ## 市场提交调研

@@ -50,7 +50,7 @@
 | 2 | 客户端槽位名 | `settings.plugin.item` | `plugins.bundle.config` / `plugins.row.config` | 两条线槽位集**互不相交**，卡片渲染不出来 |
 | 3 | 宿主端注册 | `installSection()` | `configure({auto}, owner)` | `trae` 设置命名空间不注册，设置区无声消失 |
 | 4 | schema 可写声明 | 无需 | 必须标 `volatile()` | 写入被拒（`has no volatile fields`），而 `set()` 却正常 resolve → **开关翻过去又静默复原** |
-| 5 | primitives 图标名 | `…Outline14` | `…OutlineRegular` | 静态导入让**整个客户端包解析失败**，卡片直接挂掉 |
+| 5 | primitives 图标名 | `…Outline14` | `…OutlineRegular` | 静态导入让**整个客户端包解析失败**，卡片无法加载 |
 
 第 2、3、4 条是我参照同作者的 `dsh-connect-workbuddy` 的实测记录核对的
 （那边已经用同一套适配跑通 0.1.7）；**第 5 条是我对照两条线 primitives 的实际导出发现的**。
@@ -59,7 +59,7 @@
 
 现在加了 `asVolatile()`：运行时探测 `schema.volatile()`，有就调用、没有就退化为恒等 no-op （`volatile()` 自 schemastery 3.18.3 起才有，0.1.5 线锁在 3.18.2）。
 
-顺带还修了两类静默失败：
+同时还修了两类静默失败：
 
 - **活引用**：0.1.7 把 volatile 字段以 `{get(): T}` 交给消费方。不解包则 `config.regions`、
   `value.accounts[region]` 静默变成对象或 `undefined`；更隐蔽的是**展开一个活引用得到的是
@@ -72,7 +72,7 @@
 不是「多支持一个版本」，而是**同一个包**在运行期按能力探测：
 
 - `inject` 收窄为两条线都有的 `['slots', 'locale']`，设置面改用 `ctx.get()` **软探测**。
-  这里有个坑值得记一下：**属性访问会抛 `cannot get property X without inject`，`?.` 挡不住**
+  这里有个注意事项须记录：**属性访问会抛 `cannot get property X without inject`，`?.` 无法阻止**
   ——只有 `ctx.get()` 对缺失服务返回 `undefined` 而不抛错。
 - 三个槽位**各自独立 try/catch** 逐个注册，一条线上不存在的槽位不会把另一条线的注册一起带走。
 - 折叠箭头改成**纯 CSS**，不再静态导入图标（两条线图标名不重叠，静态导入必然在其中一条上失败）。
@@ -94,7 +94,7 @@ npm install dsh-connect-trae@2.2.0
 
 之所以专门写这个：仓库原有的 `client-fallback.spec.ts` 是**手工镜像**入口函数体的， 验证的是「思路」而**从不执行真实的 `inject` 数组**——而恰恰是那个数组让你的 fiber 卡死， 所以它一路绿灯。
 
-现在把 `inject` 改回含 `settingsScope`，这条测试立刻变红 （fiber 停在 PENDING），精确复现了你报的现象。
+现在把 `inject` 改回含 `settingsScope`，这条测试立刻失败 （fiber 停在 PENDING），精确复现了你报的现象。
 
 测试总数 282 → 310，并在 schemastery 3.18.4（volatile 生效）与 3.18.2（no-op）下均通过。
 

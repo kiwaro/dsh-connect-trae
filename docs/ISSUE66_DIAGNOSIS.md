@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | `pay_status` 401 | `regionOfUserRegion("US")` / `regionOfHost("…traeapi.us")` 都不认识 US，回退到 `regionOfEdition("sg") = "ai"` | US 从 `userRegion` 与 `host` 两级都能解析出来，且**不会再回退成 `ai`** |
 | 模型刷新 500 | 目录读拿 US token 打 SG 网关得 401；路由 `catch` 一律 `json(res, 500, …)` | US 在选网关**之前**被拒；上游 401/403 原样透出（`code: authentication`），本地「不支持」= 501 + `code: unsupported-region` |
-| 重登无效并循环 | 重登只会再拿到一份 US 凭据；卡片把它当 `ai` 账号继续 401，界面上没有任何一句说清「这个区不支持」 | US 凭据**不可被选中、不会计费**，但会在卡片上显示区域不支持提示：未登录态显示「美国区（US）暂不支持」+ 账号名，并说明「重新登录不会有任何变化」 |
+| 重登无效并循环 | 重登只会再获取到一份 US 凭据；卡片把它当 `ai` 账号继续 401，界面上没有任何一句说清「这个区不支持」 | US 凭据**不可被选中、不会计费**，但会在卡片上显示区域不支持提示：未登录态显示「美国区（US）暂不支持」+ 账号名，并说明「重新登录不会有任何变化」 |
 
 ---
 
@@ -90,7 +90,7 @@ SG 401）。
 | `src/usage.ts` / `src/solo.ts` / `src/solo-remote.ts` / `src/raw-upstream.ts` / `src/official-roster.ts` | 取网关前一律 `assertSupportedRegion(regionOfCredential(credential))`；目录的 4xx 改为 `TraeHttpError` |
 | `src/web-status.ts` | 上游读路由（状态/额度/账号表/模型刷新/模型测速/签到/账号池签到与测速）改用 `failJson()`，不再一律 500；状态文档新增 `unsupportedRegion` |
 | `src/status-paths.ts` | `TraeWebUnsupportedRegion`，挂在 signed-in / signed-out 两种文档上 |
-| `src/transfer.ts` | 区域门控接受 `us`，因此 US 凭据**导入也会被跳过**（和其它外区记录一样），不会被塞进 `ai` 库 |
+| `src/transfer.ts` | 区域门控接受 `us`，因此 US 凭据**导入也会被跳过**（和其它外区记录一样），不会被放入 `ai` 库 |
 | `src/client/TraeUsageCard.tsx` + `locales.ts` | 未登录态显示「美国区（US）暂不支持」卡片（含账号名，并说明重登无用）；诊断面板加一行；失败请求显示**服务端原文**而不是 `HTTP 401/500` |
 
 ---

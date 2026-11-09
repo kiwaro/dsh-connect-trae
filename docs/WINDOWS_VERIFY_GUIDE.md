@@ -2,7 +2,7 @@
 
 > 2026-11-06 全文复核：09-26输出和测试数为历史真机记录；脚本检查路径、凭据解析与身份字段，不等于已完成真实聊天验证。
 
-> 给需要在 Windows 上确认「dsh-connect-trae 到底能不能读到 Trae 登录」的人。
+> 给需要在 Windows 上确认「dsh-connect-trae 能否读取 Trae 登录状态」的人。
 > 对应 README 的「Windows 说明」与 `docs/WINDOWS_TOKEN_PROBE.md`。
 
 ## 状态：已有一台真机通过（2026-09-26）
@@ -16,7 +16,7 @@
 | 账号解析 | 解出 1 个账号（`solo` / `cn`） |
 | `x-device-type` | `windows` |
 | `x-os-version` | `Windows 10.0.22621` |
-| `x-device-id` | 16 位纯数字（来自数据目录，非兜底哈希） |
+| `x-device-id` | 16 位纯数字（来自数据目录，非后备哈希） |
 | `x-app-version` | `0.1.56`（取自安装目录的 `product.json`） |
 
 **结论**：`product.json` 的 `win32DirName` 作为目录名依据是对的；安装路径推导与
@@ -39,11 +39,11 @@
 | `SSE` 解码 | ✅ 按 `\r?\n` 切分，CRLF 支持 |
 
 **已知限制**：`model-cache` 依赖 `sqlite3`（本机没有），实测抛 `ENOENT` 并正确
-兜底，不影响主流程。
+回退处理，不影响主流程。
 
 **本次修改期间发现并修掉的一处缺口**：该模块原先把 `state.vscdb` 路径**硬编码为 `Trae CN` 单一拼写**，而 `paths.ts` 是多候选；且它自行重算目录而未复用 `traeStorageCandidates`。
 
-本机真实目录名是 `TRAE SOLO CN`，旧代码指向的 `...\Trae CN\...\state.vscdb` **并不存在**——只因 `sqlite3` 缺失、该调用必然失败 兜底，才把一个错误的路径藏在「依赖缺失」这个看似合理的错误后面。
+本机真实目录名是 `TRAE SOLO CN`，旧代码指向的 `...\Trae CN\...\state.vscdb` **并不存在**——只因 `sqlite3` 缺失、该调用必然失败并执行回退，才把一个错误的路径藏在「依赖缺失」这个看似合理的错误后面。
 
 现改为**从凭据路径推导**（`state.vscdb` 与 `storage.json` 同在 `globalStorage`）， 真机复测已能正确选中 `%APPDATA%\TRAE SOLO CN\User\globalStorage\state.vscdb`。
 
@@ -57,7 +57,7 @@
 
 | 已有证据 | 它证明了什么 | 它**不能**证明什么 |
 | --- | --- | --- |
-| CI 在 `windows-latest` 上全绿 | 代码在 Windows 上不崩、路径拼接正确 | CI 上**没装 Trae**，跑的是单测桩 |
+| CI 在 `windows-latest` 上全部通过 | 代码在 Windows 上不发生崩溃、路径拼接正确 | CI 上**没装 Trae**，执行的是使用替身的单元测试 |
 | 单元测试覆盖 win32 分支 | 给定输入时逻辑正确 | 输入来自真实文件系统 |
 | `win32DirName` 给出目录名依据 | 拼写有出处，不是猜的 | 安装器**实际**写了哪个名字 |
 
@@ -89,7 +89,7 @@ Get-ChildItem -Path "$env:USERPROFILE\.dsh\profiles" -Directory |
   Where-Object { Test-Path $_ }
 ```
 
-> 最省事的替代：直接 clone 本仓库后 `pnpm install && pnpm run build`，在仓库根目录
+> 可采用的替代方案：直接 clone 本仓库后 `pnpm install && pnpm run build`，在仓库根目录
 > 跑 `node scripts/verify-windows.mjs`——脚本优先使用同级的 `lib/`。
 
 ### 它会输出什么
@@ -161,7 +161,7 @@ Get-ChildItem -Path "$env:USERPROFILE\.dsh\profiles" -Directory |
 | 账号名（可能是真名或手机号） | 只报「几个字符、是否纯数字」 |
 | 设备号 `x-device-id` | 只报「几位、是否纯数字」 |
 | token / refreshToken / 密文 | 内部解析可能读取和解密；公开输出不得包含这些值 |
-| Trae 目录名（`Trae CN` / `trae-cn`） | **保留**——这正是要查的东西 |
+| Trae 目录名（`Trae CN` / `trae-cn`） | **保留**——这正是需要检查的内容 |
 
 脱敏规则有 11 条单元测试（`tests/redact.spec.ts`），同时断言「敏感值必须消失」
 与「诊断信息必须保留」。
@@ -198,7 +198,7 @@ edition: cn        # 或 solo
 
 ---
 
-## 附：手工逐步核对（脚本跑不起来时）
+## 附：手工逐步核对（脚本无法运行时）
 
 见 `docs/WINDOWS_TOKEN_PROBE.md`，五个步骤覆盖同一套检查：
 确认版本 → 确认目录名 → 确认文件存在 → 确认 key 存在 → 验证加密 header。

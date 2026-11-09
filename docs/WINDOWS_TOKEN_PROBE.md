@@ -31,7 +31,7 @@ node scripts/verify-windows.mjs
 4. 给出**全部通过 / 几项未通过**的结论。
 
 **它不会打印 token、refreshToken、密文原文、真实账号名、设备号或你的 Windows
-用户名**（用户名替换为 `<user>`，目录名保留——那正是要查的东西）。分享前仍应检查自定义路径或异常文本是否包含个人信息。
+用户名**（用户名替换为 `<user>`，目录名保留——那正是需要检查的内容）。分享前仍应检查自定义路径或异常文本是否包含个人信息。
 
 脚本报「全部通过」即说明：这台机器上的 Trae 登录文件，插件确实读得到。
 
@@ -41,7 +41,7 @@ node scripts/verify-windows.mjs
 
 ## 若脚本报错，或你想手动逐步核对
 
-以下五步覆盖脚本内部的同一套检查，适合**脚本本身跑不起来**（例如插件装不上、
+以下五步覆盖脚本内部的同一套检查，适合**脚本本身无法运行**（例如插件装不上、
 node 版本不符）时使用。
 
 ## 第一步：确认你的 Trae 是哪个版本
@@ -101,7 +101,7 @@ Get-ChildItem -Path $env:APPDATA -Directory |
 
 ## 第三步：如果找到目录，检查文件是否存在
 
-把上一步拿到的实际目录名代入下面的路径，看文件在不在：
+把上一步获取到的实际目录名代入下面的路径，看文件在不在：
 
 ```powershell
 # 把 "Trae CN" 换成第二步查到的实际目录名
@@ -131,7 +131,7 @@ $json = Get-Content $p -Raw | ConvertFrom-Json
 
 第二项预期输出为 True，表示登录字段存在。
 
-顺便确认这几个 key 是否存在（插件会用到）：
+同时确认插件依赖的以下 key 是否存在：
 
 ```powershell
 $keys = $json.PSObject.Properties.Name
@@ -153,7 +153,7 @@ $keys = $json.PSObject.Properties.Name
 | `12 39 20 20 02 03` | `aes-private` |
 
 如果 Trae 新版本换了加密格式，解密会直接抛错，
-而这个错误在 `src/auth.ts` 的 `readDesktopAll()` 里被 `catch` 静默吞掉，
+而这个错误在 `src/auth.ts` 的 `readDesktopAll()` 里被 `catch` 静默忽略，
 用户只看到「未登录」，无从判断。
 
 **验证方法（只输出 header，不输出 token）：**
@@ -206,7 +206,7 @@ if ($bytes.Length -lt 6) { 'header too short'; return }
 - ~~`src/identity.ts` 读 `product.json` 时硬编码了 macOS 路径~~
   **已处理**：`product.json` 现按平台取路径，Windows 走
   `<LOCALAPPDATA>\Programs\<安装目录名>\resources\app\product.json`
-  （`LOCALAPPDATA` 缺失时回退 `<home>\AppData\Local`）。读不到仍只是被 catch 掉、
+  （`LOCALAPPDATA` 缺失时回退 `<home>\AppData\Local`）。无法读取仍只是被 catch 掉、
   `appVersion` 为空，不影响登录与聊天。
   **且已在真机确认可用**：那台机器的 `TRAE SOLO CN\resources\app\product.json`
   被正确读到，`x-app-version: 0.1.56`。
@@ -221,7 +221,7 @@ if ($bytes.Length -lt 6) { 'header too short'; return }
   多候选的意义在于：猜错只多一次失败的 `readFile`，漏猜则用户直接看不到登录。
 - 机器 ID 是从数据目录里的 `telemetry.machineId` 或 `<数据目录>/machineid` 读的，
   这个推导在 Windows 上是成立的。**真机实测**：`x-device-id` 为 16 位纯数字，
-  来自数据目录而非兜底哈希（兜底是 32 位十六进制）。
+  来自数据目录而非后备哈希（回退处理是 32 位十六进制）。
 - `src/auth.ts` 写插件自有凭据副本时传 `mode: 0o600` / `dirMode: 0o700`。
   Windows 忽略 POSIX 权限位，该参数不报错也无效果，属已知且无害。
 

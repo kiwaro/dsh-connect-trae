@@ -27,17 +27,17 @@
   | 系统提示 | 顶层 `systemPrompt` | **只**挂在那条 system 消息上 |
   | 工具声明 | 顶层 `tools` | **只**挂在那条 system 消息的 `toolsAdded` 上 |
 
-  崩溃的机理很具体：新代在入口调一次 `normalizeContext()`，于是 provider 收到的是归一化 transcript； 而旧代的 `estimateMessageTokens` **没有 `role === 'system'` 分支**，它 `for (const block of message.content)` 迭代一个**字符串**，逐字符拿到 `block`，再读 `block.name.length` → `TypeError`。
+  崩溃的机理很具体：新代在入口调一次 `normalizeContext()`，于是 provider 收到的是归一化 transcript； 而旧代的 `estimateMessageTokens` **没有 `role === 'system'` 分支**，它 `for (const block of message.content)` 迭代一个**字符串**，逐字符获取到 `block`，再读 `block.name.length` → `TypeError`。
 
   这一步位于 `buildBaseOptions` 内、**早于任何 HTTP 构造** —— 所以是「105ms 本地崩溃 + usage 恒 0 + 换模型无效」。
 
   **两个方向都修了**，因为 DSH 自己也横跨两代（`dsh-llm-pi-ai` ≤0.2.0-rc.1 声明 `^0.85.1`，
   0.2.0-rc.2 起声明 `^0.87.1`，0.2.1-alpha.2 已到 `^1.0.2`）：
 
-  - **新宿主 + 旧库**（issue #27 本尊）：必崩 —— 现在折返成旧形状，不再崩。
-  - **旧宿主 + 新库**：不崩，但现代 api 只读那条 system 消息，顶层字段被**静默忽略** →
+  - **新宿主 + 旧库**（issue #27 本尊）：必然崩溃 —— 现在折返成旧形状，不再崩。
+  - **旧宿主 + 新库**：不发生崩溃，但现代 api 只读那条 system 消息，顶层字段被**静默忽略** →
     系统提示与**全部工具声明**丢失（模型永远不会产生 toolCall）。这类故障更隐蔽，
-    只修前者等于把一个响亮的故障换成一个安静的故障 —— 现在同样折返，把它接上。
+    只修前者等于把一个响亮的故障换成一个安静的故障 —— 现在同样折返，把它接入。
 
 - **代际判据落在 `0.86`，不是 `0.87`。**
 
@@ -45,11 +45,11 @@
   `dist/utils/transcript.js`、`normalizeContext`、估算器的 system 分支、以及「不再读顶层字段」
   这四件事**同时**出现在 0.86.0。
 
-  这个偏差若照抄会有害：遇到 **0.86.x** 时 `>= 0.87` 的判据会把它当旧代而执行折返，
+  这个偏差若直接复制会有害：遇到 **0.86.x** 时 `>= 0.87` 的判据会把它当旧代而执行折返，
   而 0.86+ 的 api 根本不读顶层字段 → 系统提示与全部工具被静默丢弃。
 
 - **工具声明必须一起搬，不能只搬提示文本。** `normalizeContext` 之后，`toolsAdded` 是工具声明的
-  **唯一**载体；而旧代 api 只从顶层 `tools` 取工具。只搬文本 → 不崩了，但模型永远调不了工具。
+  **唯一**载体；而旧代 api 只从顶层 `tools` 取工具。只搬文本 → 不再崩溃，但模型永远调不了工具。
   实现按 `toolsRemoved` → `toolsAdded` 的顺序回放，与 pi-ai 自己的 `getCurrentTools` 合并语义一致。
 
 - **提示文本的两条载体都搬，`sections` 不能漏。** 新代 `SystemMessage` 的提示文本有 `content` 与
@@ -58,7 +58,7 @@
 
 - **探测不依赖版本号字符串。** 主判据是解析到的那份包 manifest 的版本，用**数值**比较
   （`major > 0` 或 `minor >= 86` 即新代），所以 `0.9.0` 不会被误判为高于 `0.86.0`，已发布的 `1.x`
-  也无需改动即可正确归类；版本读不到时退化为包布局判据。
+  也无需改动即可正确归类；版本无法读取时退化为包布局判据。
 
   一个反直觉的发现：**`import.meta.resolve()` 不能用来做这个探测**。bundler 风格的解析器 （vite，以及在它之上的 vitest）会把 exports map 里的 `"./utils/*"` 通配符展开成路径**并直接返回， 不检查文件是否存在**，于是对 0.85.1 也回答「有」。
 

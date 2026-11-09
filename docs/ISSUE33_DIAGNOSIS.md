@@ -60,7 +60,7 @@ upstream: We're sorry, your requests have exceeded the rate limit. Please wait a
 | `1005` | （空）/ `extra.plan` | 档位不够 | ✅ 已知 |
 
 `4008` 与 `4011` 的区别是本轮最关键的发现：**Trae 把「额度」和「限流」分成两个码，文案也不同。**
-报告人拿到的是后者（rate limit），却说「额度还有很多的」——两边其实都没错：**他有的是额度，缺的是速率。**
+报告人获取到的是后者（rate limit），却说「额度还有很多的」——两边其实都没错：**他有的是额度，缺的是速率。**
 
 ### 2.2 `glm-5.3` 的归属与可调用性（本轮实测）
 
@@ -156,7 +156,7 @@ const UNSUPPORTED_CODES = new Set([4001, 4011])   // ← 4011 被判成永久不
 > came from upstream is allowed to be negative.
 
 报告人用「一键测试」时，会看到 `GLM-5.3 上游不提供`——**这是一句错的结论**，会让人真的删掉能用的模型。
-另外 `4008`（额度耗尽）也会落进「无名 4xx → `unsupported`」这条兜底，同样把账号级问题说成模型级问题。
+另外 `4008`（额度耗尽）也会落进「无名 4xx → `unsupported`」这条回退处理，同样把账号级问题说成模型级问题。
 
 ---
 

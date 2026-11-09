@@ -60,7 +60,7 @@ prompt_tokens / completion_tokens / total_tokens / reasoning_tokens
 2. **转发层**：映射为 DSH 认识的 `prompt_tokens_details.cached_tokens` / `cache_write_tokens`。
 3. **算术正确性**：先确认了 Trae 的 `prompt_tokens` **包含**缓存量（OpenAI 口径），
    因此映射后不会重复扣减——验证账目守恒：`8 + 9216 + 0 = 9224`，与 `prompt_tokens` 完全相等。
-4. 顺带修掉 Raw Chat 通道的**同一类缺口**（将来启用时会踩同一个坑）。
+4. 同时修复 Raw Chat 通道的**同一类缺口**（将来启用时存在同类问题）。
 
 ## 升级方式
 

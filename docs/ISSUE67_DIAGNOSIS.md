@@ -50,7 +50,7 @@ pi-ai 1.1.0 的 `parseChunkUsage` 读 `prompt_tokens_details?.cached_tokens`，�
 `input = max(0, prompt - cacheRead - cacheWrite)`。也就是说：**只要上游给了非 0，界面就会显示**。
 
 反证：同一个 DSH 版本里 `workbuddy` / `dsh-opencode-go` 的 `cacheReadTokens` 正常非 0 —— 显示链路
-没坏。
+功能正常。
 
 ### 1.2 上游侧：字段值为 null
 
@@ -119,9 +119,9 @@ IDE 侧构建版本在 10-25 与 10-27 的日志里都是 `2.3.93438`。版本�
 | header profile 不对 | `agent-task` / `raw-chat` / `model-detail` 全试 | 当次样本未支持该假设 |
 | `app_version` 为空导致降级 | body 与 header 两种方式注入 IDE 版本号 | 当次注入后 `app_version` 仍为 `""` |
 | 需要 v2 raw chat 路径 | `/api/ide/v2/llm_raw_chat` → `4001`；v1 → `4023` | 当次样本中仅 SOLO 路线可调用 |
-| DSH 显示层吞了 | 同版本 `workbuddy` 正常非 0 | 当次样本未支持该假设 |
+| DSH 显示层丢弃了 | 同版本 `workbuddy` 正常非 0 | 当次样本未支持该假设 |
 
-**顺带发现**：`src/sse.ts` 原本把 `metadata` / `timing_cost` 都归到 `unknown` 直接丢弃。未发现其改变答案文本或 usage 映射，
+**同时发现**：`src/sse.ts` 原本把 `metadata` / `timing_cost` 都归到 `unknown` 直接丢弃。未发现其改变答案文本或 usage 映射，
 但让用户无法区分「上游字段为 null」和「插件丢了数」——这正是本 issue 的观感来源。本版改为解码为
 `diagnostic` 并上报。
 
@@ -136,7 +136,7 @@ IDE 侧构建版本在 10-25 与 10-27 的日志里都是 `2.3.93438`。版本�
      上报（`promptCachePoolRecord` / `pipeline` / `providerModelName`）；
    - `openTraeSource` 的 peek 判定**显式排除 `diagnostic`** —— 否则 `metadata` 会被当成「已应答」，
      紧随其后的拒绝（如 1005）就会退化成截断的 200 流（issue #19 的老毛病复发）。
-3. `src/index.ts`：4 个 `new TraeSoloBridge(...)` 处把 `ctx.logger.warn` 接进去。
+3. `src/index.ts`：4 个 `new TraeSoloBridge(...)` 处把 `ctx.logger.warn` 接入。
 4. 回归测试：`tests/sse.spec.ts` 解码断言；`tests/solo-bridge.spec.ts` 上报断言 + 「metadata 之后
    的拒绝仍变成 402」断言。
 

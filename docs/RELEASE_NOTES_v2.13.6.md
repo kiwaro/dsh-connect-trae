@@ -8,14 +8,14 @@
 
 2.13.5 把触发器改成了纯文本外观，但用了 `font: inherit` / `color: inherit`——**继承了输入框正文自己的字号与正文色**，于是读数比旁边的权限/专家/模型控件更醒目（「字太大了，颜色也深」）。
 
-积分是**次要信息**，不该抢眼。改成显式值：
+积分是**次要信息**，不该突出。改成显式值：
 
 | | 之前 | 现在 |
 | --- | --- | --- |
 | 字号 | `inherit`（输入框正文，约 14–15px） | **`12px`**（本插件 2.11.x 原设计值） |
 | 颜色 | `inherit`（正文色，深） | **`--dsw-alias-label-tertiary`**（浅一级） |
 
-参照 shell 自己的同排控件 `ContextMeter`——它用的正是 `label-tertiary`，本行读数与它并排，口径一致。顺带删掉多余的 `font: inherit`（一旦 `font-size`/`line-height` 显式，它既多余又会与后继声明争夺层叠）。
+参照 shell 自己的同排控件 `ContextMeter`——它用的正是 `label-tertiary`，本行读数与它并排，口径一致。同时删除多余的 `font: inherit`（一旦 `font-size`/`line-height` 显式，它既多余又会与后继声明争夺层叠）。
 
 ### 测试
 

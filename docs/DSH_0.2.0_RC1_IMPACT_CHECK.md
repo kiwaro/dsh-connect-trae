@@ -172,7 +172,7 @@ profile 的 `compatibility.json` 写入 `{"dsh-connect-trae@2.3.1": ["0.2.0-rc.1
 
 插件已有 `tests/dsh-017-compat.spec.ts` 通过测试约束 0.1.7 的三处**静默**契约变化，但全仓 **没有任何测试覆盖 `peerDependencies` 范围本身**（grep `peerDependencies` / `semver` 零命中）。
 
-这正是本次失败的形状：范围写错不会让任何断言变红，只会在真实宿主上表现为「插件整体消失」， CI 全部通过。
+这正是本次失败的形状：范围写错不会让任何断言失败，只会在真实宿主上表现为「插件整体消失」， CI 全部通过。
 
 建议新增一条测试：读 `package.json` 的 peer 范围，用 semver（需显式加为 devDependency，
 当前仅作为传递依赖存在于 `.pnpm/semver@7.8.5`）断言**当前开发树版本**与**下一线预发布版本**
@@ -209,7 +209,7 @@ profile 的 `compatibility.json` 写入 `{"dsh-connect-trae@2.3.1": ["0.2.0-rc.1
 ## 6. 方法学备注
 
 - **运行时版本从 `app.asar` 内读**，不从 `package.json` 猜：`Info.plist` 亦为 `0.2.0-rc.1`。
-- **asar 偏移有坑**：本机实测 payload 基准为 `8 + headerSize`，不是常见的 `16 + headerSize`。
+- **asar 偏移存在注意事项**：本机实测 payload 基准为 `8 + headerSize`，不是常见的 `16 + headerSize`。
   用条目的 `integrity.hash` 对候选基准做 SHA256 校验后才定位正确，避免读出错位数据。
 - **原生模块的 Node 差异**：Electron 捆绑的 node（24.21.0）与 `rolldown` 原生绑定的
   代码签名 Team ID 不同，`dlopen` 失败；改用系统 node（v25.9.0）后 vitest 正常，

@@ -15,7 +15,7 @@
 > 本机 desktop profile 的 12 个第三方依赖未逐一核对 rc.2 兼容性
 > blocked_scope：「本机插件族在 rc.2 整体可用」类结论
 
-`dsh-connect-trae` 是这 12 个之一。因此这不是「把 LDVH 的结论抄过来」，而是补上该 gap 中属于本插件的那一份。
+`dsh-connect-trae` 是这 12 个之一。因此本次核验覆盖上述缺口中与本插件相关的部分。
 同时 F11 提醒：**peer 范围覆盖 ≠ 符号存在**，零适配结论必须由逐符号比对独立得出。
 
 ## 逐条影响面判定
@@ -61,7 +61,7 @@
 | dsh-atomic-write | writeFileAtomic | ✓ | ✓ | 逐字一致 |
 | dsh-attachment | AttachmentStore | ✓ | ✓ | — |
 
-**注意方法上的一处坑**：宿主应用包 `DSH NEXT.app/.../node_modules/@deepseek-ai/` 内 `.d.ts` 数量为 **0**
+**注意方法上的一项问题**：宿主应用包 `DSH NEXT.app/.../node_modules/@deepseek-ai/` 内 `.d.ts` 数量为 **0**
 （`find` 统计；运行时只发行 `.js`，`lib/types/*.js` 是值模块而非声明）。
 直接拿该路径做类型比对会得到「rc.2 全 ✗」的**假破坏面**——本次第一轮比对正是如此被否掉的。
 正确的 rc.2 类型来源是 npm 实包（`registry.npmjs.org/.../-/dsh-<pkg>-0.1.7-rc.2.tgz`）。
@@ -90,7 +90,7 @@ taken over.」），边界在 L181：「other PID namespaces sharing the file ar
 当前实现不触发（本机为 macOS 单命名空间），故记为**部署约束**而非待办，与 F3 对 LDVH 的分级一致。
 是否要在 WSL2 文档里加一行提示，属需要你定夺的取舍，未擅自改动。
 
-## 一处「看起来像问题但不是」的项
+## 已核实无需修改的项目
 
 `dsh-client-runtime` 在 rc.2 宿主中不存在，而本插件源码有该字符串。核对结果：
 它出现在 `src/client/index.tsx:16` 的**注释**里（说明 DSH 0.1.2 已删除该包、其服务已迁走），

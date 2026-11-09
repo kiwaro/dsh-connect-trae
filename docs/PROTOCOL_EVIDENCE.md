@@ -149,7 +149,7 @@ Trae客户端明确具备模型级思考强度能力，动态库包含：
 
 历史 `CustomModel` 日志中的132条样本当前全部为 `reasoning_effort: None`，包括预置`glm-5.2`。这表示当前日志没有证明GLM-5.2在该版本实际开放可选强度，不能仅凭二进制字符串为所有模型宣告五档支持。
 
-新增 `src/reasoning.ts`：只有模型元数据明确返回`reasoning_effort_options`时才公布和发送对应值；默认值必须属于支持列表；未声明能力时拒绝强行设置。这与用户要求的“拿到模型思考强度设置”兼容，同时避免像WorkBuddy一样完全忽略，也避免虚构模型能力。
+新增 `src/reasoning.ts`：只有模型元数据明确返回`reasoning_effort_options`时才公布和发送对应值；默认值必须属于支持列表；未声明能力时拒绝强行设置。这与用户要求的“获取到模型思考强度设置”兼容，同时避免像WorkBuddy一样完全忽略，也避免虚构模型能力。
 
 模型详情接口`batch_get_detail_param`理论上是获取各模型`reasoning_effort_options/default_reasoning_effort`的权威来源，但当前受控探测仍返回HTTP 400空响应，尚未取得实际模型矩阵。
 

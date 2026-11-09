@@ -222,8 +222,8 @@ dsh plugin --profile desktop add /Users/<user>/DshProject/dsh-connect-trae
 详见 `docs/USAGE_API_RESEARCH.md`。要点：
 
 - 用 `Cloud-IDE-JWT` 凭据可直接调 `api.trae.cn` 的 `pay/ug` 接口，只读、不消耗积分。
-- **已拿到**：总可用额度（`total 7500 - consumed 5879.63 = 可用 1620.37`，与 Solo「用量管理」截图精确一致）、各项积分来源（老用户/签到/登录赠送/免费）、计费状态、活动规则、签到状态。
-- **未拿到**：每笔消费明细表（`query_user_usage_group_by_session` 返回 200 但 `total:0`，且带 `usage_type` 返回 400）。判断明细属另一产品端/需网页登录态，不继续无依据试错。
+- **已获取到**：总可用额度（`total 7500 - consumed 5879.63 = 可用 1620.37`，与 Solo「用量管理」截图精确一致）、各项积分来源（既有用户/签到/登录赠送/免费）、计费状态、活动规则、签到状态。
+- **未获取到**：每笔消费明细表（`query_user_usage_group_by_session` 返回 200 但 `total:0`，且带 `usage_type` 返回 400）。判断明细属另一产品端/需网页登录态，不继续无依据试错。
 - 已把拿得到的额度/积分/签到/活动封装为 `src/usage.ts` 的 `TraeUsageClient`（只读），`pnpm run check` 通过并真实验证（总可用 1620.37）。
 - 已新增插件设置卡片展示 Trae 用量（**样式对齐 `dsh-subagent-default-model`**：带 LD 品牌图标、`dsm-plugin-card` 卡片外壳、同款按钮与 `--dsw-alias-*` 调色板）：
   - Host：`src/web-status.ts` 的 webServer 只读路由 `/plugins/dsh-connect-trae/usage`

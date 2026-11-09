@@ -18,7 +18,7 @@
 - 本项目只是独立插件，**不得修改 DSH 本体**。
 - 不替换、不接管 DSH 全局「模型」设置页或全局模型选择器。
 - 不修改其他 provider 的注册、配置或界面体验。
-- DSH 自动生成的「模型 → Trae」条目和兜底提示保持原样。
+- DSH 自动生成的「模型 → Trae」条目和回退提示保持原样。
 - 所有可编辑的 Trae 专属能力只放在 `dsh-connect-trae` 自己的「插件配置」卡片中。
 - 插件只通过公开的 settings、LLM adapter、model discovery 和 provider catalog 接口影响自己的 `trae` provider。
 

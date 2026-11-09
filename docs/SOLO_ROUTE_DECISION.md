@@ -9,7 +9,7 @@
 ## 综合参考
 
 - `Sliverkiss/traework2api`：当时研究的 Go 实现，其说明称协议来自实际测量与捕获，并包含流式事件样例、工具调用修复和模型接口。本文未复核其后续维护状态。
-- `laojichao/trae-local-api`：`dsh-trae-api`核心代码的直接上游，但工具/XML兼容层和三端点回退缺少充分实测。
+- `laojichao/trae-local-api`：`dsh-trae-api`核心代码的直接入游，但工具/XML兼容层和三端点回退缺少充分实测。
 - `dsh-trae-api`：当时查阅的版本只有两个提交，未找到核心协议迭代或成功反馈；该版本不能作为成功基准。
 - 本机Trae日志和动态库：独立确认mchost host、Cloud-IDE-JWT、设备身份、SSE reasoning/tool/usage结构。
 

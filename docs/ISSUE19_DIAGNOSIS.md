@@ -145,7 +145,7 @@ grep -rn "user_pay_identity\|pay_identity" src/   →   零命中
    ```
    真正的 `code 1005 / plan 4` **在边界处丢失**
 
-实测复现（把上游真实字节喂给插件自己的 bridge）：流被中断，**未发出任何 `finish_reason`**，
+实测复现（把上游真实字节传给插件自己的 bridge）：流被中断，**未发出任何 `finish_reason`**，
 与用户截图完全一致。
 
 ### 附带发现：`1005` 与 `4011` 都是插件不认识的新错误码

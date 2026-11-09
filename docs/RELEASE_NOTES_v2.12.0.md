@@ -22,7 +22,7 @@
 原因：该包是浏览器 bundle（自身 `import '*.module.css'`，并依赖 `clsx`、`mdast-util-*` 等 Node 无法解析的传递依赖），组件一旦 import 它，Node 测试环境就无法加载它。
 
 - 组件对 `popover` 缺省时使用**惰性桩**（不定位、不自动关闭），保证两个 hook **每次渲染都被调用**——条件调用会改变 hook 数量、违反 hooks 规则。
-- 组件测试因此无需 mock 任何东西即可渲染。
+- 组件测试因此无需使用 mock即可渲染。
 - `client-activation.spec.tsx`（该测试要加载**真实入口**）沿用本仓库既有约定 mock primitives，与 `card-*.spec.tsx`、`sidebar-points.spec.tsx` 一致。
 
 ### 测试

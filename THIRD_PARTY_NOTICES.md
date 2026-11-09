@@ -9,7 +9,7 @@
 | 参考项目 | 仓库 | 参考内容 | 许可证 |
 | --- | --- | --- | --- |
 | `dsh-trae-api` | <https://github.com/Wang-JQ77/dsh-trae-api> | 认证、会话与模型目录的参考及失败分析，见 `docs/ANALYSIS.md` 和 `docs/ANALYSIS_CONCLUSION.md` | MIT |
-| `laojichao/trae-local-api` | <https://github.com/laojichao/trae-local-api> | `dsh-trae-api` 的直接上游；早期记录为协议调研线索，见 `docs/SOLO_ROUTE_DECISION.md` | 未声明；按保留所有权利处理 |
+| `laojichao/trae-local-api` | <https://github.com/laojichao/trae-local-api> | `dsh-trae-api` 的直接入游；早期记录为协议调研线索，见 `docs/SOLO_ROUTE_DECISION.md` | 未声明；按保留所有权利处理 |
 
 ## 合规说明
 

@@ -55,7 +55,7 @@ Cordis 加载插件
 4. **真实凭据不进入 pi-ai**：adapter 只向 shim 发送共享 secret；shim 再从 store 获取上游 token。
 5. **桌面文件只读**：刷新结果写进 DSH 自己的 0600 文件，不污染宿主应用文件。
 6. **凭据按请求解析、临期单飞刷新**：账号切换和 token 更新可以自然跟随。
-7. **静态模型兜底 + 动态模型目录**：上游目录失败时 provider 不会消失。
+7. **静态模型回退处理 + 动态模型目录**：上游目录失败时 provider 不会消失。
 8. **生命周期完整**：shim、adapter、directory、heartbeat 均有 disposer。
 9. **错误分类明确**：额度不足、限流、会话失效、上游故障映射成不同 HTTP 状态。
 10. **测试覆盖架构边界**：auth、shim、安全加固、upstream、设置集成和 live E2E 都有独立验证入口。
@@ -275,7 +275,7 @@ src/catalog.ts
 - 没有 `event:` 的 data-only SSE（原项目会静默丢弃）
 - queue、output、reasoning、done、`[DONE]`
 - 末尾没有空行的 flush
-- 未知事件保留而不是静默吞掉
+- 未知事件保留而不是静默忽略
 
 这只是兼容解析基线；真实 Trae 事件字段仍须由受控 live 取证确认。
 
@@ -293,7 +293,7 @@ src/catalog.ts
 
 脱敏比较确认，36 字符的 `machineid` 与 `telemetry.machineId` 不相等，其 SHA-256 也不同。当时 CN 与 SOLO CN 共享相同的 telemetry 设备值。
 
-`x-device-id` 的来源随后得到进一步确认：CN 与 SOLO CN 的 `storage.json` 都存在唯一的 `iCubeAuthInfo://icube-dc:<15位数字>` 键，键后缀与历史官方聊天日志中的 `x-device-id` 完全一致。键值本身仍是加密字符串，未被输出或写入文档。实现现已优先使用唯一 `icube-dc:<id>` 后缀作为 device ID，`telemetry.devDeviceId` 仅作兜底。
+`x-device-id` 的来源随后得到进一步确认：CN 与 SOLO CN 的 `storage.json` 都存在唯一的 `iCubeAuthInfo://icube-dc:<15位数字>` 键，键后缀与历史官方聊天日志中的 `x-device-id` 完全一致。键值本身仍是加密字符串，未被输出或写入文档。实现现已优先使用唯一 `icube-dc:<id>` 后缀作为 device ID，`telemetry.devDeviceId` 仅作回退处理。
 
 构建产物脱敏验证当前 CN 映射为：64字符 machine ID、15字符 device ID、真实 build version、darwin 平台；与历史官方日志的形态一致。
 

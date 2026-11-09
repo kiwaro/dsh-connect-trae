@@ -13,14 +13,14 @@
 | 数据 | 接口 | 结果 |
 |---|---|---|
 | 总可用额度 / 已消耗 / 比例 | `POST /trae/api/v2/pay/web_user_ent_usage`（别名 `user_current_entitlement_list`） | ✅ 可调，与截图精确一致 |
-| 各项积分来源（老用户/签到/登录赠送/免费） | 同上 pack 列表 | ✅ |
+| 各项积分来源（既有用户/签到/登录赠送/免费） | 同上 pack 列表 | ✅ |
 | 计费状态（积分计费） | `POST /trae/api/v2/pay/cn_credits_billing_status` | ✅ `is_credits_billing: true` |
 | 权益/活动规则 | `POST /trae/api/v2/pay/web_user_pay_status` | ✅ |
 | 过期权益 | `POST /trae/api/v2/pay/expired_ents` | ✅ `{expired_ent_list: []}` |
 | 每日签到状态 | `POST /trae/api/v2/ug/checkin_credits/status` | ✅ |
 | **每日签到领取（写操作）** | `POST /trae/api/v2/ug/checkin_credits/claim` | ✅ 必须带 `x-device-id` |
 | 奖励活动规则 | `POST /trae/api/v2/ug/activity/info` | ✅ |
-| **每笔消费明细表** | `POST /trae/api/v1/pay/query_user_usage_group_by_session` | ⚠️ HTTP 200 但 `total: 0`，拿不到 |
+| **每笔消费明细表** | `POST /trae/api/v1/pay/query_user_usage_group_by_session` | ⚠️ HTTP 200 但 `total: 0`，无法获取 |
 
 除 `checkin_credits/claim` 外，所有接口均为**只读查询，不消耗 Trae 积分**。领取接口是**唯一会改变账号状态的调用**，只由用户在插件卡片上主动点击触发（详见下文「每日签到领取」）。
 
@@ -59,8 +59,8 @@ consumption_ratio = 0.78395...
 
 | display_desc | currency | credits_limit | 说明 |
 |---|---|---|---|
-| 老用户福利 | 1 | 2000 | 历史权益包A |
-| 老用户福利 | 1 | 2000 | 历史权益包B |
+| 既有用户福利 | 1 | 2000 | 历史权益包A |
+| 既有用户福利 | 1 | 2000 | 历史权益包B |
 | 免费 | 0 | — | `free_utc20268_...` |
 | 每月登录赠送 | 1 | 500 | `monthly_bonus_...` |
 | 签到奖励 | 1 | 200 | `checkin_YYYYMMDD_...` 多笔（08-20 一笔已用剩 179.63） |
@@ -151,9 +151,9 @@ Body: `{}`（官方客户端发 `{"req_source":1|2}`，实测该字段对结果�
 - 账号 A 的 `checkin_20260926_…` 奖励包 `start_time=1790382849` = 2026-09-26 08:34:09（北京），即 `claim` 成功的那一刻；账号 B 当天没有任何 09-26 奖励包。
 - 官方 NLS 文案佐证：`2345 -> 该设备今日已参与签到`（**设备**口径，不是账号口径）。
 
-结论：**「本机今天已签到」不等于「当前账号今天已领取」**。切换账号后出现的是前者：设备名额已用，当前账号没有拿到任何奖励。此时再次点击只会被 9095 拒绝。
+结论：**「本机今天已签到」不等于「当前账号今天已领取」**。切换账号后出现的是前者：设备名额已用，当前账号没有获取到任何奖励。此时再次点击只会被 9095 拒绝。
 
-#### 「设备」到底是什么（2026-09-26 追加只读实测）
+#### 「设备」的定义（2026-09-26 追加只读实测）
 
 判定量就是 **`x-device-id` 这个请求头的字符串值本身**，不带别的维度。同一账号、同一北京日，仅改这一个头：
 
@@ -186,7 +186,7 @@ Body: `{}`（官方客户端发 `{"req_source":1|2}`，实测该字段对结果�
 - `did_checked_in` 且 `!checked_in` 时，按钮仍禁用（避免发一个必被拒绝的请求），但文案改为说明「本机今日签到已用掉」，**不能**说成「今日已领取」——那会把「没领到」说成「已领到」；
 - 上游以 `9095` 拒绝时（例如窗口之间竞争，状态读完之后名额才被用掉），按 `deviceCheckedIn` 返回并展示同一说明，不当成失败。
 
-## 消费明细表（未拿到）
+## 消费明细表（未获取到）
 
 `POST https://api.trae.cn/trae/api/v1/pay/query_user_usage_group_by_session`
 
@@ -219,10 +219,10 @@ start_time, end_time, page_size, page_num, usage_type, Request
      - `view()` —— 三者聚合
    - 已在 `tests/usage.spec.ts` 覆盖解析逻辑；`pnpm run check` 通过（19 测试文件、60 测试、typecheck 与 build 成功）。
    - 真实验证（本机 solo 凭据）：总可用 1620.37、签到 `checked_in:true`、packs 与活动规则均正常返回；只读、未消耗积分。
-2. 消费明细表待拿到 Solo/TraeWork 网页版真实明细接口（需登录态）后再接入；不阻塞额度能力。
+2. 消费明细表待获取到 Solo/TraeWork 网页版真实明细接口（需登录态）后再接入；不阻塞额度能力。
 3. 所有新增接口遵循既有安全原则：只读、不写日志、不缓存 secret、脱敏输出。
 4. ~~接入每日签到领取~~ **已完成（2026-09-24）**：
-   - `TraeUsageClient` 新增 `claimCheckin()`（本客户端**唯一的写操作**），并让 `checkinStatus()` 一并回传 `didCheckedIn` / `extraCredits`；两者都带 `x-device-id`（`deviceId` 由 `index.ts` 从 `identity()` 注入，读不到时降级为不发该头，只影响领取、不影响状态查询）。
+   - `TraeUsageClient` 新增 `claimCheckin()`（本客户端**唯一的写操作**），并让 `checkinStatus()` 一并回传 `didCheckedIn` / `extraCredits`；两者都带 `x-device-id`（`deviceId` 由 `index.ts` 从 `identity()` 注入，无法读取时降级为不发该头，只影响领取、不影响状态查询）。
    - 新增路由 `POST /plugins/dsh-connect-trae/checkin`：仅 POST、仅回环来源、仅 `cn` 区域；**先读状态**，已领取直接返回且不发领取请求；活动关闭答 409。业务拒绝（如 9004）以 `claimed:false` + 原始 code/message 返回，不当成 500。
    - 卡片新增签到行（每日奖励、按钮、领取中/已领取三态），该次v2.3.0曾同时看checkedIn与didCheckedIn，09-26已证明该判据错误，后续只用checkedIn判断账号已领取。
    - 新增 21 条测试（`usage.spec.ts` 6 条、`web-status.spec.ts` 7 条、`card-checkin.spec.tsx` 8 条，含真实点击；全仓测试数 261 → 282）；做过**变异验证**：去掉路由的 `didCheckedIn` 守卫、去掉卡片的同款判定、把卡片改成 GET，对应测试各自立刻失败。

@@ -4,9 +4,9 @@
 
 > **修正 `4011` 的含义：它是 Trae 对 SOLO 通道的限流，不是「该 function 不提供此模型」。**
 
-这是一次 **patch** 升级，只做一件事——**把一句错话改对**，顺带改正它带来的两个连锁后果。
+这是一次 **patch** 升级，只做一件事——**把一句错话改对**，同时改正它带来的两个连锁后果。
 
-起因是 [issue #33](https://github.com/dingminhua/dsh-connect-trae/issues/33)：报告人用 `GLM-5.3` 时拿到 `Trae code 4011`，报文原文写着 `your requests have exceeded the rate limit`，而他**额度充足**、 **Trae 客户端的 SOLO 里同一模型正常**。
+起因是 [issue #33](https://github.com/dingminhua/dsh-connect-trae/issues/33)：报告人用 `GLM-5.3` 时获取到 `Trae code 4011`，报文原文写着 `your requests have exceeded the rate limit`，而他**额度充足**、 **Trae 客户端的 SOLO 里同一模型正常**。
 
 于是问题变成「插件凭什么说我的模型不提供」。
 

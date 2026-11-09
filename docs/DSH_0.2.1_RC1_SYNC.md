@@ -20,11 +20,11 @@
 | **宿主 API / 客户端外壳** | ✅ 调用点签名未变 | 无 |
 | **开发树版本漂移** | 🟡 devDependency 仍钉 `0.2.0-rc.1` / pi-ai `^0.85.1` | 对齐宿主实际版本 |
 
-**一句话**：workbuddy 那份文档里最吓人的 P0（请求静默丢掉 system prompt 与工具）在本插件**不成立**——因为 trae 早就在做双向适配；真正需要动手的是**类型面**（1.1.0 加的品牌类型）和**版本对齐**。
+**结论**：workbuddy 那份文档里影响较大的 P0 问题（请求静默丢掉 system prompt 与工具）在本插件**不成立**——因为 trae 早就在做双向适配；真正需要动手的是**类型面**（1.1.0 加的品牌类型）和**版本对齐**。
 
 ---
 
-## 一、与 workbuddy 文档的差异（先读，避免照抄结论）
+## 一、与 workbuddy 文档的差异（先读，避免直接复制结论）
 
 那份文档描述的问题在 workbuddy 上成立，在 trae 上**部分不成立**。逐条对照：
 
@@ -37,7 +37,7 @@
 | §3 P2 `TS2353`（`systemPrompt` 不在 `TranscriptContext`） | ✅ **成立且更严重**：1.1.0 是 `TS2345`，`TranscriptContext` 带品牌 |
 | §6 `canDisableThinking` 逻辑反了 | ❌ 不适用。trae 没有这段代码（workbuddy 特有） |
 
-> 教训：同一批宿主的同一次升级，**两个插件需要的动作可以完全不同**。照抄姊妹项目的修法会改错地方。
+> 教训：同一批宿主的同一次升级，**两个插件需要的动作可以完全不同**。直接复制姊妹项目的修法会改错地方。
 
 ---
 
@@ -54,7 +54,7 @@
 ### 2.2 trae 实测（真实 SSE 捕获线上 body）
 
 真实 `createProvider` + 真实 `openAICompletionsApi()` + 本地 SSE 服务器，
-喂**宿主实际产出的**旧代信封：
+输入**宿主实际产出的**旧代信封：
 
 | 场景 | 线上 `roles` | 线上 system | 线上 `tools` |
 |---|---|---|---|
@@ -103,13 +103,13 @@ export type TranscriptContext = {
 「只有 `normalizeContext()` 能产出」——这是 1.1.0 有意加的类型护栏。
 而 `Context`（带可选 `systemPrompt`/`tools`）就是**不**可赋值的，这正是护栏想拦的。
 
-### 3.3 为什么不能在适配层「诚实地」拿到品牌
+### 3.3 为什么不能在适配层「诚实地」获取到品牌
 
 两个理由都是设计使然，不是妥协：
 
 1. **适配层位于归一化器之下**。`Models.stream()/streamSimple()` 调 `normalizeContext()` 后把
    真 transcript 交给 provider；`createProvider()` 原样转发给 `api.stream`。所以在现代化的路径上
-   `adapt()` 是恒等函数，运行时拿到的**本来就是**带品牌的 transcript，只是类型看不见。
+   `adapt()` 是恒等函数，运行时获取到的**本来就是**带品牌的 transcript，只是类型看不见。
 2. **旧代路径必须产出无品牌形状**。pi-ai ≤0.85 既没有 `normalizeContext` 也没有 transcript 类型，
    它的 api 要的正是 `adapt()` 返回的 `{ systemPrompt, tools, messages }`。
 
@@ -148,7 +148,7 @@ satisfies('0.2.1-rc.1', '>=0.1.7-rc.1 <0.3.0-0', {includePrerelease}) → true  
 ```
 
 **因此 workbuddy 文档 §2.2 的「没有任何静态范围能覆盖任意 0.2.x 预发布」对 trae 不适用**，
-`0.2.1-rc.1` 交给现范围已判通过，无需为 rc 硬凑枚举。
+`0.2.1-rc.1` 交给现范围已判通过，无需为 rc 额外枚举版本。
 
 ### 4.2 真正该改的是 pi-ai 上界
 
@@ -195,7 +195,7 @@ satisfies('0.2.1-rc.1', '>=0.1.7-rc.1 <0.3.0-0', {includePrerelease}) → true  
 |---|---|
 | `npx tsc -p tsconfig.json --noEmit` | ✅ 通过 |
 | `npx tsc -p tsconfig.client.json --noEmit` | ✅ 通过 |
-| `npx vitest run` | ✅ **663** 例全绿（63 文件；原 660 + 新增 3） |
+| `npx vitest run` | ✅ **663** 例全部通过（63 文件；原 660 + 新增 3） |
 | `npx tsdown`（构建） | ✅ `lib/index.js` 278 KB / `lib/client.js` 220 KB |
 | 真实宿主栈线上请求体 | ✅ `roles: ["system","user"]`、system 完好、`tools: 1` |
 
@@ -286,7 +286,7 @@ payload 的 `node_modules` 里**没有** `dsh-client-ui-primitives` 与 `dsh-cli
 - devDependency 13 项 → `0.2.1-rc.2`（`cordis` / `schemastery` / `pi-ai` 不变）
 - `tests/dsh-peer-range.spec.ts` 的 `MUST_ADMIT` 补入 `0.2.1-rc.1` / `0.2.1-rc.2` / `0.2.1`——
   此前这条清单里**没有当前正在使用的版本**，是本次复核暴露的测试盲点
-- 变异验证：把 peer 上界限定为 `<0.2.1-rc.2` → 多个包的对应用例立刻变红
+- 变异验证：把 peer 上界限定为 `<0.2.1-rc.2` → 多个包的对应用例立刻失败
 - 双 tsconfig 类型检查通过，**670** 例测试全部通过，构建通过
 
 ---
@@ -431,7 +431,7 @@ pi-ai 仍钉在 1.1.0：3.4.2 起的双向适配结论原样成立，**适配层
 ```
 
 `dsh-client-ui-primitives` 这一版**没有任何代码变化**（rc.3 时它有过一次纯新增的变更，
-本次停住了）。这一点对插件没有影响，但值得记下：它此前是本插件唯一需要「看一眼」的包。
+本次未发生变更）。这一点对插件没有影响，但值得记下：它此前是本插件唯一需要「检查」的包。
 
 ### 11.4 rc.4 唯一的行为变化：thinking 区块的 `rawText`
 

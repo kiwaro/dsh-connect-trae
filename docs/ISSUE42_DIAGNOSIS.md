@@ -21,7 +21,7 @@
 | 只读 `[0]` 会漏吗 | **该次样本没有遗漏**。最多 2 项（`__dev`/`__max` 双档），71/80 个 config 有 2 项，且**两项的 `prompt_max_tokens` 与 `max_tokens` 恒等**；不存在 `max_completion_tokens` 之类的别处挂载 | 实测（逐项 dump） |
 | 那值丢在哪 | `mergeTraeModelSources()`（`src/catalog.ts`）把 Remote 骨架与 wire 行合并成 `TraeModelInfo` 时**复制了 contextWindow / maxContextWindow / creditMultiplier / reasoning / multimodal / wireConfigName / wireFunction，唯独没复制 `maxTokens`** | 代码 + 修复前后探针对照 |
 | 从什么时候开始 | **v1.1.0**（`d6b9dc5`，2026-08-30）——合并函数诞生那天就没带这个字段；接口上 `maxTokens?: number` 两个类型都声明了，纯漏写一行传递 | `git log -S wireModel.maxTokens` 全史为空 |
-| 影响面 | 卡片「最大输出」空白；`POST /models/refresh` 返回 `maxTokens: null`；DSH 模型注册（llm discovery）拿不到上限；`toPiModel` 按「缺就不写」省略。请求体不受影响（`prepareSoloBody` 本就不下发 OpenAI `max_tokens`），所以**只伤显示与元数据，不伤调用** | 代码链 |
+| 影响面 | 卡片「最大输出」空白；`POST /models/refresh` 返回 `maxTokens: null`；DSH 模型注册（llm discovery）无法获取上限；`toPiModel` 按「缺就不写」省略。请求体不受影响（`prepareSoloBody` 本就不下发 OpenAI `max_tokens`），所以**只伤显示与元数据，不伤调用** | 代码链 |
 | 修复后还剩空白吗 | 还剩**且应当剩**：该次修复后仍缺值的2行（`kimi-k2.8-preview`/`qwen3.8-flash`）在 SOLO 的 wire 名单里**没有 config**，无从取值——与 README「模型覆盖范围」记录的 join-miss 同一批，如实空白 | 实测（修复后探针：30/32 带值，缺的就是 join-miss 行） |
 
 ---
@@ -42,7 +42,7 @@ get_detail_param (wire)          Remote 目录 (骨架)
 ```
 
 Remote 目录确实**没有**输出上限字段（`context_window_tokens.{dev,max}` 只有输入窗口），报告人的取证恰好
-把「wire 有、合并后没有」这两端都拍到了：wire 单测有值、refresh 无值。修复即在 `src/catalog.ts:313-319`
+已分别验证合并前后的字段状态：wire 单测有值、refresh 无值。修复即在 `src/catalog.ts:313-319`
 把 wire 侧的值带过去：
 
 ```ts
@@ -79,4 +79,4 @@ Remote 目录确实**没有**输出上限字段（`context_window_tokens.{dev,ma
 - 修复后实时探针：合并 32 行 → **30 行带 maxTokens**。缺的 2 行是 `kimi-k2.8-preview`、`qwen3.8-flash`——
   它们在 SOLO 的 wire 名单里**没有 config**（README「模型覆盖范围」记录的 TraeCode 通道行），无从取值， 如实空白。
 
-  顺带一条与本 issue 无关的观察：`glm-5.3-flash` 本次已出现在 wire 名单（`out=32000`）， README 那张三行表可能已过时——可调用性是 #19/#38 那条线的话题，这里只记录、不改动。
+  同时一条与本 issue 无关的观察：`glm-5.3-flash` 本次已出现在 wire 名单（`out=32000`）， README 那张三行表可能已过时——可调用性是 #19/#38 那条线的话题，这里只记录、不改动。

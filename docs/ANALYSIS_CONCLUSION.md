@@ -18,7 +18,7 @@
 - PiAiAdapter -> 安全loopback shim -> upstream分层。
 - DSH负责会话、工具、权限和compaction。
 - 桌面凭据只读，DSH副本原子写、锁和0600权限。
-- 单飞刷新、静态目录兜底、动态刷新、错误分类、完整disposer。
+- 单飞刷新、静态目录回退处理、动态刷新、错误分类、完整disposer。
 - Host/Origin/Content-Type/per-process secret防御本地滥用。
 - 60个单元/集成测试和live E2E脚本提供证据。
 

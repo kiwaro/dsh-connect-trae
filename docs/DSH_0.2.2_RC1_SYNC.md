@@ -16,7 +16,7 @@
 | 契约破坏 | **1 处**：`ResolvedPiAiProviderProfile` 新增两个必填字段，手工构造 profile 的类型检查失败 |
 | 运行期行为破坏 | **该次检查未发现阻断运行的问题**；旧profile缺字段会跳过新增图片张数限制 |
 | 需要改 peer 范围 | **不需要**，`0.2.2-rc.1` 满足 `>=0.1.7-rc.1 <0.3.0-0` |
-| 三大价值（双区域 / 用量积分 / 每日签到） | **不受影响**，对应测试全绿 |
+| 三大价值（双区域 / 用量积分 / 每日签到） | **不受影响**，对应测试全部通过 |
 
 ## 二、宿主变了什么
 
@@ -77,7 +77,7 @@ src/adapter.ts(545,9): error TS2739: Type '{ … }' is missing the following pro
 
 - **类型层**：`ResolvedPiAiProviderProfile` 说这两个字段必填 → 编译失败；
 - **运行层**：手写 profile 里没有这两个键，`toPiContext` 走「`undefined` = 不限制张数」分支
-  → 不崩，只是 0.2.2 新增的「张数超限 → `IMAGE_OFFLOAD_REQUIRED`」流程对 Trae 路由不生效。
+  → 不发生崩溃，只是 0.2.2 新增的「张数超限 → `IMAGE_OFFLOAD_REQUIRED`」流程对 Trae 路由不生效。
 
 这正是 4.8.0 在 0.2.2 上照常工作的原因，也是为什么只升级依赖、不改代码会先红 typecheck 而不是
 用户侧故障。
@@ -104,7 +104,7 @@ src/adapter.ts(545,9): error TS2739: Type '{ … }' is missing the following pro
 
 | 能力 | 是否采纳 | 理由 |
 | --- | --- | --- |
-| `llm/models-updated(provider)` | **采纳** | 本插件的目录变化是「同一路由换了 roster」，`llm/adapters-updated` 只在路由拓扑变化时发，覆盖不到。现在在 `invalidateAdapter`（所有 `catalog.set` 路径的唯一收口）按 provider 发一次，并用签名去重，避免每次设置写入都让选择器重读 |
+| `llm/models-updated(provider)` | **采纳** | 本插件的目录变化是「同一路由换了 roster」，`llm/adapters-updated` 只在路由拓扑变化时发，覆盖不到。现在在 `invalidateAdapter`（所有 `catalog.set` 路径的统一处理入口）按 provider 发一次，并用签名去重，避免每次设置写入都让选择器重读 |
 | `model.badge` 渲染 | **采纳（只补回别人的）** | `conversation.input.model.label` 是 `single` 槽，本插件占住后宿主的「名字 + badge」内置渲染对**所有** provider 都不再生效。现在非 Trae 行按宿主顺序补回 badge（trigger 在前、菜单在后），并做语言回退；本插件自己的行行为不变 |
 | 新语言 ja/es/fr/de/ru/pt | **不采纳（决定）** | 只维护 zh / en；其他语言的用户按宿主回退链读英文 |
 | `settings.section.icon` | **不适用** | 插件注册的是 `plugins.bundle.config` / `plugins.row.config`，不拥有 `settings.section` |
@@ -116,8 +116,8 @@ src/adapter.ts(545,9): error TS2739: Type '{ … }' is missing the following pro
 | 价值 | 承载链路 | 本次是否触碰 | 证据 |
 | --- | --- | --- | --- |
 | 国内版与国际版双供应商并行 | 三个 panel → `trae` / `trae-enterprise` / `trae-global` 注册、按区域目录与镜像选择 | 否 | `tests/settings-integration.spec.ts`（两个区域 provider、区域各自的 fallback roster、区域级 image opt-in）；本次新增用例仍断言 `trae` / `trae-global` 都在 |
-| 用量与积分概览 | `/plugins/dsh-connect-trae/usage` 与账号/积分路由、卡片轮询 | 否 | 路由与卡片测试全绿；本机 0.2.2 实测该路由 200、`signed-in` |
-| 每日签到领取 | `/plugins/dsh-connect-trae/checkin`（CN）与卡片签到行 | 否 | `tests/card-checkin.spec.tsx` 等全绿 |
+| 用量与积分概览 | `/plugins/dsh-connect-trae/usage` 与账号/积分路由、卡片轮询 | 否 | 路由与卡片测试全部通过；本机 0.2.2 实测该路由 200、`signed-in` |
+| 每日签到领取 | `/plugins/dsh-connect-trae/checkin`（CN）与卡片签到行 | 否 | `tests/card-checkin.spec.tsx` 等全部通过 |
 
 本次改动只落在：图像预算字段、目录变更公告、非本插件模型的 badge 渲染。三条价值链路没有改动。
 

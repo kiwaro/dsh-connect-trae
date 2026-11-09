@@ -2,18 +2,18 @@
 
 > 2026-11-06 全文复核：2026-09-15至09-16的有限检索，项目热度、维护状态和覆盖数均为当时观察。第三方伪代码不等于本机完整工具循环已跑通；后续SOLO目录与可调用性已有变化。
 
-> 目的：为「是否接入 Trae IDE 通道（`create_agent_task`）以拿到 IDE 侧模型
+> 目的：为「是否接入 Trae IDE 通道（`create_agent_task`）以获取到 IDE 侧模型
 > （deepseek-v4.1-flash / glm-5.3-flash / kimi-k2.8-preview）」寻找先例与做法参考。
 
 ## 一、结论先说
 
 **本次检索的项目中，未找到可验证成功的Trae IDE agent-task实现。** 现有项目全部停在
 「SOLO 通道」或「IDE 旧 chat 端点」两条路上，它们的模型集合都不包含 IDE 的新模型。
-换句话说：**要做 IDE 通道，是一次没有先例可抄的逆向工程。**
+换句话说：**要做 IDE 通道，需要在缺少可复用先例的条件下进行逆向分析。**
 
 ## 二、调研到的项目与路线
 
-| 项目 | 语言/热度 | 使用的端点 | 能拿到 IDE 新模型吗 |
+| 项目 | 语言/热度 | 使用的端点 | 能获取到 IDE 新模型吗 |
 |---|---|---|---|
 | [`Sliverkiss/traework2api`](https://github.com/Sliverkiss/traework2api)（本机 `traework2api/`） | Go | `llm_utils_chat`（`function=solo_work_lite`）+ `get_detail_param` | ❌ SOLO 侧 14 个 |
 | [`laojichao/trae-local-api`](https://github.com/laojichao/trae-local-api) | JS ⭐54（2026-07 更新） | 主：`llm_utils_chat`（`function=inline_chat`）；失败后**盲试** `/api/ide/v1/chat`、`create_agent_task` | ❌ |
@@ -36,7 +36,7 @@
 
 但它的实现是 **`for (const endpoint of endpoints)` 用同一个 chat body 依次尝试**，并没有为 `create_agent_task` 构造专门的 agent-task body。
 
-因此它必然撞上我们实测到的绑定校验 （`conversation_id` / `session_id` / `user_id` / `device_id` / `agent_type` / `model_name` / `ide_version` / `user_input` 等必填字段）——**「列在 fallback 里」不等于 「能工作」**。
+因此它必然撞上本次实测的绑定校验 （`conversation_id` / `session_id` / `user_id` / `device_id` / `agent_type` / `model_name` / `ide_version` / `user_input` 等必填字段）——**「列在 fallback 里」不等于 「能工作」**。
 
 ### 2. 身份处理上，多数项目走的是本项目已明确拒绝的路
 
@@ -68,7 +68,7 @@ function generateMachineId() { return crypto.randomBytes(32).toString('hex'); } 
 |---|---|---|
 | 继续 SOLO 通道（现状，2.0.2 已放出 SOLO 全部 14 个模型，含 glm-5.3） | 多项目验证 | 低 |
 | 接入 IDE `create_agent_task` | **无先例** | 高：协议未公开、`ideagent.UserInput` 结构未解、IDE 模型列表还依赖本地 Hub Bridge IPC、且需解决「工具调用能否交给客户端执行」这一未知 |
-| 接入 IDE 旧 chat 端点（`/api/ide/v1/chat`） | 有（trae2api，已停更） | 中：实测只覆盖 8 个旧模型，拿不到新模型，收益不足 |
+| 接入 IDE 旧 chat 端点（`/api/ide/v1/chat`） | 有（trae2api，已停更） | 中：实测只覆盖 8 个旧模型，无法获取新模型，收益不足 |
 
 **建议**：把 IDE 通道当作**独立的探索性项目**（先做可行性验证：解开 `UserInput`、
 跑通一次最小任务、确认工具调用归属），而不是当作「换个端点」的增量改动。在它成功前，
@@ -110,7 +110,7 @@ GET  /api/ide/v1/model_list
 POST /api/ide/v1/agents/runs         ← agent 运行（SSE）
 ```
 
-`iteration-4-tool-call-mcp-analysis.md` 给出了**工具调用闭环**的关键证据：
+`iteration-4-tool-call-mcp-analysis.md` 给出了**完整工具调用流程**的关键证据：
 
 ```
 // POST /api/ide/v1/agents/runs/:id/tool_call_outputs   ← 客户端提交工具执行结果
@@ -161,4 +161,4 @@ def handle_tool_call(tool_call):
 | C. 等上游下放 | 若 Trae 把 v4.1 等模型放进 SOLO 目录，则自动可用 | 不可控 |
 
 **建议**：若要投入 B，第一步应是**跑通一次最小 agent 任务**（用逆向资料解开
-`ideagent.UserInput` 结构），确认工具调用回传闭环后再评估完整实现的工作量。
+`ideagent.UserInput` 结构），确认工具调用结果回传流程后再评估完整实现的工作量。

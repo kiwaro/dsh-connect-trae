@@ -99,7 +99,7 @@ DshProject/
 | 路径解析 `src/paths.ts` | **是** | `%APPDATA%` vs `~/Library/Application Support` vs `$XDG_CONFIG_HOME`；目录拼写按平台多候选探测 |
 | 设备指纹 `src/identity.ts` | **是** | `x-device-type` 的平台取值，以及 `x-os-version`、`product.json` 路径与安装目录名 |
 | 文件锁与原子写 | 否（宿主已处理） | 宿主 `dsh-atomic-write` 原生处理 Windows 独占创建语义 |
-| 外部命令依赖 | **是** | 如 `sqlite3`（Windows 默认无）；新增外部依赖必须先确认 Windows 可用，否则必须有兜底 |
+| 外部命令依赖 | **是** | 如 `sqlite3`（Windows 默认无）；新增外部依赖必须先确认 Windows 可用，否则必须有回退处理 |
 
 改动时的强制检查项：
 

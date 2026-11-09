@@ -64,7 +64,7 @@
    （当前只到第 8 个字段就卡住）。
 2. **实现会话-任务协议适配**：DSH 的 PiAiAdapter 是「一次请求一轮对话」，而
    `create_agent_task` 是「一个会话长连接 + 云端 agent 执行」。需要：
-   - 工具调用事件 → DSH 本地执行 → `commit_toolcall_result` 回传的完整闭环；
+   - 工具调用事件 → DSH 本地执行 → `commit_toolcall_result` 回传的完整处理流程；
    - 会话生命周期管理（创建/续接/中断/超时）；
    - 上下文构造（历史/技能/记忆字段，IDE 侧约 146KB 的体量）。
 3. **接受上游不确定性**：该协议无公开文档、字段集庞大、上游随时可能调整；调试
@@ -124,7 +124,7 @@ parameter）。可用的请求体结构：
 ```
 
 要点：binder 逐层列明（`expr_path=user_input` → `expr_path=user_input.id`），补上 `id`
-后绑定通过；Go 会忽略未知字段，因此可以一次性投喂多个候选字段名来加速定位。
+后绑定通过；Go 会忽略未知字段，因此可以一次性提交多个候选字段名来加速定位。
 
 ## 当前卡点（业务层）：`config item is empty for config opt`
 

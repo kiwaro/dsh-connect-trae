@@ -40,7 +40,7 @@
 - Host 侧凡是按区域做键的地方（stacks、wire 映射、目录、注册、发现）全部改为按面板，
   两个 CN 池因此各自保留名录（它们确实不同：`DeepSeek-V4.1-Flash` 仅企业池有）。
 - **企业版默认关闭，两侧（`regionEnabled` 与卡片的 `regionEnabledOf`）保持一致**：
-  纯个人账号用不了这个池，默认放开等于给所有用户塞一条一用就失败的 provider。
+  纯个人账号用不了这个池，默认放开等于给所有用户增加一条无法使用的 provider。
   用户在它自己的标签页里打开。
 - 状态路由接受 `?region=enterprise`（参数名保持不变以兼容既有链接），卡片按
   国内版 → 企业版 → 国际版 的顺序渲染三个标签。
@@ -63,7 +63,7 @@ export const TRAE_PROVIDER_ROUTES: Readonly<Record<string, TraeProviderRoute>> =
 
 - 显示名：`trae` → `Trae`，`trae-enterprise` → **`Trae 企业版`**。
 - **路由在构建客户端时固定**（`route` 构造参数），不存在「按调用猜一次计费池」。
-- `trae-enterprise` **不回落**到消费池：被拒就是错误，不会偷偷花掉个人积分。
+- `trae-enterprise` **不回落**到消费池：被拒就是错误，不会使用个人积分计费。
 
 ### 2.2 shim 按 bearer 分派
 
@@ -99,10 +99,10 @@ if (event === 'error') return { ok: false, status: 200, kind: 'client', message:
 ```
 
 > 实现细节：重建 `Response` 而不是就地改写 `response.body` —— 原对象 body 已被部分读取，
-> 它的 `text()` 会一直抛 `Body has already been read`。这个坑被测试 `passes a normal
+> 它的 `text()` 会一直抛 `Body has already been read`。该问题被测试 `passes a normal
 > stream through byte-for-byte` 抓住过。
 
-### 2.4 顺带修好大小写敏感的 `config_name`（这是 4001 的真正根因）
+### 2.4 同时修复大小写敏感的 `config_name`（这是 4001 的真正根因）
 
 `deepseek-v4.1-flash` 这类模型一直报：
 
@@ -122,7 +122,7 @@ if (event === 'error') return { ok: false, status: 200, kind: 'client', message:
    - const base = this.options.baseUrl ?? REGION_GATEWAYS[region].chat
    + const base = this.options.baseUrl ?? this.chatBaseOf(credential)
    ```
-   这是本次最关键的一处：两个池名录不同（`DeepSeek-V4.1-Flash` **只有企业池列**）， 钉在企业池的客户端却去读消费池名录 → 永远发现不了自己池的独占模型 → `mergeTraeModelSources` 拿不到 wire 行 → 不生成 `wireConfigName` / `wireFunction`。
+   这是本次最关键的一处：两个池名录不同（`DeepSeek-V4.1-Flash` **只有企业池列**）， 钉在企业池的客户端却去读消费池名录 → 永远发现不了自己池的独占模型 → `mergeTraeModelSources` 无法获取 wire 行 → 不生成 `wireConfigName` / `wireFunction`。
 
    实测企业路由修好后：wire 名录 49 行，含 `DeepSeek-V4.1-Flash`（`solo_work_remote`）。
 
@@ -132,7 +132,7 @@ if (event === 'error') return { ok: false, status: 200, kind: 'client', message:
 > **一处刻意没做的事**：没有用目录行的 `name` 去改写线缆名。看起来 `DeepSeek-V4.1-Flash`
 > 的 name 正是网关要的拼写，但实测 5 个模型里有 **4 个**（`glm-5.3`、`kimi-k3`、
 > `mimo-v2.6-pro`、`step-5-preview`）**只认小写 id、改大写就 4001**，而影响的目录行有 20 行。
-> 所以只保留「退回目录行自身 id」这条安全兜底，并在注释里写明了原因。
+> 所以只保留「退回目录行自身 id」这条安全回退，并在注释里写明了原因。
 
 ## 3. 测试
 
@@ -181,7 +181,7 @@ PascalCase:              ok=true host=console.enterprise.trae.cn
 
 - `trae` / `trae-global` 行为**完全不变**（同一网关、无 `session_id`、同样的名录来源语义）。
 - 面板独立控制：`regions.cn.enabled`控制个人版，`regions.enterprise.enabled`控制企业版；企业版缺省关闭。
-- `Config` 只**新增**可选字段（`wireConfigName`），旧文档读为 `undefined` 并走兜底。
+- `Config` 只**新增**可选字段（`wireConfigName`），旧文档读为 `undefined` 并走回退处理。
 - 单 client 的 `createTraeShim` 形式保留，`TraeShim` 只新增 `tokenOf()`。
 
 ## 6. 审阅建议路径
@@ -192,4 +192,4 @@ PascalCase:              ok=true host=console.enterprise.trae.cn
 3. `src/index.ts` — 每面板一个 stack / adapter / registration，企业版默认关闭
 4. `src/solo.ts` — `route` 选项、`session_id`、200/`event:error`、`fetchModels` 用 `chatBaseOf`
 5. `src/shim.ts` — 多路由与 bearer 分派
-6. `src/solo-bridge.ts` — 大小写查表与兜底
+6. `src/solo-bridge.ts` — 大小写查表与回退处理

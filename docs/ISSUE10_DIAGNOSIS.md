@@ -73,7 +73,7 @@ if (event.event === 'token_usage') {
 `TraeStreamEvent` 的 `usage` 变体本身也没有缓存字段，所以这两个值在**类型层就已经不可表达**。
 
 `src/raw-chat.ts` 的 `decodeRawChatChunk` 是同一类缺口（只读 `prompt_tokens` / `completion_tokens` / `total_tokens`），
-`RawChatDelta` 的 `usage` 同样没有缓存字段——Raw Chat 通道将来启用时会踩同一个坑，本次一并修掉。
+`RawChatDelta` 的 `usage` 同样没有缓存字段——Raw Chat 通道将来启用时存在同类问题，本次一并修掉。
 
 ### 3. bridge 也就无从转发
 
@@ -160,9 +160,9 @@ accounting intact: input + cacheRead + cacheWrite = 9224 (prompt_tokens was 9224
 新增 4 个回归测试（`tests/sse.spec.ts`、`tests/solo-bridge.spec.ts`、`tests/raw-chat.spec.ts`），
 其中 bridge 用例直接使用上面捕获的真实 `token_usage` 事件作为输入。
 
-## 需要说清楚的一点
+## 配置边界说明
 
-修复只保证**上游报了缓存时插件会如实上报**。至于「这次请求到底有没有命中缓存」，
+修复只保证**上游报了缓存时插件会如实上报**。至于「这次请求是否命中缓存」，
 取决于上游：
 
 - 前缀缓存要看**请求前缀是否逐字节一致**——DSH 每轮会在历史后追加新消息，前缀通常能复用；
