@@ -67,6 +67,7 @@ pnpm run verify:privacy      # 只扫发布物：PNG 字节流 + OCR 渲染文�
 
 ## 二、验证：改完要证明它是对的
 
+- 本地开发、上游对比、收益整合与部署统一以 `main` 为基线。PR 分支仅用于向上游提交建议，不作为日常开发或部署来源。
 - `pnpm run check`（typecheck + test + build）必须绿。**本地绿不等于 CI 绿**：
   CI 跑 ubuntu 与 windows 两条线，Windows 上的路径分隔符和文件系统行为都栽过。
 - 修 bug 时**先写一条会失败的测试**，确认它失败，再修到它通过。只加「修完之后能过」
