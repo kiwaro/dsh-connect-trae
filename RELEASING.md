@@ -1,6 +1,6 @@
 # 发布流程
 
-本文规定 `dsh-connect-trae` 的公开发布步骤。当前工作区来自 `kiwaro/dsh-connect-trae`，本地维护仍使用 4.9.0；执行本地部署不会发布 npm 包或 GitHub 版本。历史发布经过见 [发布经验](docs/RELEASE_EXPERIENCE.md)，该文记录当时的环境与操作结果。
+本文规定 `dsh-connect-trae` 的公开发布步骤。当前工作区来自 `kiwaro/dsh-connect-trae`，本地版本以 `package.json.version` 为准；执行本地部署不会发布 npm 包或 GitHub 版本。历史发布经过见 [发布经验](docs/RELEASE_EXPERIENCE.md)，该文记录当时的环境与操作结果。
 
 本地部署按 [本地部署记录](docs/LOCAL-DEPLOYMENT.md) 执行。公开发布和推送需要用户明确授权。执行前先核对目标仓库与包名，再确认目标版本及操作账号。
 
@@ -52,6 +52,12 @@ npm publish
 打包检查以 `package.json` 的 `files` 和命令输出为准。当前白名单包含 `lib/`、`icons/`、两份界面截图、模块拆分与本地部署记录、Windows 诊断脚本、截图清单、插件配置、双语 README、变更记录、第三方声明和许可证。npm 还会自动携带 `package.json` 等规定文件。
 
 检查包内没有凭据、诊断临时副本或开发目录。README 引用的文档若不在包内，应使用对应仓库的文件链接；当前白名单中的两份维护记录可以使用相对链接。更改白名单后重新核对实际打包结果。
+
+### 5.1 隐私门禁与 OCR
+
+`pnpm exec vitest run tests/privacy.spec.ts` 检查仓库文本，`pnpm run verify:privacy` 还检查发布物和图片。OCR 必须报告 `OK`；`SKIP` 只表示后端未执行。发布前可用 `DSH_STRICT_PRIVACY=1` 强制缺失后端时失败，不能将跳过当作通过。
+
+需要本地语言包时，设置 `DSH_TESSDATA` 指向包含 `eng.traineddata.gz` 的目录；`scripts/verify-privacy.mjs` 根据该目录调用 `tesseract.js`。检查前先核对依赖和路径，不应为通过 OCR 而改变已有截图或关闭检查。
 
 ## 6. 完成身份验证
 

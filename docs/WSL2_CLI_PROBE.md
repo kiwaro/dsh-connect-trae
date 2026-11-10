@@ -34,7 +34,7 @@ WSL2 环境须特别检查此项：WSL2 里通常只装 `traecli`，不会装 Li
 | CLI | `~/.trae-cn/trae-jwt-token`（CN） |
 | CLI | `~/.trae/trae-jwt-token`，路径标记为国际版候选；当前认证层拒绝未验证的国际 CLI 契约 |
 | 桌面版 | `$XDG_CONFIG_HOME` 或 `~/.config` 下 `trae-cn/`、`Trae CN/` 的 `User/globalStorage/storage.json` |
-| 桌面版 | 其余版本的同构路径，由国内版或国际版供应商分别筛选 |
+| 桌面版 | 其余 edition（产品变体）的同构路径；`cn` / `solo` 与 `sg` / `solo-sg` 分别由对应区域供应商筛选 |
 
 > **Linux 桌面版目录名 `trae-cn` / `Trae CN` 都未经真机验证**，
 > 因此采用多个候选路径探测。未列出的安装目录仍可能遗漏，可用 `authFile` 指定实际文件。

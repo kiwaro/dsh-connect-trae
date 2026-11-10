@@ -71,7 +71,7 @@ Trae IDE 的对话走 **`create_agent_task`（agent task 协议）**，与插件
 
 1.0 阶段记录的完整请求体约 146KB，后者使用简化的 OpenAI 风格 envelope。glm-5.3 只在前者的 config 集合里。
 
-相关早期判断见 `CHANGELOG.md` 1.1.0。该判断后来因发现可调用的功能而修正，不能用初轮结果解释当前目录中的全部模型。
+相关早期判断见 `CHANGELOG.md` 1.1.0，其中曾剔除 `glm-5.3` 与 `Doubao-Seed-Code`。该判断后来因发现可调用的功能而修正，不能用初轮结果解释当前目录中的全部模型。
 
 ## 可选的后续方向
 

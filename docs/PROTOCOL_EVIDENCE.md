@@ -206,7 +206,7 @@ Trae CN 的 Agent 状态文件位于 `ModularData/ai-agent/database.db`，当前
 
 ### 当前 Trae 3.3.83 平台限制（2026-08-29）
 
-已用当前有效凭据、当前设备身份、精确 513-byte model-detail body、官方 16/20-header 集分别通过 Node fetch 与系统 curl 探测。
+维护者在该次实验中，使用当时有效的凭据和设备身份、精确的 513-byte model-detail body，以及官方的 16/20-header 集，分别通过 Node fetch 和系统 curl 发送了探测请求。
 
 两者均返回 HTTP 400 空响应；同一请求经 Trae native AhaNet 返回 HTTP 200。已排除普通 Cookie、代理路由、JSON 字节、header 大小写和 curl/Undici 实现差异。
 

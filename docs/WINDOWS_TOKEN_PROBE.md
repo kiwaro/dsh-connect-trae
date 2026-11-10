@@ -53,7 +53,7 @@ node 版本不符）时使用。
 | Trae 国际版 | `sg` | ✅ 支持SG桌面凭据；US另行拒绝 |
 | TRAE SOLO 国际版 | `solo-sg` | ✅ 支持SG桌面凭据；US另行拒绝 |
 
-当前支持CN和SG桌面登录；国际CLI仍拒绝，US凭据会显示不支持。国际桌面数据目录包括Trae与TRAE SOLO，完整候选以src/paths.ts为准。
+插件支持读取 CN 和 SG 区域的桌面登录凭据，暂不接受国际版 CLI 凭据；插件发现 US 凭据时，会显示暂不支持的提示。国际版桌面数据目录包括 Trae 和 TRAE SOLO，完整候选以 `src/paths.ts` 为准。
 
 ## 第二步：确认数据目录名（本次排查的核心）
 

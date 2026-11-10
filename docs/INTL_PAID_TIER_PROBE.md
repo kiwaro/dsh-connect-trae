@@ -112,4 +112,4 @@ node /tmp/roster.mjs
 node /tmp/ai10.mjs
 ```
 
-> 探索脚本使用 `lib/` 导出的认证与请求构造函数。目录及套餐查询读取状态；逐模型聊天探测会发起真实生成，可能计费。请求字段 `max_tokens:1` 不能单独保证上游实际消费量。上述 `/tmp` 脚本是当时临时文件，当前仓库未提供，不能直接把这些命令当作现成复现工具。
+> 探索脚本使用 `lib/` 导出的 `TraeCredentialStore`、`buildTraeCnHeaders` 与 `prepareSoloBody`。`get_detail_param`、`models`、`pay/status` 是当时的目录及套餐查询；逐模型聊天探测会发起真实生成，可能计费。请求字段 `max_tokens:1` 不能单独保证上游实际消费量。上述 `/tmp` 脚本是当时临时文件，当前仓库未提供，不能直接把这些命令当作现成复现工具。

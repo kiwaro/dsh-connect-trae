@@ -150,6 +150,25 @@ PUT 401 → web-auth → PUT 202 → processing
 
 2026-10-27 发布 4.6.2 时，命令报告 `E404 Not Found`，当时通过进一步调查发现缺少一次性口令。用户在交互终端完成浏览器验证后发布成功，正常轨迹仍为 `401 → web-auth → 202`。
 
-该事件不能推出所有“404 且没有 web-auth”都表示缺少口令。相同错误还需要结合包名、权限和 registry 配置判断；`npm whoami` 成功也不能单独证明账号有发布权限。
+该次错误原文与日志线索为：
+
+```text
+npm error code E404
+npm error 404 Not Found - PUT https://registry.npmjs.org/dsh-connect-trae - Not found
+npm error 404 The requested resource 'dsh-connect-trae@4.6.2' could not be found
+              or you do not have permission to access it.
+publish log: PUT 404
+```
+
+在用户交互验证完成后，正常日志恢复为：
+
+```text
+PUT 401 → verbose web auth opening url pair
+        → GET /-/v1/done?authId=<redacted> （202，随后 200）
+        → verbose web auth done-check finished
+        → PUT 202
+```
+
+这些记录不包含凭据，不需要恢复从 `.npmrc` 抽取 `_authToken` 的 PUT 探针。该事件不能推出所有“404 且没有 web-auth”都表示缺少口令。相同错误还需要结合包名、权限和 registry 配置判断；`npm whoami` 成功也不能单独证明账号有发布权限。
 
 原记录曾展示从 `.npmrc` 抽取令牌并手工发送 PUT 的探针。本次修订移除该可执行示例，保留其观察结果：当时探针返回 401，响应要求一次性口令。当前排查使用正式 npm 命令及其脱敏日志，避免将配置中的令牌带入命令行。

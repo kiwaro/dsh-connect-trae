@@ -4,6 +4,10 @@
 
 ## 目标
 
+2026-11-10 同步上游 #82 后，`mergeTraeModelSources(remote, wire, { allowTenantConfigured })` 支持企业租户配置的模型。`config_source: 1` 表示 Trae 预置模型；`config_source: 2` 仅在企业面板显式启用发现；`config_source: 3` 表示用户自带 `base_url` 和密钥的模型，仍不收录。租户模型的显示名可以与 `config_name` 相同，但空名称、`-` 及非 `chat_completion` 配置仍被排除。
+
+发现与调用能力分别判断。上游 #82 记录的 `use_remote_service: false` 模型由客户端直接访问，当前 `llm_utils_chat` 探测返回 `4001`。本次合入仅补全模型发现，不增加自定义地址或密钥转发，目录可见不代表该模型已通过本插件的真实调用验证。
+
 在 DSH 的「设置 → 模型 → Trae → 编辑」中提供符合 DSH 原生体验的模型管理能力：
 
 1. 刷新 Trae 当前可用模型；
@@ -63,14 +67,14 @@ Trae
    function = solo_work_lite
    ```
 
-两者按**展示名 / config_name** 两级 join：Remote 目录是骨架（`id`/名称/上下文/积分/推理），`get_detail_param` 只附加 `wireConfigName`。join 优先级：
+早期方案按**展示名 / config_name** 两级 join，以 Remote 目录为骨架，并从 `get_detail_param` 补充 `wireConfigName`。这是历史映射规则；当前合并还补充输出上限、`function`、促销及符合条件的 wire 独有模型。历史 join 优先级如下：
 
 1. `wire.config_name` == remote `id`（多数情况，两者相同，无需 `wireConfigName`）；
 2. `wire.display_name` == remote 展示名（历史改名场景，`wireConfigName` 记为 config_name）。
 
 **关键约束（2026-08-30 实测）**：Remote 目录里存在 `get_detail_param` 里**没有对应 `config_name`** 的模型（`Doubao-Seed-Code`、`glm-5.3`），这类模型对 `llm_utils_chat` 必然返回 `4001 "param is invalid"`。
 
-因此 早期曾要求join不到wire行就剔除；该要求已被后续保留目录行、调用时如实报错的策略取代，不应继续执行，不能对外暴露一个每次调用都失败的模型。
+因此，2026-08-30 的早期方案要求剔除未匹配 wire 的行。后续 #19 更正了这一要求：没有查询到 wire 行不等于已经证明模型不可调用，目录合并应保留未知行，并清除缺乏证据的 `function`。可见性随后由 `official-roster` 处理，实际调用失败由请求链路如实报告。
 
 > 为什么需要 `get_detail_param` 补充 wire id：两套接口对同一模型使用不同 id。
 只有 `get_detail_param` 的 `config_name` 才是 `llm_utils_chat` 真正接受的 id，Remote 目录的 `name` 只是展示名。
@@ -80,7 +84,7 @@ Trae
 > **更正（2026-10-01，issue #19 跟进）**：上一条的「不是任何 `config_name`」只对**当时提问过的那几个 function** 成立。
 补测 `chat_v3` 后发现 `Doubao-Seed-Code` 的 `config_name` **就在它的名单里**，并且用 `function: chat_v3` 调用**正常出字**（`glm-5.1`、`qwen-3.5` 同样如此）；ai 区域同理由 `chat_v3` 解锁 6 个模型（`kimi-k2.7-code`、`deepseek-v3.2`、`Dola-Seed-2.0-Code` 等）。
 
-join 规则本身不变（该次仍采用剔除策略，后续 #19 的完整处理已改为保留未知行并清除无证据function），变的是「有没有 wire」必须建立在**完整的 function 名单**上——`get_detail_param` 按 function 返回不同名单，漏问一个宽名单就会得出一批「不存在」的错误结论。
+该次补测仍沿用历史 join 映射，但后续 #19 的完整处理已改为保留未知行并清除缺乏证据的 `function`。这次调查说明，「有没有 wire」必须建立在**完整的 function 名单**上——`get_detail_param` 按 function 返回不同名单，漏问一个宽名单就会得出一批「不存在」的错误结论。
 
 已验证字段映射：
 
@@ -92,7 +96,7 @@ join 规则本身不变（该次仍采用剔除策略，后续 #19 的完整处�
 | remote | `context_window_tokens.max` + `max_mode:true` | 可选的 Max 上下文预算；不生成第二个模型 id |
 | remote | `features` 二次 JSON 解析后的 `consumption_rate.data.rate` | 积分消耗倍率 |
 | remote | `reasoning_effort_config.options` / `default_level` | 推理强度档位 |
-| remote | `multimodal` | 文本/图片输入能力。**2.4.0 起参与图片授权**（与用户手动勾选取并集，见 issue #16）；**但仍不决定可用性**——能否出现在目录里只由下面的 wire join 决定 |
+| remote | `multimodal` | 文本/图片输入能力。**2.4.0 起参与图片授权**（与用户手动勾选取并集，见 issue #16）；**但不单独决定可用性**；当前目录合并与可见性还需分别经过 `mergeTraeModelSources` 和 `official-roster` |
 | wire | `config_name` | `wireConfigName`：发往 `llm_utils_chat` 时替换展示 id 的 wire id |
 | wire | `display_config.display_name` | join 用的展示名 |
 | wire | `model_detail_list[].prompt_max_tokens` | wire 侧上下文窗口（`get_detail_param` **没有** `max_input_tokens` 字段） |

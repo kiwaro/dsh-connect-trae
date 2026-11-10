@@ -295,8 +295,7 @@ const nextSlot = {
 
 ### 修法
 
-新增 `nextRegionDirectory()`(`src/status-paths.ts`):展开旧 slot,再用目录字段覆盖。
-卡片改用它。回归测试在 `tests/issue46-regressions.spec.ts`。
+维护者在 `src/status-paths.ts` 中新增了 `nextRegionDirectory()`。该函数先展开原有区域配置，再用新目录字段覆盖相应值，保留其他配置。卡片改为调用该函数，回归测试位于 `tests/issue46-regressions.spec.ts`。
 
 > 这与 #42 记录的 `maxTokens` 丢失是**同一类缺陷**:整块替换 slot 时,
 > 保存方不知道的字段就消失了。#42 丢的是 `maxTokens`（导致最大输出元数据缺失）,

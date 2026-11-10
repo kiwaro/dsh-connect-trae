@@ -8,7 +8,7 @@
 
 ## 目标
 
-先建立一个符合 DSH 扩展契约、安全边界清晰、可离线验证的 Trae Provider 骨架。第一阶段不承诺未经验证的多端点、多 edition 和完整工具调用，而是先建立最小可靠调用链路。
+本计划的第一阶段由开发者建立 Trae Provider 的基础结构，使其符合 DSH 扩展契约、明确凭据与请求的安全边界，并能够离线验证。开发者应先验证最小调用链路，再根据协议证据扩展多端点、多 edition（产品变体） 和完整工具调用能力。
 
 ## 决策摘要
 
@@ -69,7 +69,7 @@ src/
 验收：
 
 - 用合成 fixture 覆盖格式、路径、损坏内容和并发刷新。
-- 本机只运行脱敏诊断命令，报告版本与文件存在状态，并说明凭据是否到期；隐藏令牌和账号原值。
+- 本机只运行脱敏 `doctor` 诊断命令，报告版本与文件存在状态，并说明凭据是否到期；隐藏令牌和账号原值。
 
 ## 阶段 C：安全 shim 与 adapter
 
@@ -140,7 +140,7 @@ adapter.stream
 - 已建立 TypeScript、Vitest、tsdown 和 pnpm 工程配置。
 - 已创建 `trae` PiAiAdapter，并在 shim ready 后注册 DSH adapter、configurable provider 和 settings namespace。
 - 已建立保守静态模型目录；其上下文参数仅作为骨架占位，真实协议验证后必须校准。
-- 已实现 `127.0.0.1:0` 随机端口和进程内随机凭据。请求校验覆盖 `Host`、`Origin`、`Content-Type` 与 JSON 格式，并限制请求体大小；连接关闭时取消上游请求。
+- 已实现 `127.0.0.1:0` 随机端口和进程内随机 bearer。请求校验覆盖 `Host`、`Origin`、`Content-Type` 与 JSON 格式，并限制请求体大小；连接关闭时通过 abort signal 中止上游请求。
 - 真实 Trae upstream 当前由 `UnconfiguredTraeUpstreamClient` 明确返回 HTTP 503，避免在协议尚未验证时误发请求。
 - 已实现 macOS、Windows、Linux 的四 edition 路径候选，macOS 路径与本机实际安装一致。
 - 已实现按内容识别明文 JSON 或 tc 加密、AES-CBC 解密和 SHA-512 完整性校验。
@@ -150,7 +150,7 @@ adapter.stream
 - 已实现增量 SSE decoder，覆盖 chunk 边界、CRLF、多行 data、data-only、queue/output/reasoning/done、无尾部空行和未知事件。
 - 通过历史日志确认 CN 主聊天候选为 `/api/agent/v3/create_agent_task`，标题任务为 `/api/agent/v3/llm_utils_chat`，CUE agent 则是 `/api/cue_agent/v3/create_agent_task`；三者不再作为同构回退。
 - 已实现不会发网的 CN 请求草案纯函数，并对 SG 系列设置合约拒绝。
-- 已添加模型目录和认证相关测试，覆盖路径探测、解密、凭据存储与设备身份。协议测试覆盖流式解析、Agent 协议草案和 Raw Chat 离线模型；集成测试验证本地服务安全及供应商注册。
+- 已添加模型目录和认证相关测试，覆盖路径探测、解密、凭据存储与设备身份。协议测试覆盖流式解析、Agent 协议草案和 Raw Chat 离线模型；集成测试覆盖 Cordis/LLM provider 注册与 loopback shim 安全，SSE 测试覆盖上述流式事件。
 - `pnpm run check` 已通过：TypeScript检查、10个测试文件共32个测试、tsdown构建全部成功。
 - 使用构建产物对本机四套 Trae 文件做脱敏解析验证：四套均成功识别 access/refresh/host/expiry 的存在性；未输出任何秘密值。
 - 使用构建产物脱敏验证 CN persisted identity：machine ID为64字符、device ID为15字符、平台为darwin，与历史官方请求形态一致。

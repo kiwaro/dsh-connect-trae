@@ -17,7 +17,7 @@
 
 上游记录在 2026-10-24 的 14:40:08、14:41:01 和 14:42:16 发生过三次桌面渲染进程崩溃， （`EXC_BREAKPOINT` / `SIGTRAP`），应用白屏，最后要人工重启。
 
-取证在 `~/Library/Logs/DiagnosticReports/DeepSeek Harness Helper (Renderer)-*.ips`。
+维护者可在 `~/Library/Logs/DiagnosticReports/DeepSeek Harness Helper (Renderer)-*.ips` 中查阅该类崩溃报告。
 
 | 场景 | 行为 |
 | --- | --- |
@@ -32,12 +32,12 @@
 
 本项目旨在实现一个可正常工作的 DSH Trae 接入版本。
 
-开发路线不是直接照搬现有 Trae 项目，而是：
+本项目按以下步骤研究和实现接入：
 
-1. 以已经验证可用的 `dsh-workbuddy-connect` 为成功参考，研究其 DSH 接入架构和完整通信链路。
+1. 开发者以已验证可用的 `dsh-workbuddy-connect` 为参考，研究其 DSH 接入架构和完整通信链路。
 2. 以 `dsh-trae-api` 作为 Trae 侧实现资料和失败样本，定位其不可用的具体原因。
 3. 将 WorkBuddy 项目中可复用的设计思想迁移到本项目，并针对 Trae 的进程、协议、认证、会话及消息机制进行适配。
-4. 在本项目中完成实现和端到端验证，目标是真正可用，而非仅保持代码结构相似。
+4. 在本项目中完成实现和端到端验证，开发者应通过验证确认登录、模型请求和工具调用等流程能够正常运行。
 
 ## 参考项目
 
@@ -97,7 +97,7 @@ DshProject/
 | --- | --- | --- |
 | 账号读取 / 解密 / 区域判定 / 签到 / 用量查询 | 否 | 与平台无关，三平台共用 |
 | 路径解析 `src/paths.ts` | **是** | `%APPDATA%` vs `~/Library/Application Support` vs `$XDG_CONFIG_HOME`；目录拼写按平台多候选探测 |
-| 设备指纹 `src/identity.ts` | **是** | `x-device-type` 的平台取值，以及 `x-os-version`、`product.json` 路径与安装目录名 |
+| 设备指纹 `src/identity.ts` | **是** | `x-device-type` 的`mac` / `windows` / `linux`，以及 `x-os-version`、`product.json` 路径与安装目录名 |
 | 文件锁与原子写 | 否（宿主已处理） | 宿主 `dsh-atomic-write` 原生处理 Windows 独占创建语义 |
 | 外部命令依赖 | **是** | 如 `sqlite3`（Windows 默认无）；新增外部依赖必须先确认 Windows 可用，否则必须有回退处理 |
 
@@ -107,12 +107,18 @@ DshProject/
 2. **不得用仅大小写不同的重复候选**：Windows 文件系统不区分大小写，`trae cn` 与 `Trae CN` 是同一个目录。
 3. 新增外部程序或 POSIX 专有能力依赖时，先确认 Windows 行为，再提供失败时的替代处理，并在 README「Windows 说明」登记限制。例如新增 `sqlite3` 依赖前应核对 Windows 是否安装该程序。
 4. **CI 必须在 `windows-latest` 上通过**（`.github/workflows/ci.yml` 已配置 `ubuntu-latest` + `windows-latest` 双平台矩阵）。新增测试若只覆盖 POSIX 语义，等于没有验证 Windows。
-   - **Windows runner 明显更慢，首个用例承担冷启动**：`vitest.config.ts` 的 `testTimeout` 已相应设为 20s（实测首个用例可达 9.4s）。**出现超时先分清是冷启动还是回归**：只有每个文件的第一个用例慢、同文件其余用例在毫秒级 → 冷启动；原本很快的用例在**所有**平台都变慢 → 真实回归。**不得靠放宽断言来消除超时。**
-   - **时间相关断言要留足余量**：Windows 上 `setTimeout` 与文件系统调用的抖动比 macOS 大，涉及真实时钟的测试不要贴着边界写。
+   - **Windows runner 明显更慢，首个用例承担冷启动**：`vitest.config.ts` 的 `testTimeout` 已相应设为 20s（实测首个用例可达 9.4s）。**出现超时先分清是冷启动还是回归**：如果只有每个文件的首个用例较慢，而同文件其余用例只需毫秒级耗时，应先排查冷启动。如果原本较快的用例在所有平台上均变慢，则应排查实现回归。**不得靠放宽断言来消除超时。**
+   - **时间相关断言要留足余量**：Windows 上 `setTimeout` 与文件系统调用的抖动比 macOS 大，开发者应为涉及真实时钟的断言预留调度误差，避免将期望值设在计时边界上。
 5. **平台相关结论必须区分「已验证」与「未验证」**：macOS 可本机验证，Windows / Linux 目录名等未在真机确认的项，一律在 README 与 `docs/WINDOWS_TOKEN_PROBE.md` 标注为**未验证项**，不得写成既成事实。
 6. **文档同步**：新增平台差异时同步更新 README「平台支持」表与「Windows 说明」，以及 `docs/WINDOWS_TOKEN_PROBE.md` 的排查步骤。
 
 依据与背景见 `docs/WINDOWS_TOKEN_PROBE.md`（真机回报清单）与 `CHANGELOG.md` 2.3.1「Windows 多候选目录探测」。
+
+## 构建前置脚本与文件读取
+
+排查安装阶段是否触发构建时，应分别检查 `prepare`、`prebuild`、`prepack` 和 `prepublishOnly`，不能只核对手动执行的 `build`。`link:` 源码安装会使运行中的 DSH 直接读取同一个 `lib/`；本地维护改用实体副本后，构建仍需完成，但生效以复制产物及哈希核对为准。
+
+`readFile` 读取的缓存或目录文件与网络请求具有不同失败原因；维护者应在对应模块保留文件路径来源和解析错误，诊断输出先经过脱敏函数。
 
 ## 对外发布基准
 

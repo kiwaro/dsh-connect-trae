@@ -85,7 +85,7 @@ package.json           # npm 自动包含
 
 ## 权威发布文档
 
-仓库顶层已存在 `RELEASING.md`，作为当前发布流程。维护该文件时，使用本项目的真实路径、包名、测试命令和账号要求；参考项目提供发布工程思路，具体步骤仍需核对当前实现。
+仓库顶层已存在 `RELEASING.md`，作为当前发布流程。维护该文件时，使用本项目的真实路径、包名、测试命令和账号要求；参考 `dsh-subagent-default-model/RELEASING.md` 提供的发布工程思路，具体步骤仍需核对当前实现。
 
 建议步骤：
 
@@ -110,7 +110,7 @@ package.json           # npm 自动包含
   yml 只含 `url` / `name` / `category` / `description`（见现有草稿 `awesome-dsh-plugin-submission/dingminhua__dsh-connect-trae.yml`）。
 - **README 必须生成、禁止手编**：市场仓库两个 README 由脚本生成，提交 yml 后需在其仓库执行 `npm ci` + `node scripts/generate-readme.mjs`，把生成的 README 与 yml 一起提交。手工编辑 README 是常见打回原因。
 - **硬性要求自检**：`package.json` 声明 `dsh.bundle`（仅 `dsh.client` 会被拒）；仓库满 1 天且提交数 ≥ 10；仓库带 `dsh-plugin` topic；`description.en` 必填、描述属实、不带营销词；`category` 从指南给定的取值里选最贴切的。
-- **截图声明位置**：当时规则要求在项目的 `screenshots.json` 声明 1–8 张截图，使用相对路径；绝对 URL 限 GitHub 托管。市场仓库的 `data/screenshots.json` 用于旧条目回退，新条目使用项目自己的截图清单。
+- **截图声明位置**：当时规则要求在项目的 `screenshots.json` 声明 1–8 张截图，使用相对路径；绝对 URL 限 GitHub 托管。市场仓库的 `data/screenshots.json` 用于旧条目回退，新条目使用项目自己的截图清单，不新增 `data/screenshots.json` 键，也不创建 `screenshots-entry.json` 等重复映射。
 - **依赖与去重**：依赖须指向原作者仓库或其 npm 包；聚合包只收其中的单个插件，不单独收录；一个 PR 最多 3 个条目。
 
 ## 发布门槛

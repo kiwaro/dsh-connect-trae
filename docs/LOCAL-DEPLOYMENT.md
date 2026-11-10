@@ -2,7 +2,7 @@
 
 ## 1. 安装来源与位置
 
-2026-11-06 从 `kiwaro/dsh-connect-trae` fork 建立 `D:/work/dsh-connect-trae` 工作区，基于 4.9.0 完成本地维护，未提交、推送或发布。
+维护者于 2026-11-06 从 `kiwaro/dsh-connect-trae` fork 建立 `D:/work/dsh-connect-trae` 工作区，并基于 4.9.0 完成了首次本地维护。该次安装时尚未提交、推送或发布这些修改；下文记录的是当时的安装与验证结果。
 
 | 对象 | 位置 |
 | --- | --- |
@@ -15,9 +15,9 @@
 
 ## 2. 安装与验证结果
 
-使用 DSH 自带 CLI 执行 `plugin --profile desktop add file:C:/Users/<user>/.dsh/local-plugins/dsh-connect-trae`。desktop 已增加 Trae 依赖及 `dsh.profile.bundles` 条目，保留已有插件与默认模型。
+维护者使用 DSH 自带 CLI 执行了 `plugin --profile desktop add file:C:/Users/<user>/.dsh/local-plugins/dsh-connect-trae`。安装命令在 desktop profile 中增加了 Trae 依赖及 `dsh.profile.bundles` 条目，并保留了已有插件与默认模型。
 
-在独立进程中使用 DSH 自带 Electron/Node 与运行时依赖解析安装副本，并在隔离的临时 DSH_HOME 中加载：
+维护者在独立进程中使用 DSH 自带的 Electron/Node 和运行时依赖解析安装副本，并在隔离的临时 DSH_HOME 中加载插件，得到以下结果：
 
 1. 根入口导入成功，公开运行时导出为 175 项。
 2. 国内版 `trae` 与国际版 `trae-global` 注册成功。
@@ -27,13 +27,13 @@
 
 该检查使用不存在的凭据文件，不读取真实账号，不调用真实模型或签到。普通系统 Node 没有 DSH 的运行时依赖解析环境，直接导入可能报找不到 peer 包；上述验证在 DSH 自带运行时中完成。
 
-## 3. 最新部署与生效验证
+## 3. 2026-11-06 设置页修复与生效验证
 
-2026-11-06 已恢复插件详情页配置卡，构建后更新实体安装目录及 desktop 的 node_modules 副本；两处 lib 文件的 SHA256 与工作区构建结果全部一致。此次产物备份位于 `C:/Users/<user>/AppData/Local/Temp/trae-deploy-20261106-154102`。
+维护者于 2026-11-06 恢复了插件详情页配置卡，重新构建后更新了实体安装目录及 desktop 的 node_modules 副本。校验结果显示，两处 lib 文件的 SHA256 均与工作区构建结果一致。此次产物备份位于 `C:/Users/<user>/AppData/Local/Temp/trae-deploy-20261106-154102`。
 
 类型检查通过。完整测试首次运行有 103 个文件通过，客户端入口断言及发布验证测试出现失败；修正恢复配置卡后的入口断言后，相关 4 个文件、43 项测试复验全部通过，发布验证也已通过。
 
-已按用户授权退出并重新启动 DSH，主进程由 144152 更换为 228384。重启后的真实插件详情页显示账号、模型、诊断分栏与账号池设置，组件状态为“运行中”，代码来源为本地实体安装目录。没有执行真实模型测速或修改账号配置。重启中断了当时未完成的会话请求，DSH 保留记录并标明工具结果未知。
+维护者按用户授权退出并重新启动了 DSH，主进程由 144152 更换为 228384。重启后的真实插件详情页显示账号、模型、诊断分栏与账号池设置，组件状态为“运行中”，代码来源为本地实体安装目录。没有执行真实模型测速或修改账号配置。重启中断了当时未完成的会话请求，DSH 保留记录并标明工具结果未知。
 
 此前记录的依赖版本提示没有阻止此次实际启动。
 
@@ -46,7 +46,7 @@
 
 ## 5. 2026-11-06 文档审核后的部署
 
-20:05 将发布白名单内 20 个文件复制至 local-plugins 与 desktop/node_modules 两处实体安装目录，40 项 SHA256 均与工作区一致。复制前备份位于 `C:/Users/<user>/AppData/Local/Temp/trae-docs-deploy-20261106-200525`。
+维护者于当日 20:05 将发布白名单内的 20 个文件复制到 local-plugins 和 desktop/node_modules 两处实体安装目录，并确认 40 项 SHA256 校验结果均与工作区一致。复制前备份位于 `C:/Users/<user>/AppData/Local/Temp/trae-docs-deploy-20261106-200525`。
 
 类型检查与构建通过。本轮相关测试共 5 个文件、78 项通过；此前完整测试结果为 105 个文件、1354 项通过。此次将模型测试提示改为三分钟后超时取消，与实际 180000 ms 超时配置一致。
 
