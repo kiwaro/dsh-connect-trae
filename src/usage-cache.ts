@@ -32,21 +32,21 @@ function counter(...values: unknown[]): number | undefined {
  * only just parsed JSON, and a payload of `null` / an array / a scalar is a
  * shape this function must survive rather than a type the caller guarantees.
  */
-export function normalizeUsageCache(usage: unknown): Record<string, unknown> {
-  const source = record(usage)
-  const details = record(source['prompt_tokens_details'])
-  const input = record(source['input_tokens_details'])
+export function normalizeUsageCache(value: unknown): Record<string, unknown> {
+  const usage = record(value)
+  const details = record(usage['prompt_tokens_details'])
+  const input = record(usage['input_tokens_details'])
   // Existing canonical values win even when zero. Bare cached_tokens is last:
   // some upstreams emit it as zero alongside their nonzero primary counter.
-  const read = counter(details['cached_tokens'], source['prompt_cache_hit_tokens'], source['cache_read_input_tokens'], input['cached_tokens'], source['cached_tokens'])
-  const write = counter(details['cache_write_tokens'], source['cache_creation_input_tokens'], input['cache_write_tokens'])
+  const read = counter(details['cached_tokens'], usage['prompt_cache_hit_tokens'], usage['cache_read_input_tokens'], input['cached_tokens'], usage['cached_tokens'])
+  const write = counter(details['cache_write_tokens'], usage['cache_creation_input_tokens'], input['cache_write_tokens'])
   // Remove invalid canonical counters too: leaving a negative number in the
   // original details object would let the stream decoder forward it unchanged.
   const normalizedDetails = { ...details }
   delete normalizedDetails['cached_tokens']
   delete normalizedDetails['cache_write_tokens']
-  if (read === undefined && write === undefined && source['prompt_tokens_details'] === undefined) return { ...source }
-  return { ...source, prompt_tokens_details: { ...normalizedDetails,
+  if (read === undefined && write === undefined && usage['prompt_tokens_details'] === undefined) return { ...usage }
+  return { ...usage, prompt_tokens_details: { ...normalizedDetails,
     ...read === undefined ? {} : { cached_tokens: read },
     ...write === undefined ? {} : { cache_write_tokens: write },
   } }

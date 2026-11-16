@@ -50,7 +50,7 @@ describe('cache usage compatibility', () => {
    * tests never sent a malformed one. Measured: released `v4.18.0` completes the
    * same input with its finish chunk intact.
    */
-  it('survives a usage payload that is not an object', async () => {
+  it('keeps the stream open for malformed usage: %j', async () => {
     for (const payload of ['null', '[1,2]', '"foo"', '42', 'true']) {
       // The accessor is the same one the decoder uses; `{}` is the honest
       // answer for "upstream sent something that is not a usage object".

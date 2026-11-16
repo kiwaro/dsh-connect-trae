@@ -4,6 +4,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import type { TraeCatalog } from './catalog.ts'
+import { TraeStreamFailure } from './upstream.ts'
 import type { TraeUpstreamClient, TraeUpstreamErrorKind } from './upstream.ts'
 
 export interface ShimLogger {
@@ -153,6 +154,32 @@ function writeError(res: ServerResponse, status: number, kind: string, message: 
   writeJson(res, status, { error: { message, type: kind, code: kind } })
 }
 
+/**
+ * Write a failure into an SSE body that has already started.
+ *
+ * The shape is OpenAI's own in-stream error payload (`data: {"error":{...}}`),
+ * because that is what an OpenAI-compatible reader understands: the `openai`
+ * SDK throws an `APIError` whose message is the `error.message` here, and the
+ * kernel classifies that text. A bare `[DONE]` would claim success; nothing at
+ * all is the truncated-200 case this exists to end (issue #85).
+ *
+ * Deliberately NOT followed by `[DONE]`: this is a failure, and a terminal
+ * "done" after it would let a client that only looks for the sentinel treat the
+ * turn as completed.
+ */
+function writeStreamError(res: ServerResponse, failure: TraeStreamFailure): void {
+  const payload = JSON.stringify({
+    error: {
+      message: failure.message,
+      type: failure.kind,
+      code: failure.kind,
+      ...failure.traeCode === undefined ? {} : { trae_code: failure.traeCode },
+    },
+  })
+  res.write(`data: ${payload}\n\n`)
+  res.end()
+}
+
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
@@ -221,7 +248,7 @@ export function createTraeShim(options: TraeShimOptions): TraeShim {
     raw: string,
     signal: AbortSignal,
   ): Promise<
-    | { kind: 'stream'; response: Response; accountName: string; notice?: string }
+    | { kind: 'stream'; response: Response; accountId?: string | undefined; pool?: TraeShimPool | undefined; accountName: string; notice?: string }
     | { kind: 'failed'; status: number; code: string; message: string }
   > {
     const pool = route.pool
@@ -240,10 +267,10 @@ export function createTraeShim(options: TraeShimOptions): TraeShim {
         ok: false as const, status: 502, kind: 'server' as const, message: safeAccountMessage(error),
       }))
       if (result.ok) {
-        if (switchedFrom === undefined) return { kind: 'stream', response: result.response, accountName }
+        if (switchedFrom === undefined) return { kind: 'stream', response: result.response, accountId, pool, accountName }
         const text = `${switchedFrom}，已切换账号[${accountName}]继续请求`
         report('ok', text)
-        return { kind: 'stream', response: result.response, accountName, notice: `\n\n> [dsh-connect-trae] ${text}\n\n` }
+        return { kind: 'stream', response: result.response, accountId, pool, accountName, notice: `\n\n> [dsh-connect-trae] ${text}\n\n` }
       }
       const reason = safeAccountMessage(result.message).replace(/\s+/gu, ' ').slice(0, 240)
       const failureText = `账号[${accountName}]请求失败（${result.kind}）：${reason}`
@@ -329,9 +356,54 @@ export function createTraeShim(options: TraeShimOptions): TraeShim {
           const message = `账号[${result.accountName}]响应中断：${safeAccountMessage(error)}`
           options.logger?.warn('dsh-connect-trae: upstream stream failed', message)
           try { route.pool?.event?.({ tone: 'error', text: message }) } catch { /* Keep diagnostics best-effort. */ }
-          // Once streaming started, replaying could duplicate tools or spend.
-          // Send the OpenAI error shape so the host reports a failed turn.
-          if (!res.writableEnded) res.end(`data: ${JSON.stringify({ error: { message, type: 'server', code: 'server' } })}\n\n`)
+          if (!res.writableEnded) {
+            // Issue #85: a failure Trae reported INSIDE the stream must survive the
+            // loopback boundary as a failure, not as a short 200.
+            //
+            // The status line and the first bytes are already gone, so an HTTP
+            // error code is no longer available — but the SSE body is still open,
+            // and an OpenAI-compatible client reads an error payload there as a
+            // real error (`data: {"error":{...}}`, and the SDK throws APIError).
+            // That is what carries the message — including Trae's own text
+            // (`rate limit`), which the kernel's classifier turns into
+            // RATE_LIMIT — instead of a bare EOF that reads as TRANSPORT and is
+            // retried against the same throttled account.
+            //
+            // Only failures that came from the upstream get this frame: a local
+            // abort or a client that went away must still close quietly.
+            if (error instanceof TraeStreamFailure) {
+              // A failure that arrives after the answer began is still an
+              // ACCOUNT fact. The pool must learn it before the next request
+              // ranks accounts, or it walks straight back into the same limit
+              // (`soft_rate` is one of FAILOVER_KINDS for exactly this reason).
+              // Recorded even when the client already left: the account really was
+              // throttled, and that stays true whatever became of the socket.
+              //
+              // Guarded by FAILOVER_KINDS for the reason the pre-stream path
+              // states — a mid-stream failure can still be `client` (an unmeasured
+              // code, or an `error` event with no code at all). Recording that
+              // would exclude a healthy account for 30 minutes over one bad
+              // request: billing moves to the other account in a two-account pool,
+              // and in a one-account pool the rotation stops with nothing on
+              // screen to explain it.
+              if (
+                FAILOVER_KINDS.has(error.kind)
+                && result.accountId !== undefined
+                && result.pool !== undefined
+              ) {
+                void result.pool.failed(result.accountId, error.kind, error.message).catch(() => {})
+              }
+              // The frame itself is pointless once the client is gone, and writing
+              // to a destroyed response is at best a no-op — so close quietly then.
+              if (controller.signal.aborted) {
+                if (!res.writableEnded) res.end()
+                return
+              }
+              writeStreamError(res, error)
+              return
+            }
+            res.end(`data: ${JSON.stringify({ error: { message, type: 'server', code: 'server' } })}\n\n`)
+          }
         })
         body.pipe(res)
         return
